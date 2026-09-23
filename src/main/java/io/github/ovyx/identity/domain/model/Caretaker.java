@@ -1,7 +1,7 @@
 package io.github.ovyx.identity.domain.model;
 
 import io.github.ovyx.identity.domain.PasswordPolicy;
-import io.github.ovyx.identity.domain.Violations;
+import io.github.ovyx.identity.domain.Notification;
 import io.github.ovyx.identity.domain.port.PasswordHasher;
 import io.github.ovyx.identity.domain.valueobject.Cpf;
 import io.github.ovyx.identity.domain.valueobject.Email;
@@ -95,18 +95,18 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
         Clock clock
     ) {
 
-        Violations violations = new Violations();
+        Notification notification = new Notification();
 
-        FullName fullName = violations.collect(() -> FullName.of(rawFullName));
-        Cpf cpf = violations.collect(() -> Cpf.of(rawCpf));
-        Email email = violations.collect(() -> Email.of(rawEmail));
-        MobilePhone mobilePhone = violations.collect(() -> MobilePhone.of(rawMobilePhone));
-        PasswordPolicy.validate(rawPassword, "password", rawEmail, rawCpf, violations);
+        FullName fullName = FullName.of(rawFullName, notification);
+        Cpf cpf = Cpf.of(rawCpf, notification);
+        Email email = Email.of(rawEmail, notification);
+        MobilePhone mobilePhone = MobilePhone.of(rawMobilePhone, notification);
+        PasswordPolicy.validate(rawPassword, "password", rawEmail, rawCpf, notification);
 
         if (role == null) {
-            violations.add("role", "Informe o perfil.");
+            notification.add("role", "Informe o perfil.");
         }
-        violations.throwIfAny();
+        notification.throwIfAny();
 
         Instant now = clock.instant();
         return new Caretaker(
@@ -181,16 +181,16 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
      */
     public void changeOwnPassword(String currentPassword, String newPassword, PasswordHasher hasher, Clock clock) {
 
-        Violations violations = new Violations();
+        Notification notification = new Notification();
 
         if (currentPassword == null || currentPassword.isBlank()) {
-            violations.add("currentPassword", "Informe a senha atual.");
+            notification.add("currentPassword", "Informe a senha atual.");
         } else if (!hasher.matches(currentPassword, passwordHash)) {
-            violations.add("currentPassword", "A senha atual está incorreta.");
+            notification.add("currentPassword", "A senha atual está incorreta.");
         }
 
-        PasswordPolicy.validate(newPassword, "newPassword", email.value(), cpf.value(), violations);
-        violations.throwIfAny();
+        PasswordPolicy.validate(newPassword, "newPassword", email.value(), cpf.value(), notification);
+        notification.throwIfAny();
 
         this.passwordHash = hasher.hash(newPassword);
         this.mustChangePassword = false;

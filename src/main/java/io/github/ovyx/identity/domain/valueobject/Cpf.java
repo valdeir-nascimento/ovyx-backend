@@ -1,6 +1,6 @@
 package io.github.ovyx.identity.domain.valueobject;
 
-import io.github.ovyx.identity.domain.Violations;
+import io.github.ovyx.identity.domain.Notification;
 
 public record Cpf(String value) {
 
@@ -15,17 +15,36 @@ public record Cpf(String value) {
     private static final String FORMATTING_CHARACTERS = "[.\\-\\s]";
 
     /**
+     * Recusa na hora, para quem valida um campo so.
+     *
      * @throws io.github.ovyx.shared.domain.DomainException quando o CPF e ausente ou invalido
      */
     public static Cpf of(String raw) {
+        Notification notification = new Notification();
+        Cpf cpf = of(raw, notification);
+        notification.throwIfAny();
+        return cpf;
+    }
+
+    /**
+     * Valida escrevendo no {@link Notification} de quem chamou, em vez de lancar.
+     *
+     * <p>E o caminho do agregado, que precisa reunir as violacoes de todos os campos antes de
+     * recusar uma vez so (FR-017).
+     *
+     * @return o CPF, ou {@code null} quando alguma regra do campo foi violada
+     */
+    public static Cpf of(String raw, Notification notification) {
         if (raw == null || raw.isBlank()) {
-            throw Violations.of(FIELD, "Informe o CPF.");
+            notification.add(FIELD, "Informe o CPF.");
+            return null;
         }
 
         String digits = raw.replaceAll(FORMATTING_CHARACTERS, "");
 
         if (!isValid(digits)) {
-            throw Violations.of(FIELD, "CPF inválido.");
+            notification.add(FIELD, "CPF inválido.");
+            return null;
         }
 
         return new Cpf(digits);

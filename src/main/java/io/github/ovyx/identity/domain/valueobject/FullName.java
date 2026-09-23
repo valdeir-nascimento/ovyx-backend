@@ -1,6 +1,6 @@
 package io.github.ovyx.identity.domain.valueobject;
 
-import io.github.ovyx.identity.domain.Violations;
+import io.github.ovyx.identity.domain.Notification;
 
 /**
  * Nome completo do responsavel.
@@ -23,24 +23,42 @@ public record FullName(String value) {
      * @throws io.github.ovyx.shared.domain.DomainException quando alguma regra do campo e violada
      */
     public static FullName of(String raw) {
+        Notification notification = new Notification();
+        FullName fullName = of(raw, notification);
+        notification.throwIfAny();
+        return fullName;
+    }
+
+    /**
+     * Valida escrevendo no {@link Notification} de quem chamou, em vez de lancar.
+     *
+     * <p>E o caminho do agregado, que precisa reunir as violacoes de todos os campos antes de
+     * recusar uma vez so (FR-017).
+     *
+     * @return o nome, ou {@code null} quando alguma regra do campo foi violada
+     */
+    public static FullName of(String raw, Notification notification) {
         if (raw == null || raw.isBlank()) {
-            throw Violations.of(FIELD, "Informe o nome completo.");
+            notification.add(FIELD, "Informe o nome completo.");
+            return null;
         }
 
         String trimmed = raw.trim();
-        Violations violations = new Violations();
+        boolean rejected = false;
 
         if (trimmed.length() < MINIMUM_LENGTH) {
-            violations.add(FIELD, "O nome deve ter ao menos 3 caracteres.");
+            notification.add(FIELD, "O nome deve ter ao menos 3 caracteres.");
+            rejected = true;
         } else if (trimmed.length() > MAXIMUM_LENGTH) {
-            violations.add(FIELD, "O nome deve ter no máximo 120 caracteres.");
+            notification.add(FIELD, "O nome deve ter no máximo 120 caracteres.");
+            rejected = true;
         }
         if (trimmed.chars().noneMatch(Character::isLetter)) {
-            violations.add(FIELD, "O nome deve conter ao menos uma letra.");
+            notification.add(FIELD, "O nome deve conter ao menos uma letra.");
+            rejected = true;
         }
-        violations.throwIfAny();
 
-        return new FullName(trimmed);
+        return rejected ? null : new FullName(trimmed);
     }
 
     @Override

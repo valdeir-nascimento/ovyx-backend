@@ -17,9 +17,9 @@ class PasswordPolicyTest {
     private static final String FIELD = "password";
 
     private static String messageOf(String rawPassword, String field, String email, String cpf) {
-        Violations violations = new Violations();
-        PasswordPolicy.validate(rawPassword, field, email, cpf, violations);
-        return violations.details().get(field);
+        Notification notification = new Notification();
+        PasswordPolicy.validate(rawPassword, field, email, cpf, notification);
+        return notification.errors().get(field);
     }
 
     private static String messageOf(String rawPassword) {
@@ -29,11 +29,11 @@ class PasswordPolicyTest {
     @Test
     @DisplayName("accepts a password that meets the policy")
     void acceptsCompliantPassword() {
-        Violations violations = new Violations();
+        Notification notification = new Notification();
 
-        PasswordPolicy.validate("GranjaNorte2026", FIELD, "maria.silva@ovyx.com.br", "52998224725", violations);
+        PasswordPolicy.validate("GranjaNorte2026", FIELD, "maria.silva@ovyx.com.br", "52998224725", notification);
 
-        assertThat(violations.hasAny()).isFalse();
+        assertThat(notification.hasErrors()).isFalse();
     }
 
     @Test
@@ -78,11 +78,11 @@ class PasswordPolicyTest {
     @Test
     @DisplayName("uses the given field name to serve registration and password change")
     void usesTheProvidedFieldName() {
-        Violations violations = new Violations();
+        Notification notification = new Notification();
 
-        PasswordPolicy.validate("abc", "newPassword", null, null, violations);
+        PasswordPolicy.validate("abc", "newPassword", null, null, notification);
 
-        assertThat(violations.details()).containsOnlyKeys("newPassword");
+        assertThat(notification.errors()).containsOnlyKeys("newPassword");
     }
 
     @Test
@@ -98,10 +98,10 @@ class PasswordPolicyTest {
     @Test
     @DisplayName("accepts exactly 128 characters")
     void acceptsExactly128Characters() {
-        Violations violations = new Violations();
+        Notification notification = new Notification();
 
-        PasswordPolicy.validate("Aa1" + "x".repeat(125), FIELD, null, null, violations);
+        PasswordPolicy.validate("Aa1" + "x".repeat(125), FIELD, null, null, notification);
 
-        assertThat(violations.hasAny()).isFalse();
+        assertThat(notification.hasErrors()).isFalse();
     }
 }

@@ -30,30 +30,30 @@ public final class PasswordPolicy {
      *     {@code newPassword} na troca de senha, o que permite a mesma regra servir os dois casos
      * @param email e-mail do responsavel, para recusar senha igual ao identificador; pode ser nulo
      * @param cpf CPF do responsavel, pelo mesmo motivo; pode ser nulo
-     * @param violations acumulador de violacoes
+     * @param notification acumulador das violacoes
      */
-    public static void validate(String rawPassword, String field, String email, String cpf, Violations violations) {
+    public static void validate(String rawPassword, String field, String email, String cpf, Notification notification) {
 
         if (rawPassword == null || rawPassword.isBlank()) {
-            violations.add(field, "Informe a senha.");
+            notification.add(field, "Informe a senha.");
             return;
         }
 
         if (rawPassword.length() < MINIMUM_LENGTH) {
-            violations.add(field, "A senha deve ter ao menos 12 caracteres.");
+            notification.add(field, "A senha deve ter ao menos 12 caracteres.");
         } else if (rawPassword.length() > MAXIMUM_LENGTH) {
             // Limite maximo aqui, e nao como anotacao no corpo HTTP: na borda, a senha recusada
             // era registrada como "valor rejeitado" pelo log de validacao do Spring (FR-021).
-            violations.add(field, "A senha deve ter no máximo 128 caracteres.");
+            notification.add(field, "A senha deve ter no máximo 128 caracteres.");
         }
         if (rawPassword.chars().noneMatch(Character::isLetter)) {
-            violations.add(field, "A senha deve conter ao menos uma letra.");
+            notification.add(field, "A senha deve conter ao menos uma letra.");
         }
         if (rawPassword.chars().noneMatch(Character::isDigit)) {
-            violations.add(field, "A senha deve conter ao menos um dígito.");
+            notification.add(field, "A senha deve conter ao menos um dígito.");
         }
         if (isSameAs(rawPassword, email) || isSameAs(rawPassword, cpf)) {
-            violations.add(field, "A senha não pode ser igual ao e-mail nem ao CPF.");
+            notification.add(field, "A senha não pode ser igual ao e-mail nem ao CPF.");
         }
     }
 

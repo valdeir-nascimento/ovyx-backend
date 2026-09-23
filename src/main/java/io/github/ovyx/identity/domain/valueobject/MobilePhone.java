@@ -1,6 +1,6 @@
 package io.github.ovyx.identity.domain.valueobject;
 
-import io.github.ovyx.identity.domain.Violations;
+import io.github.ovyx.identity.domain.Notification;
 
 /**
  * Celular do responsavel, o segundo identificador de acesso.
@@ -33,14 +33,31 @@ public record MobilePhone(String value) {
      * @throws io.github.ovyx.shared.domain.DomainException quando o celular e ausente ou invalido
      */
     public static MobilePhone of(String raw) {
+        Notification notification = new Notification();
+        MobilePhone mobilePhone = of(raw, notification);
+        notification.throwIfAny();
+        return mobilePhone;
+    }
+
+    /**
+     * Valida escrevendo no {@link Notification} de quem chamou, em vez de lancar.
+     *
+     * <p>E o caminho do agregado, que precisa reunir as violacoes de todos os campos antes de
+     * recusar uma vez so (FR-017).
+     *
+     * @return o celular, ou {@code null} quando alguma regra do campo foi violada
+     */
+    public static MobilePhone of(String raw, Notification notification) {
         if (raw == null || raw.isBlank()) {
-            throw Violations.of(FIELD, "Informe o celular.");
+            notification.add(FIELD, "Informe o celular.");
+            return null;
         }
 
         String digits = raw.replaceAll(FORMATTING_CHARACTERS, "");
 
         if (!isValid(digits)) {
-            throw Violations.of(FIELD, "Informe um celular com DDD, contendo 10 ou 11 dígitos.");
+            notification.add(FIELD, "Informe um celular com DDD, contendo 10 ou 11 dígitos.");
+            return null;
         }
 
         return new MobilePhone(digits);
