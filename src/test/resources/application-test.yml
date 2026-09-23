@@ -1,0 +1,51 @@
+# Perfil usado pelos testes de integracao.
+# A URL do banco NAO aparece aqui: ela vem do contentor Testcontainers, injetada por
+# @DynamicPropertySource em IntegrationTestSupport.
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+  flyway:
+    enabled: true
+  session:
+    # Sem timeout aqui, de proposito: SessionLifecycleIT verifica o valor de application.yml.
+    jdbc:
+      initialize-schema: never
+
+server:
+  servlet:
+    session:
+      cookie:
+        # Os testes falam http com o MockMvc; exigir TLS no cookie quebraria a sessao.
+        secure: false
+
+ovyx:
+  security:
+    argon2:
+      # Parametros reduzidos APENAS em teste: o Argon2id de producao leva centenas de
+      # milissegundos por hash de proposito, o que tornaria a suite lenta sem acrescentar
+      # cobertura. A calibragem real e feita em T122.
+      salt-length: 16
+      hash-length: 32
+      parallelism: 1
+      memory-kb: 1024
+      iterations: 1
+    # Sem sign-in-throttle aqui, de proposito: SignInThrottleIT verifica os valores de
+    # application.yml (FR-023), e nao uma copia deles.
+  bootstrap:
+    administrator:
+      # Senha fixa e aceitavel aqui porque este arquivo so existe em src/test e nunca
+      # e empacotado para nenhum ambiente real.
+      password: SenhaDeTesteOvyx2026
+      # CPF proprio do administrador semeado, para nao colidir com os cadastros criados
+      # pelos testes -- o indice unico de CPF vale para qualquer situacao.
+      cpf: "87543210932"
+      email: admin.teste@ovyx.com.br
+      mobile-phone: "11988880000"
+
+logging:
+  level:
+    io.github.ovyx: INFO
+    org.testcontainers: INFO
+    com.github.dockerjava: WARN

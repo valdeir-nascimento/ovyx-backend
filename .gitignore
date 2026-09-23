@@ -1,0 +1,96 @@
+# =========================
+# Maven
+# =========================
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!.mvn/wrapper/maven-wrapper.properties
+
+# Maven wrapper
+.mvn/wrapper/maven-wrapper.jar
+
+# =========================
+# Java
+# =========================
+*.class
+*.log
+*.ctxt
+*.jar
+*.war
+*.ear
+hs_err_pid*
+
+# =========================
+# Spring Boot
+# =========================
+spring-boot-devtools.properties
+
+# =========================
+# IDE - IntelliJ IDEA
+# =========================
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# =========================
+# IDE - Eclipse / STS
+# =========================
+.classpath
+.project
+.settings/
+.springBeans
+.sts4-cache
+
+# =========================
+# VS Code
+# =========================
+.vscode/
+
+# =========================
+# NetBeans
+# =========================
+/nbproject/private/
+/nbbuild/
+/dist/
+/.nb-gradle/
+
+# =========================
+# OS
+# =========================
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# =========================
+# Logs
+# =========================
+logs/
+*.log
+
+# =========================
+# Environment / Secrets
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Temporary files
+# =========================
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# =========================
+# Coverage
+# =========================
+.jacoco/
+*.exec
+coverage/
+
+# =========================
+# Sonar
+# =========================
+.scannerwork/

@@ -1,0 +1,124 @@
+spring:
+  application:
+    name: ovyx-backend
+
+  datasource:
+    url: ${OVYX_DB_URL:jdbc:postgresql://localhost:5432/ovyx}
+    username: ${OVYX_DB_USER:ovyx}
+    password: ${OVYX_DB_PASSWORD:ovyx}
+
+  jpa:
+    # O schema e criado e evoluido exclusivamente por migracao Flyway (NFR-005).
+    # Alteracao automatica de schema nunca e permitida, em nenhum ambiente.
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+
+  session:
+    # Sessao no servidor: exigida por FR-004, que pede invalidacao imediata no logout.
+    # Ver decisao R-002 em specs/001-auth-foundation/research.md. O armazenamento JDBC vem
+    # do modulo spring-boot-session-jdbc no classpath; a antiga propriedade store-type nao
+    # existe no Spring Boot 4.
+    timeout: 30m
+    jdbc:
+      # As tabelas vem da migracao V4; o Spring Session nao deve cria-las.
+      initialize-schema: never
+
+server:
+  port: 8080
+  # A origem de cada tentativa de acesso vem de request.getRemoteAddr(). Atras de um
+  # proxy reverso confiavel, habilite forward-headers-strategy (native ou framework)
+  # para que o container derive a origem real de X-Forwarded-For. Nunca leia esse
+  # cabecalho a mao: ele e escrito pelo cliente.
+  # forward-headers-strategy: native
+  servlet:
+    session:
+      timeout: 30m
+      cookie:
+        name: SESSION
+        http-only: true
+        secure: true
+        same-site: lax
+  error:
+    # Nenhum detalhe interno vaza em resposta de erro.
+    include-message: never
+    include-stacktrace: never
+    include-binding-errors: never
+
+management:
+  server:
+    # A documentacao da API fica em porta propria, separada da API e da aplicacao
+    # Angular, atendendo FR-026. Ver decisao R-010.
+    # Porta interna: nao deve ser publicada fora da rede de operacao. A cadeia de
+    # seguranca dela libera sem autenticacao so health, info e a documentacao; expor
+    # outro endpoint abaixo nao basta para publica-lo (SecurityConfiguration).
+    port: 9090
+  endpoints:
+    web:
+      exposure:
+        # openapi e swagger-ui sao os endpoints do springdoc quando ele usa a porta
+        # de gerenciamento. Sem eles na lista, a documentacao nao e publicada.
+        include: health,info,openapi,swagger-ui
+
+springdoc:
+  # Na porta de gerenciamento o springdoc publica a documentacao como endpoints do actuator:
+  # interface em /actuator/swagger-ui e documento em /actuator/openapi. Os caminhos
+  # springdoc.swagger-ui.path e springdoc.api-docs.path nao se aplicam nesse modo.
+  use-management-port: true
+  swagger-ui:
+    display-request-duration: true
+
+ovyx:
+  security:
+    # Parametros do Argon2id. Calibrados em T122 para ficar entre 200ms e 500ms
+    # na maquina alvo.
+    argon2:
+      salt-length: 16
+      hash-length: 32
+      parallelism: 1
+      memory-kb: 65536
+      iterations: 3
+    sign-in-throttle:
+      max-failures: 5
+      window: 15m
+      block-duration: 15m
+  bootstrap:
+    administrator:
+      full-name: ${OVYX_BOOTSTRAP_ADMIN_NAME:Administrador do Sistema}
+      cpf: ${OVYX_BOOTSTRAP_ADMIN_CPF:52998224725}
+      email: ${OVYX_BOOTSTRAP_ADMIN_EMAIL:admin@ovyx.com.br}
+      mobile-phone: ${OVYX_BOOTSTRAP_ADMIN_MOBILE:11999999999}
+      # Sem valor padrao: senha fixa publicada em codigo violaria FR-025.
+      # Obrigatoria em todo perfil quando nao ha administrador ativo; sem ela a
+      # aplicacao recusa subir. Nao ha senha gerada nem impressa em log (FR-021).
+      password: ${OVYX_BOOTSTRAP_ADMIN_PASSWORD:}
+
+logging:
+  level:
+    io.github.ovyx: INFO
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+server:
+  servlet:
+    session:
+      cookie:
+        # Em desenvolvimento o acesso e por http, entao o cookie nao pode exigir TLS.
+        secure: false
+
+logging:
+  level:
+    io.github.ovyx: DEBUG
