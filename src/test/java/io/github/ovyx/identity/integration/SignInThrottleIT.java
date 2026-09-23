@@ -1,12 +1,12 @@
 package io.github.ovyx.identity.integration;
 
+import static io.github.ovyx.identity.domain.model.CaretakerTestDataBuilder.aUniqueCaretaker;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import io.github.ovyx.CsrfHandshake;
 import io.github.ovyx.IntegrationTestSupport;
 import io.github.ovyx.identity.domain.model.Caretaker;
-import io.github.ovyx.identity.domain.model.Role;
 import io.github.ovyx.identity.domain.port.CaretakerRepository;
 import io.github.ovyx.identity.domain.port.PasswordHasher;
 import io.github.ovyx.identity.domain.port.SignInThrottle;
@@ -14,6 +14,7 @@ import io.github.ovyx.shared.domain.FixedClock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,6 +42,7 @@ import org.springframework.test.web.servlet.MockMvc;
 class SignInThrottleIT extends IntegrationTestSupport {
 
     private static final String PASSWORD = "GranjaNorte2026";
+    private static final String WRONG_PASSWORD = "SenhaErrada2026";
     private static final Duration WINDOW = Duration.ofMinutes(15);
     private static final Duration BLOCK = Duration.ofMinutes(15);
 
@@ -78,9 +80,7 @@ class SignInThrottleIT extends IntegrationTestSupport {
     }
 
     private void fail(String identifier, String origin, int times) {
-        for (int i = 0; i < times; i++) {
-            throttle.registerFailure(identifier, origin);
-        }
+        IntStream.range(0, times).forEach(attempt -> throttle.registerFailure(identifier, origin));
     }
 
     private MockHttpServletResponse signIn(String identifier, String password) throws Exception {
@@ -94,110 +94,217 @@ class SignInThrottleIT extends IntegrationTestSupport {
                 .getResponse();
     }
 
+    /** Erra a senha cinco vezes pela API e devolve a ultima resposta, para comparar com a seguinte. */
+    private MockHttpServletResponse exhaustAttempts(String email) throws Exception {
+        MockHttpServletResponse last = null;
+        for (int attempt = 1; attempt <= 5; attempt++) {
+            last = signIn(email, WRONG_PASSWORD);
+        }
+        return last;
+    }
+
+    private String registeredEmail() {
+        Caretaker caretaker = aUniqueCaretaker()
+                .withPassword(PASSWORD)
+                .withHasher(passwordHasher)
+                .withClock(clock)
+                .build();
+        caretakerRepository.save(caretaker);
+        return caretaker.email().value();
+    }
+
     @Test
-    @DisplayName("blocks on the fifth failure within the window, not before")
-    void blocksOnTheFifthFailure() {
+    @DisplayName("tolerates four failures within the window")
+    void givenFourFailuresWithinTheWindow_whenChecking_thenDoNotBlockYet() {
+        // given
         String identifier = uniqueIdentifier();
         String origin = uniqueOrigin();
-
         fail(identifier, origin, 4);
-        assertThat(throttle.isBlocked(identifier, origin)).as("quatro falhas ainda sao toleradas").isFalse();
 
-        fail(identifier, origin, 1);
-        assertThat(throttle.isBlocked(identifier, origin)).isTrue();
+        // when
+        boolean blocked = throttle.isBlocked(identifier, origin);
+
+        // then
+        assertThat(blocked).isFalse();
+    }
+
+    @Test
+    @DisplayName("blocks on the fifth failure within the window")
+    void givenFiveFailuresWithinTheWindow_whenChecking_thenBlock() {
+        // given
+        String identifier = uniqueIdentifier();
+        String origin = uniqueOrigin();
+        fail(identifier, origin, 5);
+
+        // when
+        boolean blocked = throttle.isBlocked(identifier, origin);
+
+        // then
+        assertThat(blocked).isTrue();
     }
 
     @Test
     @DisplayName("failures spread across the fifteen-minute window still add up")
-    void failuresSpreadAcrossTheWindowAddUp() {
+    void givenFailuresSpreadAcrossTheWindow_whenChecking_thenAddThemUpAndBlock() {
+        // given
         // Os demais testes registram as falhas no mesmo instante; este prova que a janela tem
         // mesmo quinze minutos, e nao menos.
         String identifier = uniqueIdentifier();
         String origin = uniqueOrigin();
         fail(identifier, origin, 4);
-
         clock.advance(WINDOW.minusSeconds(1));
         fail(identifier, origin, 1);
 
-        assertThat(throttle.isBlocked(identifier, origin)).isTrue();
+        // when
+        boolean blocked = throttle.isBlocked(identifier, origin);
+
+        // then
+        assertThat(blocked).isTrue();
     }
 
     @Test
-    @DisplayName("the block lasts fifteen minutes and then lifts on its own")
-    void blockLastsFifteenMinutes() {
+    @DisplayName("the block still holds one second before fifteen minutes")
+    void givenBlockOneSecondShortOfFifteenMinutes_whenChecking_thenStillBlock() {
+        // given
         String identifier = uniqueIdentifier();
         String origin = uniqueOrigin();
         fail(identifier, origin, 5);
-
         clock.advance(BLOCK.minusSeconds(1));
-        assertThat(throttle.isBlocked(identifier, origin)).as("um segundo antes do fim").isTrue();
 
-        clock.advance(Duration.ofSeconds(2));
-        assertThat(throttle.isBlocked(identifier, origin)).as("um segundo depois do fim").isFalse();
+        // when
+        boolean blocked = throttle.isBlocked(identifier, origin);
+
+        // then
+        assertThat(blocked).isTrue();
     }
 
     @Test
-    @DisplayName("failures older than the window are forgotten and a new window starts")
-    void failuresOutsideTheWindowStartOver() {
+    @DisplayName("the block lifts on its own after fifteen minutes")
+    void givenBlockOlderThanFifteenMinutes_whenChecking_thenLiftIt() {
+        // given
+        String identifier = uniqueIdentifier();
+        String origin = uniqueOrigin();
+        fail(identifier, origin, 5);
+        clock.advance(BLOCK.plusSeconds(1));
+
+        // when
+        boolean blocked = throttle.isBlocked(identifier, origin);
+
+        // then
+        assertThat(blocked).isFalse();
+    }
+
+    @Test
+    @DisplayName("failures older than the window do not add up with new ones")
+    void givenFourOldAndFourNewFailures_whenChecking_thenDoNotAddThemUp() {
+        // given
         String identifier = uniqueIdentifier();
         String origin = uniqueOrigin();
         fail(identifier, origin, 4);
-
         clock.advance(WINDOW.plusSeconds(1));
         fail(identifier, origin, 4);
-        assertThat(throttle.isBlocked(identifier, origin))
-                .as("as quatro falhas antigas nao somam com as quatro novas")
-                .isFalse();
 
-        fail(identifier, origin, 1);
-        assertThat(throttle.isBlocked(identifier, origin)).as("cinco falhas na janela nova").isTrue();
+        // when
+        boolean blocked = throttle.isBlocked(identifier, origin);
+
+        // then
+        assertThat(blocked).isFalse();
     }
 
     @Test
-    @DisplayName("counts each identifier and origin pair on its own")
-    void countsEachPairOnItsOwn() {
+    @DisplayName("a new window starts after the old one expires, and five failures in it block")
+    void givenFiveFailuresInANewWindow_whenChecking_thenBlock() {
+        // given
+        String identifier = uniqueIdentifier();
+        String origin = uniqueOrigin();
+        fail(identifier, origin, 4);
+        clock.advance(WINDOW.plusSeconds(1));
+        fail(identifier, origin, 5);
+
+        // when
+        boolean blocked = throttle.isBlocked(identifier, origin);
+
+        // then
+        assertThat(blocked).isTrue();
+    }
+
+    @Test
+    @DisplayName("a blocked identifier is not blocked from another origin")
+    void givenBlockedPair_whenCheckingTheSameIdentifierFromAnotherOrigin_thenDoNotBlock() {
+        // given
         String identifier = uniqueIdentifier();
         String origin = uniqueOrigin();
         fail(identifier, origin, 5);
+        assertThat(throttle.isBlocked(identifier, origin)).as("precondition: the pair is blocked").isTrue();
 
-        assertThat(throttle.isBlocked(identifier, origin)).isTrue();
-        assertThat(throttle.isBlocked(identifier, uniqueOrigin())).isFalse();
-        assertThat(throttle.isBlocked(uniqueIdentifier(), origin)).isFalse();
+        // when
+        boolean blocked = throttle.isBlocked(identifier, uniqueOrigin());
+
+        // then
+        assertThat(blocked).isFalse();
+    }
+
+    @Test
+    @DisplayName("a blocked origin is not blocked for another identifier")
+    void givenBlockedPair_whenCheckingAnotherIdentifierFromTheSameOrigin_thenDoNotBlock() {
+        // given
+        String identifier = uniqueIdentifier();
+        String origin = uniqueOrigin();
+        fail(identifier, origin, 5);
+        assertThat(throttle.isBlocked(identifier, origin)).as("precondition: the pair is blocked").isTrue();
+
+        // when
+        boolean blocked = throttle.isBlocked(uniqueIdentifier(), origin);
+
+        // then
+        assertThat(blocked).isFalse();
     }
 
     @Test
     @DisplayName("clearing the pair resets its count")
-    void clearingResetsTheCount() {
+    void givenFourFailuresThenCleared_whenFailingFourMoreTimes_thenDoNotBlock() {
+        // given
         String identifier = uniqueIdentifier();
         String origin = uniqueOrigin();
         fail(identifier, origin, 4);
-
         throttle.clear(identifier, origin);
+
+        // when
         fail(identifier, origin, 4);
 
+        // then
         assertThat(throttle.isBlocked(identifier, origin)).isFalse();
     }
 
     @Test
-    @DisplayName("the sixth attempt, even with the right password, gets the generic answer until the block ends")
-    void sixthAttemptLooksLikeAnyFailureUntilTheBlockEnds() throws Exception {
-        // V-13 de ponta a ponta: nada na resposta anuncia o bloqueio, e ele termina sozinho.
-        Caretaker caretaker =
-                TestCaretakers.register(caretakerRepository, passwordHasher, clock, Role.USER, PASSWORD);
-        String email = caretaker.email().value();
+    @DisplayName("the sixth attempt, even with the right password, gets exactly the generic answer")
+    void givenFiveWrongPasswords_whenSigningInWithTheRightOne_thenAnswerExactlyLikeAWrongPassword() throws Exception {
+        // given
+        // V-13 de ponta a ponta: nada na resposta anuncia o bloqueio.
+        String email = registeredEmail();
+        MockHttpServletResponse wrong = exhaustAttempts(email);
 
-        MockHttpServletResponse wrong = null;
-        for (int attempt = 1; attempt <= 5; attempt++) {
-            wrong = signIn(email, "SenhaErrada2026");
-        }
+        // when
         MockHttpServletResponse sixth = signIn(email, PASSWORD);
 
+        // then
         assertThat(sixth.getStatus()).isEqualTo(401);
         assertThat(sixth.getContentAsString()).isEqualTo(wrong.getContentAsString());
         assertThat(sixth.getContentType()).isEqualTo(wrong.getContentType());
+    }
 
+    @Test
+    @DisplayName("the right password is accepted again once the block ends")
+    void givenBlockedAccount_whenSigningInAfterTheBlockEnds_thenAcceptTheRightPassword() throws Exception {
+        // given
+        String email = registeredEmail();
+        exhaustAttempts(email);
         clock.advance(BLOCK.plusSeconds(1));
 
-        assertThat(signIn(email, PASSWORD).getStatus()).as("o bloqueio terminou").isEqualTo(200);
+        // when
+        MockHttpServletResponse afterTheBlock = signIn(email, PASSWORD);
+
+        // then
+        assertThat(afterTheBlock.getStatus()).isEqualTo(200);
     }
 }

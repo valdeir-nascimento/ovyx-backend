@@ -1,5 +1,6 @@
 package io.github.ovyx.identity.application.account;
 
+import static io.github.ovyx.identity.domain.model.CaretakerTestDataBuilder.aCaretaker;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.ovyx.identity.application.InMemoryCaretakerRepository;
@@ -38,16 +39,7 @@ class ChangeOwnPasswordCommandHandlerTest {
     @BeforeEach
     void setUp() {
         handler = new ChangeOwnPasswordCommandHandler(repository, hasher, clock);
-        maria = Caretaker.register(
-                "Maria Silva",
-                "52998224725",
-                "maria.silva@ovyx.com.br",
-                "91988887777",
-                CURRENT,
-                Role.USER,
-                false,
-                hasher,
-                clock);
+        maria = aCaretaker().withPassword(CURRENT).withHasher(hasher).withClock(clock).build();
         repository.save(maria);
     }
 
@@ -55,34 +47,50 @@ class ChangeOwnPasswordCommandHandlerTest {
         return handler.handle(new ChangeOwnPasswordCommand(maria.id(), current, updated));
     }
 
+    private Caretaker reloadedMaria() {
+        return repository.findById(maria.id()).orElseThrow();
+    }
+
     @Test
     @DisplayName("changes the password and the previous one stops working")
-    void changesThePassword() {
+    void givenMatchingCurrentPassword_whenChanging_thenAcceptOnlyTheNewPassword() {
+        // given — Maria is registered in setUp with CURRENT
+
+        // when
         Result<CaretakerId> result = change(CURRENT, NEW);
 
+        // then
         assertThat(result.isSuccess()).isTrue();
-        Caretaker reloaded = repository.findById(maria.id()).orElseThrow();
-        assertThat(reloaded.authenticate(CURRENT, hasher)).isFalse();
-        assertThat(reloaded.authenticate(NEW, hasher)).isTrue();
+        assertThat(reloadedMaria().authenticate(CURRENT, hasher)).isFalse();
+        assertThat(reloadedMaria().authenticate(NEW, hasher)).isTrue();
     }
 
     @Test
     @DisplayName("fails when the current password is wrong and keeps the password")
-    void failsWhenCurrentPasswordIsWrong() {
-        Result<CaretakerId> result = change("SenhaErrada2026", NEW);
+    void givenWrongCurrentPassword_whenChanging_thenFailAndKeepTheOldPassword() {
+        // given
+        String wrongCurrent = "SenhaErrada2026";
 
+        // when
+        Result<CaretakerId> result = change(wrongCurrent, NEW);
+
+        // then
         assertThat(result.isFailure()).isTrue();
         assertThat(result.error().details())
                 .hasEntrySatisfying("currentPassword", message -> assertThat(message).contains("incorreta"));
-        assertThat(repository.findById(maria.id()).orElseThrow().authenticate(CURRENT, hasher))
-                .isTrue();
+        assertThat(reloadedMaria().authenticate(CURRENT, hasher)).isTrue();
     }
 
     @Test
     @DisplayName("fails with ALL policy violations at once")
-    void failsWithEveryPolicyViolationAtOnce() {
-        Result<CaretakerId> result = change(CURRENT, "abc");
+    void givenNewPasswordBreakingTwoRules_whenChanging_thenReportBothViolations() {
+        // given
+        String shortWithoutDigit = "abc";
 
+        // when
+        Result<CaretakerId> result = change(CURRENT, shortWithoutDigit);
+
+        // then
         assertThat(result.isFailure()).isTrue();
         assertThat(result.error().details())
                 .hasEntrySatisfying("newPassword", message -> assertThat(message)
@@ -92,37 +100,50 @@ class ChangeOwnPasswordCommandHandlerTest {
 
     @Test
     @DisplayName("fails as an unavailable caretaker when the caretaker does not exist")
-    void failsWhenCaretakerDoesNotExist() {
-        Result<CaretakerId> result =
-                handler.handle(new ChangeOwnPasswordCommand(CaretakerId.generate(), CURRENT, NEW));
+    void givenUnknownCaretaker_whenChanging_thenFailAsUnavailable() {
+        // given
+        CaretakerId unknown = CaretakerId.generate();
 
+        // when
+        Result<CaretakerId> result = handler.handle(new ChangeOwnPasswordCommand(unknown, CURRENT, NEW));
+
+        // then
         assertThat(result.isFailure()).isTrue();
         assertThat(result.error().code()).isEqualTo(IdentityErrorCode.CARETAKER_UNAVAILABLE.code());
     }
 
     @Test
     @DisplayName("refuses the change for an inactive caretaker and keeps the password")
-    void refusesInactiveCaretaker() {
+    void givenInactiveCaretaker_whenChanging_thenFailAsUnavailableAndKeepThePassword() {
+        // given
         // A sessao pode sobreviver a inativacao. Inativo nao entra no sistema (invariante 4), e
         // trocar a senha por uma sessao antiga seria um jeito de continuar agindo sobre a conta.
         maria.deactivate(clock);
         repository.save(maria);
 
+        // when
         Result<CaretakerId> result = change(CURRENT, NEW);
 
+        // then
         assertThat(result.isFailure()).isTrue();
         assertThat(result.error().code()).isEqualTo(IdentityErrorCode.CARETAKER_UNAVAILABLE.code());
         maria.reactivate(clock);
-        assertThat(repository.findById(maria.id()).orElseThrow().authenticate(CURRENT, hasher))
+        assertThat(reloadedMaria().authenticate(CURRENT, hasher))
                 .as("a senha anterior continua valendo")
                 .isTrue();
     }
 
     @Test
     @DisplayName("reports both missing passwords in a single round")
-    void reportsBothMissingPasswordsAtOnce() {
-        Result<CaretakerId> result = change(null, null);
+    void givenBothPasswordsMissing_whenChanging_thenReportBothInASingleRound() {
+        // given
+        String missingCurrent = null;
+        String missingNew = null;
 
+        // when
+        Result<CaretakerId> result = change(missingCurrent, missingNew);
+
+        // then
         assertThat(result.error().details())
                 .containsOnlyKeys("currentPassword", "newPassword")
                 .containsEntry("currentPassword", "Informe a senha atual.")
@@ -131,21 +152,24 @@ class ChangeOwnPasswordCommandHandlerTest {
 
     @Test
     @DisplayName("clears the obligation to change the password")
-    void clearsTheObligationToChange() {
-        Caretaker seeded = Caretaker.register(
-                "Administrador do Sistema",
-                "11144477735",
-                "admin@ovyx.com.br",
-                "91991110000",
-                "TrocarNoPrimeiroAcesso2026",
-                Role.ADMINISTRATOR,
-                true,
-                hasher,
-                clock);
+    void givenSeededAdministratorWithProvisionalPassword_whenChanging_thenClearTheObligation() {
+        // given
+        Caretaker seeded = aCaretaker()
+                .withCpf("11144477735")
+                .withEmail("admin@ovyx.com.br")
+                .withMobilePhone("91991110000")
+                .withPassword("TrocarNoPrimeiroAcesso2026")
+                .withRole(Role.ADMINISTRATOR)
+                .withPendingPasswordChange()
+                .withHasher(hasher)
+                .withClock(clock)
+                .build();
         repository.save(seeded);
 
+        // when
         handler.handle(new ChangeOwnPasswordCommand(seeded.id(), "TrocarNoPrimeiroAcesso2026", NEW));
 
+        // then
         assertThat(repository.findById(seeded.id()).orElseThrow().mustChangePassword())
                 .isFalse();
     }

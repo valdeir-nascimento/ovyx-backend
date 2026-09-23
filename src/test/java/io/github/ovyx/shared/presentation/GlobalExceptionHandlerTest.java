@@ -6,11 +6,16 @@ import io.github.ovyx.shared.domain.DomainException;
 import io.github.ovyx.shared.domain.ErrorCode;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.ErrorResponse;
 import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -28,41 +33,55 @@ class GlobalExceptionHandlerTest {
 
     private final GlobalExceptionHandler handler = new GlobalExceptionHandler();
 
-    @Test
-    @DisplayName("keeps the status of every framework error it translates")
-    void keepsTheStatusOfFrameworkErrors() {
-        ResponseEntity<ProblemDetail> methodNotAllowed =
-                handler.onSpringMvcError(new HttpRequestMethodNotSupportedException("PATCH"));
-        ResponseEntity<ProblemDetail> notAcceptable =
-                handler.onSpringMvcError(new HttpMediaTypeNotAcceptableException("application/xml"));
-        ResponseEntity<ProblemDetail> unsupportedMediaType =
-                handler.onSpringMvcError(new HttpMediaTypeNotSupportedException(
-                        MediaType.TEXT_PLAIN, List.of(MediaType.APPLICATION_JSON)));
+    private static Stream<Arguments> frameworkErrors() {
+        return Stream.of(
+                Arguments.of(new HttpRequestMethodNotSupportedException("PATCH"), 405),
+                Arguments.of(new HttpMediaTypeNotAcceptableException("application/xml"), 406),
+                Arguments.of(
+                        new HttpMediaTypeNotSupportedException(
+                                MediaType.TEXT_PLAIN, List.of(MediaType.APPLICATION_JSON)),
+                        415));
+    }
 
-        assertThat(methodNotAllowed.getStatusCode().value()).isEqualTo(405);
-        assertThat(notAcceptable.getStatusCode().value()).isEqualTo(406);
-        assertThat(unsupportedMediaType.getStatusCode().value()).isEqualTo(415);
-        assertThat(List.of(methodNotAllowed.getBody(), notAcceptable.getBody(), unsupportedMediaType.getBody()))
-                .allSatisfy(problem ->
-                        assertThat(problem.getProperties()).containsEntry("code", "REQUEST_NOT_ACCEPTABLE"));
+    @ParameterizedTest(name = "{0} keeps {1}")
+    @MethodSource("frameworkErrors")
+    @DisplayName("keeps the status of every framework error it translates")
+    void givenFrameworkError_whenTranslating_thenKeepItsStatusUnderOneStableCode(
+            ErrorResponse error, int status) {
+        // given — error and its status from @MethodSource
+
+        // when
+        ResponseEntity<ProblemDetail> response = handler.onSpringMvcError(error);
+
+        // then
+        assertThat(response.getStatusCode().value()).isEqualTo(status);
+        assertThat(response.getBody().getProperties()).containsEntry("code", "REQUEST_NOT_ACCEPTABLE");
     }
 
     @Test
     @DisplayName("answers in Portuguese, never echoing what the client sent")
-    void answersInPortugueseWithoutEchoingTheRequest() {
-        ResponseEntity<ProblemDetail> response =
-                handler.onSpringMvcError(new HttpRequestMethodNotSupportedException("PATCH"));
+    void givenMethodNotSupported_whenTranslating_thenAnswerInPortugueseWithoutEchoingTheRequest() {
+        // given
+        HttpRequestMethodNotSupportedException patchNotSupported = new HttpRequestMethodNotSupportedException("PATCH");
 
+        // when
+        ResponseEntity<ProblemDetail> response = handler.onSpringMvcError(patchNotSupported);
+
+        // then
         assertThat(response.getBody().getDetail()).isEqualTo("A requisição não é suportada por este endereço.");
         assertThat(response.getBody().getTitle()).isEqualTo("Requisição não suportada");
     }
 
     @Test
     @DisplayName("translates a domain exception that escaped a handler, keeping its code")
-    void translatesEscapedDomainException() {
-        ResponseEntity<ProblemDetail> response =
-                handler.onDomain(new DomainException(CODE, "Responsável inativo.", Map.of("status", "INACTIVE")));
+    void givenDomainExceptionThatEscapedAHandler_whenTranslating_thenAnswer409KeepingItsCode() {
+        // given
+        DomainException escaped = new DomainException(CODE, "Responsável inativo.", Map.of("status", "INACTIVE"));
 
+        // when
+        ResponseEntity<ProblemDetail> response = handler.onDomain(escaped);
+
+        // then
         assertThat(response.getStatusCode().value()).isEqualTo(409);
         assertThat(response.getBody().getProperties())
                 .containsEntry("code", "CARETAKER_INACTIVE")
@@ -71,10 +90,14 @@ class GlobalExceptionHandlerTest {
 
     @Test
     @DisplayName("turns an unexpected failure into a generic 500 without leaking its cause")
-    void turnsUnexpectedFailureIntoGeneric500() {
-        ResponseEntity<ProblemDetail> response =
-                handler.onUnexpected(new IllegalStateException("conexão recusada em postgres://interno:5432"));
+    void givenUnexpectedFailureWithInternalDetails_whenTranslating_thenAnswerGeneric500WithoutLeakingThem() {
+        // given
+        IllegalStateException unexpected = new IllegalStateException("conexão recusada em postgres://interno:5432");
 
+        // when
+        ResponseEntity<ProblemDetail> response = handler.onUnexpected(unexpected);
+
+        // then
         assertThat(response.getStatusCode().value()).isEqualTo(500);
         assertThat(response.getBody().getProperties()).containsEntry("code", "INTERNAL_ERROR");
         assertThat(response.getBody().getDetail()).doesNotContain("postgres");

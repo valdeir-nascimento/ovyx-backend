@@ -5,12 +5,49 @@ import io.github.ovyx.shared.domain.ErrorCode;
 /**
  * Codigos estaveis das regras do contexto Identity.
  *
- * <p>O codigo e o contrato: o cliente distingue a regra violada por ele, nunca pelo texto da
- * mensagem, que pode mudar sem aviso.
+ * <p>O codigo e o contrato: quem reage a recusa distingue a regra violada por ele, nunca pelo texto
+ * da mensagem, que pode mudar sem aviso.
+ *
+ * <p>Ha dois niveis. Os codigos de recusa ({@link #VALIDATION_FAILED} e os demais do fim da lista)
+ * identificam a operacao recusada e chegam ao cliente no campo {@code code}. Os codigos de regra
+ * identificam cada violacao dentro de uma recusa de validacao, um por regra.
  */
 public enum IdentityErrorCode implements ErrorCode {
 
-    /** Uma ou mais regras de formato ou de politica foram violadas; os campos vem em {@code details}. */
+    // ---------------------------------------------------------------- regras de validacao
+
+    FULL_NAME_REQUIRED,
+    FULL_NAME_TOO_SHORT,
+    FULL_NAME_TOO_LONG,
+    FULL_NAME_WITHOUT_LETTER,
+
+    CPF_REQUIRED,
+    /** Formato, sequencia repetida ou digito verificador: uma violacao so, porque a pessoa corrige o CPF inteiro. */
+    CPF_INVALID,
+
+    EMAIL_REQUIRED,
+    EMAIL_TOO_LONG,
+    EMAIL_MALFORMED,
+
+    MOBILE_PHONE_REQUIRED,
+    /** Quantidade de digitos, DDD ou letra: uma violacao so, pelo mesmo motivo do CPF. */
+    MOBILE_PHONE_INVALID,
+
+    PASSWORD_REQUIRED,
+    PASSWORD_TOO_SHORT,
+    PASSWORD_TOO_LONG,
+    PASSWORD_WITHOUT_LETTER,
+    PASSWORD_WITHOUT_DIGIT,
+    PASSWORD_EQUALS_IDENTIFIER,
+
+    CURRENT_PASSWORD_REQUIRED,
+    CURRENT_PASSWORD_INCORRECT,
+
+    ROLE_REQUIRED,
+
+    // ---------------------------------------------------------------- recusas de operacao
+
+    /** Uma ou mais regras de validacao foram violadas; cada uma vem, com o seu codigo, na recusa. */
     VALIDATION_FAILED,
 
     /**

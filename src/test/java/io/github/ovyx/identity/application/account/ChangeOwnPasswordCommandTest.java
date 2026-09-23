@@ -15,10 +15,15 @@ class ChangeOwnPasswordCommandTest {
 
     @Test
     @DisplayName("masks both passwords")
-    void masksBothPasswords() {
-        String text = new ChangeOwnPasswordCommand(CaretakerId.generate(), "GranjaNorte2026", "PosturaAviario2027")
-                .toString();
+    void givenPasswordChangeCommand_whenDescribingIt_thenMaskBothPasswords() {
+        // given
+        ChangeOwnPasswordCommand command =
+                new ChangeOwnPasswordCommand(CaretakerId.generate(), "GranjaNorte2026", "PosturaAviario2027");
 
+        // when
+        String text = command.toString();
+
+        // then
         assertThat(text).doesNotContain("GranjaNorte2026").doesNotContain("PosturaAviario2027");
     }
 }

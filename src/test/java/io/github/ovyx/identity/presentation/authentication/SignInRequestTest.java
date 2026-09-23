@@ -16,9 +16,14 @@ class SignInRequestTest {
 
     @Test
     @DisplayName("masks the password and keeps the identifier")
-    void masksPassword() {
-        String text = new SignInRequest("maria.silva@ovyx.com.br", "GranjaNorte2026").toString();
+    void givenSignInBody_whenDescribingIt_thenMaskThePasswordAndKeepTheIdentifier() {
+        // given
+        SignInRequest body = new SignInRequest("maria.silva@ovyx.com.br", "GranjaNorte2026");
 
+        // when
+        String text = body.toString();
+
+        // then
         assertThat(text).doesNotContain("GranjaNorte2026").contains("maria.silva@ovyx.com.br");
     }
 }

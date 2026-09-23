@@ -3,9 +3,11 @@ package io.github.ovyx;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 import jakarta.servlet.http.Cookie;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
@@ -25,7 +27,8 @@ public final class CsrfHandshake {
     private static final String COOKIE = "XSRF-TOKEN";
     private static final String HEADER = "X-XSRF-TOKEN";
 
-    private CsrfHandshake() {}
+    private CsrfHandshake() {
+    }
 
     /**
      * Pos-processador que acrescenta o cookie e o cabecalho obtidos da propria API.
@@ -41,8 +44,8 @@ public final class CsrfHandshake {
             List<Cookie> cookies = new ArrayList<>();
             if (request.getCookies() != null) {
                 Arrays.stream(request.getCookies())
-                        .filter(cookie -> !COOKIE.equals(cookie.getName()))
-                        .forEach(cookies::add);
+                    .filter(cookie -> !COOKIE.equals(cookie.getName()))
+                    .forEach(cookies::add);
             }
             cookies.add(token);
 

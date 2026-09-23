@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.converter.ByteArrayHttpMessageConverter;
@@ -37,8 +38,14 @@ class JsonConverterConfigurationTest {
 
     @Test
     @DisplayName("replaces the default JSON converter instead of adding a second one")
-    void replacesTheDefaultJsonConverter() {
-        assertThat(converters())
+    void givenBootDefaultJsonConverter_whenCustomizing_thenReplaceItInsteadOfAddingASecondOne() {
+        // given — converters() registers the Boot default before customizing
+
+        // when
+        List<HttpMessageConverter<?>> converters = converters();
+
+        // then
+        assertThat(converters)
                 .filteredOn(JacksonJsonHttpMessageConverter.class::isInstance)
                 .singleElement()
                 .isInstanceOf(RedactingJsonHttpMessageConverter.class);
@@ -46,21 +53,22 @@ class JsonConverterConfigurationTest {
 
     @Test
     @DisplayName("keeps the byte array converter ahead of the JSON converter")
-    void keepsByteArraysAheadOfJson() {
+    void givenByteArrayAndJsonConverters_whenCustomizing_thenKeepByteArraysAheadOfJson() {
+        // given — converters() registers the Boot defaults, byte array included
+
+        // when
         List<HttpMessageConverter<?>> converters = converters();
 
+        // then
         int byteArray = indexOf(converters, ByteArrayHttpMessageConverter.class);
         int json = indexOf(converters, RedactingJsonHttpMessageConverter.class);
-
         assertThat(byteArray).isNotNegative().isLessThan(json);
     }
 
     private static int indexOf(List<HttpMessageConverter<?>> converters, Class<?> type) {
-        for (int i = 0; i < converters.size(); i++) {
-            if (type.isInstance(converters.get(i))) {
-                return i;
-            }
-        }
-        return -1;
+        return IntStream.range(0, converters.size())
+                .filter(position -> type.isInstance(converters.get(position)))
+                .findFirst()
+                .orElse(-1);
     }
 }

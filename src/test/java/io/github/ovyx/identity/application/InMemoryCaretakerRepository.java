@@ -4,6 +4,7 @@ import io.github.ovyx.identity.domain.model.Caretaker;
 import io.github.ovyx.identity.domain.model.CaretakerId;
 import io.github.ovyx.identity.domain.model.Role;
 import io.github.ovyx.identity.domain.port.CaretakerRepository;
+
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -34,16 +35,16 @@ public final class InMemoryCaretakerRepository implements CaretakerRepository {
     @Override
     public Optional<Caretaker> findByEmailOrMobilePhone(String canonicalIdentifier) {
         return stored.values().stream()
-                .filter(caretaker -> caretaker.email().value().equals(canonicalIdentifier)
-                        || caretaker.mobilePhone().value().equals(canonicalIdentifier))
-                .min(Comparator.comparing(caretaker -> !caretaker.isActive()));
+            .filter(caretaker -> caretaker.email().value().equals(canonicalIdentifier)
+                || caretaker.mobilePhone().value().equals(canonicalIdentifier))
+            .min(Comparator.comparing(caretaker -> !caretaker.isActive()));
     }
 
     @Override
     public long countActiveAdministrators() {
         return stored.values().stream()
-                .filter(Caretaker::isActive)
-                .filter(caretaker -> caretaker.role() == Role.ADMINISTRATOR)
-                .count();
+            .filter(Caretaker::isActive)
+            .filter(caretaker -> caretaker.role() == Role.ADMINISTRATOR)
+            .count();
     }
 }

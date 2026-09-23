@@ -16,10 +16,14 @@ class SignInCommandTest {
 
     @Test
     @DisplayName("masks the password and keeps the identifier")
-    void masksPassword() {
-        String text = new SignInCommand("maria.silva@ovyx.com.br", "GranjaNorte2026", "203.0.113.42").toString();
+    void givenSignInCommand_whenDescribingIt_thenMaskThePasswordAndKeepTheIdentifier() {
+        // given
+        SignInCommand command = new SignInCommand("maria.silva@ovyx.com.br", "GranjaNorte2026", "203.0.113.42");
 
-        assertThat(text).doesNotContain("GranjaNorte2026");
-        assertThat(text).contains("maria.silva@ovyx.com.br");
+        // when
+        String text = command.toString();
+
+        // then
+        assertThat(text).doesNotContain("GranjaNorte2026").contains("maria.silva@ovyx.com.br");
     }
 }

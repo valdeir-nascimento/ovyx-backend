@@ -33,14 +33,18 @@ class RedactingJsonHttpMessageConverterTest {
 
     @Test
     @DisplayName("never echoes the unreadable content in the error message or its cause")
-    void neverEchoesUnreadableContent() {
+    void givenMalformedBodyWithAPassword_whenReading_thenFailWithoutEchoingTheContent() {
+        // given
+        MockHttpInputMessage malformed = body("""
+                {"identifier": "maria@ovyx.com.br", "password": SegredoReal2026}
+                """);
+
+        // when
         HttpMessageNotReadableException failure = catchThrowableOfType(
                 HttpMessageNotReadableException.class,
-                () -> converter.read(
-                        ResolvableType.forClass(Map.class),
-                        body("{\"identifier\": \"maria@ovyx.com.br\", \"password\": SegredoReal2026}"),
-                        null));
+                () -> converter.read(ResolvableType.forClass(Map.class), malformed, null));
 
+        // then
         assertThat(failure).isNotNull();
         assertThat(failure.getMessage()).doesNotContain("Segredo").contains("linha 1");
         assertThat(failure.getCause()).as("a causa do parser carrega o trecho lido").isNull();
@@ -48,10 +52,16 @@ class RedactingJsonHttpMessageConverterTest {
 
     @Test
     @DisplayName("still reads a well-formed body")
-    void stillReadsWellFormedBody() throws Exception {
-        Object read = converter.read(
-                ResolvableType.forClass(Map.class), body("{\"identifier\": \"maria@ovyx.com.br\"}"), null);
+    void givenWellFormedBody_whenReading_thenReturnTheParsedContent() throws Exception {
+        // given
+        MockHttpInputMessage wellFormed = body("""
+                {"identifier": "maria@ovyx.com.br"}
+                """);
 
+        // when
+        Object read = converter.read(ResolvableType.forClass(Map.class), wellFormed, null);
+
+        // then
         assertThat(read).isEqualTo(Map.of("identifier", "maria@ovyx.com.br"));
     }
 }

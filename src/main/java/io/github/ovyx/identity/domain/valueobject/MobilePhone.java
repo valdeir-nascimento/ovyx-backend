@@ -1,6 +1,9 @@
 package io.github.ovyx.identity.domain.valueobject;
 
-import io.github.ovyx.identity.domain.Notification;
+import io.github.ovyx.identity.domain.IdentityErrorCode;
+import io.github.ovyx.shared.domain.Notification;
+import io.github.ovyx.shared.domain.Rule;
+import java.util.List;
 
 /**
  * Celular do responsavel, o segundo identificador de acesso.
@@ -30,37 +33,40 @@ public record MobilePhone(String value) {
     static final String FORMATTING_CHARACTERS = "[()\\-.\\s]";
 
     /**
+     * Uma regra so, de proposito: quantidade de digitos, DDD e letra levam a mesma correcao, e a
+     * mensagem diz de uma vez o formato esperado.
+     */
+    private static final List<Rule<String>> RULES = List.of(Rule.of(
+            MobilePhone::isValid,
+            IdentityErrorCode.MOBILE_PHONE_INVALID,
+            "Informe um celular com DDD, contendo 10 ou 11 dígitos."));
+
+    /**
+     * Registra no {@link Notification} as violacoes do campo, sem lancar.
+     *
+     * <p>E o caminho do agregado, que reune as violacoes de todos os campos antes de recusar (FR-017).
+     */
+    public static void validate(String raw, Notification notification) {
+        if (notification.requirePresent(
+                FIELD, raw, IdentityErrorCode.MOBILE_PHONE_REQUIRED, "Informe o celular.")) {
+            notification.check(FIELD, digitsOf(raw), RULES);
+        }
+    }
+
+    /**
+     * Cria o celular, recusando na hora com as violacoes do campo.
+     *
      * @throws io.github.ovyx.shared.domain.DomainException quando o celular e ausente ou invalido
      */
     public static MobilePhone of(String raw) {
         Notification notification = new Notification();
-        MobilePhone mobilePhone = of(raw, notification);
-        notification.throwIfAny();
-        return mobilePhone;
+        validate(raw, notification);
+        notification.throwIfAny(IdentityErrorCode.VALIDATION_FAILED);
+        return new MobilePhone(digitsOf(raw));
     }
 
-    /**
-     * Valida escrevendo no {@link Notification} de quem chamou, em vez de lancar.
-     *
-     * <p>E o caminho do agregado, que precisa reunir as violacoes de todos os campos antes de
-     * recusar uma vez so (FR-017).
-     *
-     * @return o celular, ou {@code null} quando alguma regra do campo foi violada
-     */
-    public static MobilePhone of(String raw, Notification notification) {
-        if (raw == null || raw.isBlank()) {
-            notification.add(FIELD, "Informe o celular.");
-            return null;
-        }
-
-        String digits = raw.replaceAll(FORMATTING_CHARACTERS, "");
-
-        if (!isValid(digits)) {
-            notification.add(FIELD, "Informe um celular com DDD, contendo 10 ou 11 dígitos.");
-            return null;
-        }
-
-        return new MobilePhone(digits);
+    private static String digitsOf(String raw) {
+        return raw.replaceAll(FORMATTING_CHARACTERS, "");
     }
 
     private static boolean isValid(String digits) {

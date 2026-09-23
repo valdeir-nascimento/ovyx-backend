@@ -5,6 +5,8 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 import com.tngtech.archunit.base.DescribedPredicate;
 import com.tngtech.archunit.core.domain.JavaClass;
+import com.tngtech.archunit.core.domain.JavaCodeUnit;
+import com.tngtech.archunit.core.domain.JavaMethodCall;
 import com.tngtech.archunit.core.domain.properties.CanBeAnnotated;
 import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
@@ -12,6 +14,10 @@ import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
 import io.github.ovyx.shared.application.CommandHandler;
 import io.github.ovyx.shared.application.QueryHandler;
+import io.github.ovyx.shared.domain.DomainException;
+import java.util.HashSet;
+import java.util.Optional;
+import java.util.Set;
 
 /**
  * As regras de arquitetura do Ovyx, em um unico lugar.
@@ -165,5 +171,95 @@ public final class ArchitectureRules {
                 }
             }
         };
+    }
+
+    /**
+     * Principio IV: o tratador captura a recusa do dominio e a traduz em {@code Failure}.
+     *
+     * <p>A {@code DomainException} nao e declarada, entao o compilador nao cobra o {@code catch}. Sem
+     * esta regra, um {@code catch} esquecido deixa a excecao chegar ao tratador global, que ainda
+     * responde um 400 plausivel — a fatia parece funcionar, o {@code Result} deixa de ser o canal de
+     * falha, e nenhum teste percebe.
+     *
+     * <p>A verificacao e sobre a <em>chamada</em>, nao sobre a classe: exige que a chamada que pode
+     * provocar a recusa esteja dentro de um {@code try} que a captura. Um {@code catch} em outro
+     * metodo, ou em outro trecho do mesmo metodo, nao conta.
+     */
+    public static final ArchRule HANDLERS_MUST_CATCH_DOMAIN_REFUSALS = classes()
+            .that()
+            .implement(CommandHandler.class)
+            .or()
+            .implement(QueryHandler.class)
+            .should(catchTheDomainRefusalsTheyProvoke())
+            .because("o caso de uso traduz a recusa do dominio em Failure; deixa-la escapar reprova (principio IV)");
+
+    private static ArchCondition<JavaClass> catchTheDomainRefusalsTheyProvoke() {
+        return new ArchCondition<>("catch the domain refusals they provoke") {
+            @Override
+            public void check(JavaClass handler, ConditionEvents events) {
+                for (JavaCodeUnit codeUnit : handler.getCodeUnits()) {
+                    for (JavaMethodCall call : codeUnit.getMethodCallsFromSelf()) {
+                        // So a chamada que cruza para o dominio interessa. Sem este filtro, o metodo
+                        // ponte que o compilador gera para a interface generica — handle(Command),
+                        // que so delega ao handle tipado — aparecia como violacao, embora o metodo
+                        // real capture. Chamada interna da propria classe e avaliada no ponto em que
+                        // ela mesma chama o dominio.
+                        if (!isDomain(call.getTargetOwner())) {
+                            continue;
+                        }
+                        if (provokesRefusal(call) && !isCaughtAtTheCall(call)) {
+                            events.add(SimpleConditionEvent.violated(
+                                    handler,
+                                    codeUnit.getFullName() + " chama " + call.getTarget().getFullName()
+                                            + ", que recusa por DomainException, sem capturar a recusa"));
+                        }
+                    }
+                }
+            }
+        };
+    }
+
+    /** Classes do dominio, de qualquer contexto delimitado. */
+    private static boolean isDomain(JavaClass javaClass) {
+        return javaClass.getPackageName().contains(".domain");
+    }
+
+    /** Verdadeiro quando o alvo da chamada pode recusar, direta ou indiretamente, dentro do dominio. */
+    private static boolean provokesRefusal(JavaMethodCall call) {
+        return call.getTarget()
+                .resolveMember()
+                .map(target -> refuses(target, new HashSet<>()))
+                .orElse(false);
+    }
+
+    /**
+     * Verdadeiro quando o metodo constroi uma {@code DomainException}, ou chama alguem do dominio que
+     * a constroi.
+     *
+     * <p>Olha a construcao da excecao, e nao o nome de quem acumula: assim a regra sobrevive a
+     * renomeacao do acumulador, e vale para qualquer recusa futura escrita a mao.
+     */
+    private static boolean refuses(JavaCodeUnit codeUnit, Set<String> visited) {
+        if (!visited.add(codeUnit.getFullName())) {
+            return false;
+        }
+        boolean buildsRefusal = codeUnit.getConstructorCallsFromSelf().stream()
+                .anyMatch(construction -> construction.getTargetOwner().isAssignableTo(DomainException.class));
+        if (buildsRefusal) {
+            return true;
+        }
+        return codeUnit.getMethodCallsFromSelf().stream()
+                .filter(call -> isDomain(call.getTargetOwner()))
+                .map(call -> call.getTarget().resolveMember())
+                .flatMap(Optional::stream)
+                .anyMatch(target -> refuses(target, visited));
+    }
+
+    /** Verdadeiro quando a propria chamada esta dentro de um {@code try} que captura a recusa. */
+    private static boolean isCaughtAtTheCall(JavaMethodCall call) {
+        return call.getOwner().getTryCatchBlocks().stream()
+                .filter(block -> block.getAccessesContainedInTryBlock().contains(call))
+                .anyMatch(block -> block.getCaughtThrowables().stream()
+                        .anyMatch(caught -> caught.isAssignableFrom(DomainException.class)));
     }
 }

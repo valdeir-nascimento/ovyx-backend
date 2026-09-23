@@ -10,6 +10,8 @@ import java.net.URI;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 
@@ -31,66 +33,99 @@ class ResultHttpMapperTest {
 
     @Test
     @DisplayName("answers 200 with the value on success")
-    void answersOkOnSuccess() {
-        ResponseEntity<Object> response = mapper.ok(Result.success("ovyx"));
+    void givenSuccess_whenAnsweringOk_thenReturn200WithTheValue() {
+        // given
+        Result<String> success = Result.success("ovyx");
 
+        // when
+        ResponseEntity<Object> response = mapper.ok(success);
+
+        // then
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         assertThat(response.getBody()).isEqualTo("ovyx");
     }
 
     @Test
     @DisplayName("answers 204 without body on success")
-    void answersNoContentOnSuccess() {
-        ResponseEntity<Object> response = mapper.noContent(Result.success("ovyx"));
+    void givenSuccess_whenAnsweringNoContent_thenReturn204WithoutBody() {
+        // given
+        Result<String> success = Result.success("ovyx");
 
+        // when
+        ResponseEntity<Object> response = mapper.noContent(success);
+
+        // then
         assertThat(response.getStatusCode().value()).isEqualTo(204);
         assertThat(response.getBody()).isNull();
     }
 
     @Test
     @DisplayName("answers 201 with Location on success")
-    void answersCreatedOnSuccess() {
-        ResponseEntity<Object> response =
-                mapper.created(Result.success("ovyx"), value -> URI.create("/api/v1/" + value));
+    void givenSuccess_whenAnsweringCreated_thenReturn201WithLocation() {
+        // given
+        Result<String> success = Result.success("ovyx");
 
+        // when
+        ResponseEntity<Object> response = mapper.created(success, value -> URI.create("/api/v1/" + value));
+
+        // then
         assertThat(response.getStatusCode().value()).isEqualTo(201);
         assertThat(response.getHeaders().getLocation()).hasToString("/api/v1/ovyx");
     }
 
     @Test
     @DisplayName("turns a validation failure into 400 carrying the code and every field")
-    void turnsValidationFailureIntoBadRequest() {
+    void givenValidationFailureWithTwoFields_whenAnswering_thenReturn400WithCodeAndEveryField() {
+        // given
         ApplicationError error = new ApplicationError(
                 ErrorType.VALIDATION,
                 "VALIDATION_FAILED",
                 "Dados inválidos.",
                 Map.of("email", "Informe o e-mail.", "cpf", "CPF inválido."));
 
+        // when
         ResponseEntity<Object> response = mapper.ok(Result.failure(error));
 
+        // then
         assertThat(response.getStatusCode().value()).isEqualTo(400);
         assertThat(bodyOf(response).getProperties())
                 .containsEntry("code", "VALIDATION_FAILED")
                 .containsEntry("details", Map.of("email", "Informe o e-mail.", "cpf", "CPF inválido."));
     }
 
-    @Test
+    @ParameterizedTest(name = "{0} answers {1}")
+    @CsvSource({
+        "VALIDATION, 400",
+        "UNAUTHENTICATED, 401",
+        "FORBIDDEN, 403",
+        "NOT_FOUND, 404",
+        "CONFLICT, 409",
+        "BUSINESS_RULE, 409"
+    })
     @DisplayName("maps each error type to the status the contract promises")
-    void mapsEveryErrorTypeToItsStatus() {
-        assertThat(statusOf(ErrorType.VALIDATION)).isEqualTo(400);
-        assertThat(statusOf(ErrorType.UNAUTHENTICATED)).isEqualTo(401);
-        assertThat(statusOf(ErrorType.FORBIDDEN)).isEqualTo(403);
-        assertThat(statusOf(ErrorType.NOT_FOUND)).isEqualTo(404);
-        assertThat(statusOf(ErrorType.CONFLICT)).isEqualTo(409);
-        assertThat(statusOf(ErrorType.BUSINESS_RULE)).isEqualTo(409);
+    void givenErrorType_whenAnsweringTheProblem_thenUseTheStatusTheContractPromises(ErrorType type, int status) {
+        // given
+        ApplicationError error = ApplicationError.of(type, "ANY_CODE", "mensagem");
+
+        // when
+        ResponseEntity<Object> response = mapper.problem(error);
+
+        // then
+        assertThat(response.getStatusCode().value()).isEqualTo(status);
     }
 
     @Test
     @DisplayName("counts each failure by code, so the rule can be watched in production")
-    void countsEachFailureByCode() {
-        mapper.problem(ApplicationError.of(ErrorType.UNAUTHENTICATED, "INVALID_CREDENTIALS", "Inválidos."));
-        mapper.problem(ApplicationError.of(ErrorType.UNAUTHENTICATED, "INVALID_CREDENTIALS", "Inválidos."));
+    void givenTwoFailuresWithTheSameCode_whenAnswering_thenCountBothUnderThatCode() {
+        // given
+        ApplicationError invalidCredentials =
+                ApplicationError.of(ErrorType.UNAUTHENTICATED, "INVALID_CREDENTIALS", "Inválidos.");
 
+        // when
+        mapper.problem(invalidCredentials);
+        mapper.problem(invalidCredentials);
+
+        // then
         assertThat(meterRegistry
                         .counter("ovyx.result.failure", "code", "INVALID_CREDENTIALS", "type", "UNAUTHENTICATED")
                         .count())
@@ -99,16 +134,14 @@ class ResultHttpMapperTest {
 
     @Test
     @DisplayName("omits details when the error carries none")
-    void omitsEmptyDetails() {
-        ResponseEntity<Object> response =
-                mapper.problem(ApplicationError.of(ErrorType.FORBIDDEN, "FORBIDDEN", "Sem permissão."));
+    void givenErrorWithoutDetails_whenAnswering_thenOmitTheDetailsProperty() {
+        // given
+        ApplicationError withoutDetails = ApplicationError.of(ErrorType.FORBIDDEN, "FORBIDDEN", "Sem permissão.");
 
+        // when
+        ResponseEntity<Object> response = mapper.problem(withoutDetails);
+
+        // then
         assertThat(bodyOf(response).getProperties()).doesNotContainKey("details");
-    }
-
-    private int statusOf(ErrorType type) {
-        return mapper.problem(ApplicationError.of(type, "ANY_CODE", "mensagem"))
-                .getStatusCode()
-                .value();
     }
 }

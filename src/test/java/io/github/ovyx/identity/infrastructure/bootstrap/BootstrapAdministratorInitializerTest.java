@@ -7,6 +7,7 @@ import io.github.ovyx.identity.application.InMemoryCaretakerRepository;
 import io.github.ovyx.identity.application.administratorseeding.SeedInitialAdministratorCommandHandler;
 import io.github.ovyx.identity.domain.FakePasswordHasher;
 import io.github.ovyx.shared.domain.FixedClock;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -34,24 +35,43 @@ class BootstrapAdministratorInitializerTest {
 
     @Test
     @DisplayName("creates the initial administrator from the configuration")
-    void createsAdministratorFromConfiguration() {
-        initializer("87543210932", PASSWORD).run(null);
+    void givenValidConfiguration_whenStarting_thenCreateTheInitialAdministrator() {
+        // given
+        BootstrapAdministratorInitializer initializer = initializer("87543210932", PASSWORD);
 
+        // when
+        initializer.run(null);
+
+        // then
         assertThat(repository.findByEmailOrMobilePhone("admin@ovyx.com.br")).isPresent();
     }
 
     @Test
     @DisplayName("refuses to start without a password and says which variable to set")
-    void refusesToStartWithoutPassword() {
-        assertThatThrownBy(() -> initializer("87543210932", "").run(null))
+    void givenMissingPassword_whenStarting_thenRefuseNamingTheVariableToSet() {
+        // given
+        BootstrapAdministratorInitializer initializer = initializer("87543210932", "");
+
+        // when
+        ThrowingCallable startup = () -> initializer.run(null);
+
+        // then
+        assertThatThrownBy(startup)
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("OVYX_BOOTSTRAP_ADMIN_PASSWORD");
     }
 
     @Test
     @DisplayName("refuses to start with an invalid configuration and does not echo the password")
-    void refusesInvalidConfigurationWithoutEchoingPassword() {
-        assertThatThrownBy(() -> initializer("12345678901", PASSWORD).run(null))
+    void givenInvalidCpfInConfiguration_whenStarting_thenRefuseWithoutEchoingThePassword() {
+        // given
+        BootstrapAdministratorInitializer initializer = initializer("12345678901", PASSWORD);
+
+        // when
+        ThrowingCallable startup = () -> initializer.run(null);
+
+        // then
+        assertThatThrownBy(startup)
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("cpf=CPF inválido.")
                 .hasMessageNotContaining(PASSWORD);

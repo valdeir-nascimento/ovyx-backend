@@ -1,7 +1,7 @@
 package io.github.ovyx.identity.domain.model;
 
 import io.github.ovyx.identity.domain.PasswordPolicy;
-import io.github.ovyx.identity.domain.Notification;
+import io.github.ovyx.identity.domain.IdentityErrorCode;
 import io.github.ovyx.identity.domain.port.PasswordHasher;
 import io.github.ovyx.identity.domain.valueobject.Cpf;
 import io.github.ovyx.identity.domain.valueobject.Email;
@@ -9,6 +9,7 @@ import io.github.ovyx.identity.domain.valueobject.FullName;
 import io.github.ovyx.identity.domain.valueobject.MobilePhone;
 import io.github.ovyx.identity.domain.valueobject.PasswordHash;
 import io.github.ovyx.shared.domain.AggregateRoot;
+import io.github.ovyx.shared.domain.Notification;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -77,9 +78,9 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
     /**
      * Cadastra um responsavel.
      *
-     * <p>Cada objeto de valor e criado de forma independente, de proposito: se a criacao parasse na
-     * primeira falha, quem preenche o formulario veria um erro por vez. As violacoes de todos os
-     * campos saem juntas, em {@code details} (FR-017).
+     * <p>Cada campo e validado de forma independente, de proposito: se a validacao parasse na
+     * primeira falha, quem preenche o formulario veria um erro por vez. As violacoes de cada campo
+     * sao reunidas no {@link Notification} e saem juntas, numa recusa so (FR-017).
      *
      * @throws io.github.ovyx.shared.domain.DomainException quando algum campo viola uma regra
      */
@@ -97,24 +98,25 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
 
         Notification notification = new Notification();
 
-        FullName fullName = FullName.of(rawFullName, notification);
-        Cpf cpf = Cpf.of(rawCpf, notification);
-        Email email = Email.of(rawEmail, notification);
-        MobilePhone mobilePhone = MobilePhone.of(rawMobilePhone, notification);
+        FullName.validate(rawFullName, notification);
+        Cpf.validate(rawCpf, notification);
+        Email.validate(rawEmail, notification);
+        MobilePhone.validate(rawMobilePhone, notification);
         PasswordPolicy.validate(rawPassword, "password", rawEmail, rawCpf, notification);
-
         if (role == null) {
-            notification.add("role", "Informe o perfil.");
+            notification.add("role", IdentityErrorCode.ROLE_REQUIRED, "Informe o perfil.");
         }
-        notification.throwIfAny();
+        notification.throwIfAny(IdentityErrorCode.VALIDATION_FAILED);
 
+        // Daqui em diante cada campo ja passou pelas proprias regras: construir os objetos de valor
+        // nao recusa mais, e nenhum deles precisa existir pela metade.
         Instant now = clock.instant();
         return new Caretaker(
             CaretakerId.generate(),
-            fullName,
-            cpf,
-            email,
-            mobilePhone,
+            FullName.of(rawFullName),
+            Cpf.of(rawCpf),
+            Email.of(rawEmail),
+            MobilePhone.of(rawMobilePhone),
             hasher.hash(rawPassword),
             role,
             CaretakerStatus.ACTIVE,
@@ -183,14 +185,14 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
 
         Notification notification = new Notification();
 
-        if (currentPassword == null || currentPassword.isBlank()) {
-            notification.add("currentPassword", "Informe a senha atual.");
-        } else if (!hasher.matches(currentPassword, passwordHash)) {
-            notification.add("currentPassword", "A senha atual está incorreta.");
+        boolean currentInformed = notification.requirePresent(
+                "currentPassword", currentPassword, IdentityErrorCode.CURRENT_PASSWORD_REQUIRED, "Informe a senha atual.");
+        if (currentInformed && !hasher.matches(currentPassword, passwordHash)) {
+            notification.add(
+                    "currentPassword", IdentityErrorCode.CURRENT_PASSWORD_INCORRECT, "A senha atual está incorreta.");
         }
-
         PasswordPolicy.validate(newPassword, "newPassword", email.value(), cpf.value(), notification);
-        notification.throwIfAny();
+        notification.throwIfAny(IdentityErrorCode.VALIDATION_FAILED);
 
         this.passwordHash = hasher.hash(newPassword);
         this.mustChangePassword = false;

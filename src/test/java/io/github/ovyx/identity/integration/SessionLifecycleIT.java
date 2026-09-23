@@ -1,5 +1,6 @@
 package io.github.ovyx.identity.integration;
 
+import static io.github.ovyx.identity.domain.model.CaretakerTestDataBuilder.aUniqueCaretaker;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -9,12 +10,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import io.github.ovyx.CsrfHandshake;
 import io.github.ovyx.IntegrationTestSupport;
 import io.github.ovyx.identity.domain.model.Caretaker;
-import io.github.ovyx.identity.domain.model.Role;
 import io.github.ovyx.identity.domain.port.CaretakerRepository;
 import io.github.ovyx.identity.domain.port.PasswordHasher;
-import java.time.Clock;
 import jakarta.servlet.http.Cookie;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
@@ -28,6 +28,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 
 /**
  * Ciclo de vida da sessao no servidor, contra PostgreSQL real (T050, FR-003, FR-004).
@@ -42,6 +43,31 @@ class SessionLifecycleIT extends IntegrationTestSupport {
 
     private static final String PASSWORD = "GranjaNorte2026";
     private static final Duration TIMEOUT = Duration.ofMinutes(30);
+
+    private static final String COUNT_SESSION = """
+            SELECT count(*)
+              FROM spring_session
+             WHERE session_id = ?
+            """;
+
+    private static final String LAST_ACCESS = """
+            SELECT last_access_time
+              FROM spring_session
+             WHERE session_id = ?
+            """;
+
+    private static final String MAX_INACTIVE = """
+            SELECT max_inactive_interval
+              FROM spring_session
+             WHERE session_id = ?
+            """;
+
+    private static final String MOVE_LAST_ACCESS = """
+            UPDATE spring_session
+               SET last_access_time = ?,
+                   expiry_time = ? + max_inactive_interval * 1000
+             WHERE session_id = ?
+            """;
 
     @Autowired
     private MockMvc mockMvc;
@@ -66,8 +92,12 @@ class SessionLifecycleIT extends IntegrationTestSupport {
     }
 
     private Cookie[] signIn() throws Exception {
-        Caretaker caretaker =
-                TestCaretakers.register(caretakerRepository, passwordHasher, clock, Role.USER, PASSWORD);
+        Caretaker caretaker = aUniqueCaretaker()
+                .withPassword(PASSWORD)
+                .withHasher(passwordHasher)
+                .withClock(clock)
+                .build();
+        caretakerRepository.save(caretaker);
         return mockMvc.perform(post("/api/v1/auth/sign-in")
                         .with(CsrfHandshake.using(mockMvc))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -90,49 +120,48 @@ class SessionLifecycleIT extends IntegrationTestSupport {
     }
 
     private long sessionRows(String sessionId) {
-        Long rows = jdbc.queryForObject(
-                "select count(*) from spring_session where session_id = ?", Long.class, sessionId);
+        Long rows = jdbc.queryForObject(COUNT_SESSION, Long.class, sessionId);
         return rows == null ? 0 : rows;
     }
 
     private long lastAccess(String sessionId) {
-        Long lastAccess = jdbc.queryForObject(
-                "select last_access_time from spring_session where session_id = ?", Long.class, sessionId);
+        Long lastAccess = jdbc.queryForObject(LAST_ACCESS, Long.class, sessionId);
         return lastAccess == null ? 0 : lastAccess;
     }
 
     /** Faz de conta que a sessao nao e usada ha {@code idle}. */
     private void idleFor(String sessionId, Duration idle) {
         long lastAccess = Instant.now().minus(idle).toEpochMilli();
-        jdbc.update(
-                "update spring_session set last_access_time = ?, expiry_time = ? + max_inactive_interval * 1000"
-                        + " where session_id = ?",
-                lastAccess,
-                lastAccess,
-                sessionId);
+        jdbc.update(MOVE_LAST_ACCESS, lastAccess, lastAccess, sessionId);
     }
 
     @Test
     @DisplayName("the session times out after thirty minutes of inactivity")
-    void timeoutIsThirtyMinutes() throws Exception {
+    void givenNewSession_whenReadingItsTimeout_thenFindThirtyMinutes() throws Exception {
+        // given
         String sessionId = sessionId(signIn());
 
-        Integer maxInactive = jdbc.queryForObject(
-                "select max_inactive_interval from spring_session where session_id = ?", Integer.class, sessionId);
+        // when
+        Integer maxInactive = jdbc.queryForObject(MAX_INACTIVE, Integer.class, sessionId);
 
+        // then
         assertThat(maxInactive).isEqualTo((int) TIMEOUT.toSeconds());
     }
 
     @Test
     @DisplayName("a session used within the timeout stays valid and its countdown restarts")
-    void activeSessionIsRenewed() throws Exception {
+    void givenSessionIdleForAlmostTheTimeout_whenUsingIt_thenAcceptAndRestartTheCountdown() throws Exception {
+        // given
         Cookie[] cookies = signIn();
         String sessionId = sessionId(cookies);
         idleFor(sessionId, TIMEOUT.minusMinutes(1));
         long beforeRequest = Instant.now().toEpochMilli();
 
-        mockMvc.perform(get("/api/v1/auth/me").cookie(cookies)).andExpect(status().isOk());
+        // when
+        ResultActions response = mockMvc.perform(get("/api/v1/auth/me").cookie(cookies));
 
+        // then
+        response.andExpect(status().isOk());
         assertThat(lastAccess(sessionId))
                 .as("a inatividade e contada a partir do ultimo uso, e nao da entrada")
                 .isGreaterThanOrEqualTo(beforeRequest);
@@ -140,31 +169,38 @@ class SessionLifecycleIT extends IntegrationTestSupport {
 
     @Test
     @DisplayName("a session idle beyond the timeout is refused as expired and removed from the server")
-    void idleSessionExpires() throws Exception {
+    void givenSessionIdleBeyondTheTimeout_whenUsingIt_thenRefuseAsExpiredAndRemoveIt() throws Exception {
+        // given
         // V-03.
         Cookie[] cookies = signIn();
         String sessionId = sessionId(cookies);
         idleFor(sessionId, TIMEOUT.plusMinutes(1));
 
-        mockMvc.perform(get("/api/v1/auth/me").cookie(cookies))
-                .andExpect(status().isUnauthorized())
+        // when
+        ResultActions response = mockMvc.perform(get("/api/v1/auth/me").cookie(cookies));
+
+        // then
+        response.andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"))
                 .andExpect(jsonPath("$.detail").value("Sua sessão expirou. Entre novamente para continuar."));
-
         assertThat(sessionRows(sessionId)).isZero();
     }
 
     @Test
     @DisplayName("signing out removes the session from the server and refuses the old cookie at once")
-    void signOutRemovesTheSession() throws Exception {
+    void givenOpenSession_whenSigningOut_thenRemoveItAndRefuseTheOldCookie() throws Exception {
+        // given
         // V-04, olhando tambem o servidor: a sessao deixa de existir, e nao so de ser aceita.
         Cookie[] cookies = signIn();
         String sessionId = sessionId(cookies);
-        assertThat(sessionRows(sessionId)).isEqualTo(1);
+        assertThat(sessionRows(sessionId)).as("precondition: the session exists").isEqualTo(1);
 
-        mockMvc.perform(post("/api/v1/auth/sign-out").with(CsrfHandshake.using(mockMvc)).cookie(cookies))
-                .andExpect(status().isNoContent());
+        // when
+        ResultActions response = mockMvc.perform(
+                post("/api/v1/auth/sign-out").with(CsrfHandshake.using(mockMvc)).cookie(cookies));
 
+        // then
+        response.andExpect(status().isNoContent());
         assertThat(sessionRows(sessionId)).isZero();
         mockMvc.perform(get("/api/v1/auth/me").cookie(cookies)).andExpect(status().isUnauthorized());
     }

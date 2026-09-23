@@ -14,12 +14,15 @@ class BootstrapAdministratorPropertiesTest {
 
     @Test
     @DisplayName("masks the password and keeps the other fields")
-    void masksThePassword() {
-        String text = new BootstrapAdministratorProperties(
-                        "Administrador do Sistema", "52998224725", "admin@ovyx.com.br", "11999999999",
-                        "ProvisoriaGranja2026")
-                .toString();
+    void givenConfigurationWithProvisionalPassword_whenDescribingIt_thenMaskOnlyThePassword() {
+        // given
+        BootstrapAdministratorProperties properties = new BootstrapAdministratorProperties(
+                "Administrador do Sistema", "52998224725", "admin@ovyx.com.br", "11999999999", "ProvisoriaGranja2026");
 
+        // when
+        String text = properties.toString();
+
+        // then
         assertThat(text)
                 .doesNotContain("ProvisoriaGranja2026")
                 .contains("password=****")

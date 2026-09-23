@@ -1,5 +1,6 @@
 package io.github.ovyx.identity.application.administratorseeding;
 
+import static io.github.ovyx.identity.domain.model.CaretakerTestDataBuilder.aCaretaker;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.ovyx.identity.application.InMemoryCaretakerRepository;
@@ -36,9 +37,13 @@ class SeedInitialAdministratorCommandHandlerTest {
 
     @Test
     @DisplayName("creates the initial administrator obliged to change the password")
-    void createsAdministratorObligedToChangePassword() {
+    void givenNoActiveAdministrator_whenSeeding_thenCreateAnAdministratorObligedToChangeThePassword() {
+        // given — the repository starts empty
+
+        // when
         Result<SeedingOutcome> result = handler.handle(command("87543210932", PASSWORD));
 
+        // then
         assertThat(result.isSuccess()).isTrue();
         assertThat(result.value()).isEqualTo(SeedingOutcome.CREATED);
         Caretaker admin = repository.findByEmailOrMobilePhone("admin@ovyx.com.br").orElseThrow();
@@ -49,20 +54,15 @@ class SeedInitialAdministratorCommandHandlerTest {
 
     @Test
     @DisplayName("does nothing when an active administrator already exists, even without a password")
-    void doesNothingWhenAdministratorExists() {
-        repository.save(Caretaker.register(
-                "Maria Silva",
-                "52998224725",
-                "maria.silva@ovyx.com.br",
-                "91988887777",
-                "GranjaNorte2026",
-                Role.ADMINISTRATOR,
-                false,
-                hasher,
-                clock));
+    void givenActiveAdministrator_whenSeedingWithoutPassword_thenCreateNobody() {
+        // given
+        repository.save(
+                aCaretaker().withRole(Role.ADMINISTRATOR).withHasher(hasher).withClock(clock).build());
 
+        // when
         Result<SeedingOutcome> result = handler.handle(command("87543210932", ""));
 
+        // then
         assertThat(result.value()).isEqualTo(SeedingOutcome.NOT_NEEDED);
         assertThat(repository.countActiveAdministrators()).isEqualTo(1);
         assertThat(repository.findByEmailOrMobilePhone("admin@ovyx.com.br")).isEmpty();
@@ -70,21 +70,30 @@ class SeedInitialAdministratorCommandHandlerTest {
 
     @Test
     @DisplayName("fails without a password instead of generating one")
-    void failsWithoutPassword() {
+    void givenBlankPassword_whenSeeding_thenFailInsteadOfGeneratingOne() {
+        // given
         // A versao anterior gerava uma senha e a imprimia no log, contrariando FR-021.
-        Result<SeedingOutcome> result = handler.handle(command("87543210932", " "));
+        String blankPassword = " ";
 
+        // when
+        Result<SeedingOutcome> result = handler.handle(command("87543210932", blankPassword));
+
+        // then
         assertThat(result.isFailure()).isTrue();
-        assertThat(SeedInitialAdministratorCommandHandler.PASSWORD_REQUIRED.equals(result.error().code()))
-                .isTrue();
+        assertThat(result.error().code()).isEqualTo(SeedInitialAdministratorCommandHandler.PASSWORD_REQUIRED);
         assertThat(repository.countActiveAdministrators()).isZero();
     }
 
     @Test
     @DisplayName("fails with every violation of an invalid configuration and never echoes the password")
-    void failsWithInvalidConfigurationWithoutEchoingPassword() {
-        Result<SeedingOutcome> result = handler.handle(command("12345678901", PASSWORD));
+    void givenInvalidCpfInConfiguration_whenSeeding_thenFailWithoutEchoingThePassword() {
+        // given
+        String invalidCpf = "12345678901";
 
+        // when
+        Result<SeedingOutcome> result = handler.handle(command(invalidCpf, PASSWORD));
+
+        // then
         assertThat(result.isFailure()).isTrue();
         assertThat(result.error().details()).containsEntry("cpf", "CPF inválido.");
         assertThat(result.error().details().toString()).doesNotContain(PASSWORD);
@@ -94,7 +103,14 @@ class SeedInitialAdministratorCommandHandlerTest {
 
     @Test
     @DisplayName("never exposes the password in the command description")
-    void commandDescriptionMasksPassword() {
-        assertThat(command("87543210932", PASSWORD).toString()).doesNotContain(PASSWORD).contains("****");
+    void givenSeedingCommandWithPassword_whenDescribingIt_thenMaskThePassword() {
+        // given
+        SeedInitialAdministratorCommand command = command("87543210932", PASSWORD);
+
+        // when
+        String description = command.toString();
+
+        // then
+        assertThat(description).doesNotContain(PASSWORD).contains("****");
     }
 }

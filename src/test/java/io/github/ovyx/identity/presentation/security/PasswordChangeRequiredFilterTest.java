@@ -53,13 +53,16 @@ class PasswordChangeRequiredFilterTest {
 
     @Test
     @DisplayName("blocks any other operation while the password change is pending")
-    void blocksOtherOperationsWhilePending() throws Exception {
+    void givenPendingPasswordChange_whenCallingAnotherOperation_thenBlockWith403() throws Exception {
+        // given
         authenticate(true);
         MockHttpServletResponse response = new MockHttpServletResponse();
         MockFilterChain chain = new MockFilterChain();
 
+        // when
         filter.doFilter(request("GET", "/api/v1/caretakers"), response, chain);
 
+        // then
         assertThat(chain.getRequest()).as("a requisicao nao pode seguir adiante").isNull();
         assertThat(response.getStatus()).isEqualTo(403);
         assertThat(response.getContentType()).startsWith("application/problem+json");
@@ -68,7 +71,7 @@ class PasswordChangeRequiredFilterTest {
                 .contains("\"instance\":\"/api/v1/caretakers\"");
     }
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "{0} {1}")
     @CsvSource({
         "PUT, /api/v1/me/password",
         "POST, /api/v1/auth/sign-out",
@@ -76,46 +79,59 @@ class PasswordChangeRequiredFilterTest {
         "POST, /api/v1/auth/sign-in"
     })
     @DisplayName("lets the allowed operations through while the password change is pending")
-    void letsAllowedOperationsThrough(String method, String uri) throws Exception {
+    void givenPendingPasswordChange_whenCallingAnAllowedOperation_thenLetItThrough(String method, String uri)
+            throws Exception {
+        // given
         authenticate(true);
         MockFilterChain chain = new MockFilterChain();
 
+        // when
         filter.doFilter(request(method, uri), new MockHttpServletResponse(), chain);
 
+        // then
         assertThat(chain.getRequest()).isNotNull();
     }
 
     @Test
     @DisplayName("matches method and path together, so the right path with another method is blocked")
-    void matchesMethodAndPathTogether() throws Exception {
+    void givenPendingPasswordChange_whenCallingTheAllowedPathWithAnotherMethod_thenBlockWith403() throws Exception {
+        // given
         authenticate(true);
         MockHttpServletResponse response = new MockHttpServletResponse();
         MockFilterChain chain = new MockFilterChain();
 
+        // when
         filter.doFilter(request("DELETE", "/api/v1/me/password"), response, chain);
 
+        // then
         assertThat(chain.getRequest()).isNull();
         assertThat(response.getStatus()).isEqualTo(403);
     }
 
     @Test
     @DisplayName("lets everything through once the password has been changed")
-    void letsEverythingThroughAfterChange() throws Exception {
+    void givenPasswordAlreadyChanged_whenCallingAnyOperation_thenLetItThrough() throws Exception {
+        // given
         authenticate(false);
         MockFilterChain chain = new MockFilterChain();
 
+        // when
         filter.doFilter(request("GET", "/api/v1/caretakers"), new MockHttpServletResponse(), chain);
 
+        // then
         assertThat(chain.getRequest()).isNotNull();
     }
 
     @Test
     @DisplayName("does not interfere with anonymous requests, which authorization already handles")
-    void doesNotInterfereWithAnonymousRequests() throws Exception {
+    void givenAnonymousRequest_whenFiltering_thenLeaveItToAuthorization() throws Exception {
+        // given — no authentication in the security context
         MockFilterChain chain = new MockFilterChain();
 
+        // when
         filter.doFilter(request("GET", "/api/v1/caretakers"), new MockHttpServletResponse(), chain);
 
+        // then
         assertThat(chain.getRequest()).isNotNull();
     }
 }

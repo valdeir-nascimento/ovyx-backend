@@ -1,5 +1,6 @@
 package io.github.ovyx.identity.presentation.security;
 
+import static io.github.ovyx.identity.domain.model.CaretakerTestDataBuilder.aUniqueCaretaker;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -10,10 +11,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import io.github.ovyx.CsrfHandshake;
 import io.github.ovyx.IntegrationTestSupport;
 import io.github.ovyx.identity.domain.model.Caretaker;
-import io.github.ovyx.identity.domain.model.Role;
 import io.github.ovyx.identity.domain.port.CaretakerRepository;
 import io.github.ovyx.identity.domain.port.PasswordHasher;
-import io.github.ovyx.identity.integration.TestCaretakers;
 import java.time.Clock;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.RequestDispatcher;
@@ -28,6 +27,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 /**
@@ -65,7 +65,12 @@ class DenyByDefaultIT extends IntegrationTestSupport {
     private ApplicationContext context;
 
     private Cookie[] signInAsUser() throws Exception {
-        Caretaker user = TestCaretakers.register(caretakerRepository, passwordHasher, clock, Role.USER, PASSWORD);
+        Caretaker user = aUniqueCaretaker()
+                .withPassword(PASSWORD)
+                .withHasher(passwordHasher)
+                .withClock(clock)
+                .build();
+        caretakerRepository.save(user);
         return mockMvc.perform(post("/api/v1/auth/sign-in")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -80,27 +85,42 @@ class DenyByDefaultIT extends IntegrationTestSupport {
 
     @Test
     @DisplayName("an undeclared route requires authentication instead of answering 404")
-    void undeclaredRouteRequiresAuthentication() throws Exception {
-        mockMvc.perform(get("/api/v1/rota-que-ninguem-declarou"))
-                .andExpect(status().isUnauthorized())
+    void givenAnonymousRequest_whenCallingAnUndeclaredRoute_thenRequireAuthenticationInsteadOf404() throws Exception {
+        // given
+        String undeclared = "/api/v1/rota-que-ninguem-declarou";
+
+        // when
+        ResultActions response = mockMvc.perform(get(undeclared));
+
+        // then
+        response.andExpect(status().isUnauthorized())
                 .andExpect(content().contentTypeCompatibleWith("application/problem+json"));
     }
 
     @Test
     @DisplayName("an undeclared route is forbidden even to an authenticated caretaker")
-    void undeclaredRouteIsForbiddenToAuthenticatedCaretaker() throws Exception {
+    void givenAuthenticatedCaretaker_whenCallingAnUndeclaredRoute_thenForbid() throws Exception {
+        // given
         Cookie[] cookies = signInAsUser();
 
-        mockMvc.perform(get("/api/v1/caretakers").cookie(cookies))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        // when
+        ResultActions response = mockMvc.perform(get("/api/v1/caretakers").cookie(cookies));
+
+        // then
+        response.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 
     @Test
     @DisplayName("the unauthenticated response follows Problem Details without detailing anything")
-    void unauthenticatedResponseFollowsProblemDetails() throws Exception {
-        mockMvc.perform(get("/api/v1/caretakers"))
-                .andExpect(status().isUnauthorized())
+    void givenAnonymousRequest_whenRefused_thenAnswerProblemDetailsWithoutDetailingAnything() throws Exception {
+        // given
+        String protectedRoute = "/api/v1/caretakers";
+
+        // when
+        ResultActions response = mockMvc.perform(get(protectedRoute));
+
+        // then
+        response.andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"))
                 .andExpect(jsonPath("$.title").value("Não autenticado"))
                 .andExpect(jsonPath("$.status").value(401))
@@ -111,36 +131,67 @@ class DenyByDefaultIT extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("sign-in is public only for POST")
-    void signInIsPublicOnlyForPost() throws Exception {
-        // GET na mesma rota nao esta liberado: a excecao e declarada por metodo, nao por caminho.
-        mockMvc.perform(get("/api/v1/auth/sign-in")).andExpect(status().isUnauthorized());
+    @DisplayName("sign-in is not public for GET")
+    void givenAnonymousGetOnTheSignInRoute_whenCalling_thenRequireAuthentication() throws Exception {
+        // given
+        // A excecao publica e declarada por metodo, nao por caminho.
+        String signIn = "/api/v1/auth/sign-in";
 
-        // POST atravessa a autorizacao e chega ao controller. Sem corpo nem content-type, a resposta
-        // e 415 — o que importa e que nao foi barrado.
-        mockMvc.perform(post("/api/v1/auth/sign-in").with(csrf())).andExpect(status().isUnsupportedMediaType());
+        // when
+        ResultActions response = mockMvc.perform(get(signIn));
+
+        // then
+        response.andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("sign-in is public for POST")
+    void givenAnonymousPostOnTheSignInRoute_whenCalling_thenReachTheController() throws Exception {
+        // given
+        // Sem corpo nem content-type, a resposta e 415 — o que importa e que a autorizacao deixou
+        // passar e o controller respondeu.
+        String signIn = "/api/v1/auth/sign-in";
+
+        // when
+        ResultActions response = mockMvc.perform(post(signIn).with(csrf()));
+
+        // then
+        response.andExpect(status().isUnsupportedMediaType());
     }
 
     @Test
     @DisplayName("no in-memory user with a generated password exists")
-    void noGeneratedInMemoryUser() {
+    void givenApplicationContext_whenLookingForUserDetailsServices_thenFindNone() {
+        // given
         // Sem UserDetailsService proprio, o Spring Boot criava o usuario "user" com senha gerada e a
         // imprimia no log a cada subida — uma credencial valida fora do cadastro e em texto claro
         // no log (QA V-14, FR-021).
-        assertThat(context.getBeanNamesForType(UserDetailsService.class)).isEmpty();
+        Class<UserDetailsService> generatedUserSource = UserDetailsService.class;
+
+        // when
+        String[] beans = context.getBeanNamesForType(generatedUserSource);
+
+        // then
+        assertThat(beans).isEmpty();
     }
 
     @Test
     @DisplayName("the internal error dispatch is not turned into 401")
-    void errorDispatchIsNotTurnedInto401() throws Exception {
+    void givenInternalErrorDispatch_whenReachingTheErrorPage_thenKeepThe500() throws Exception {
+        // given
         // Defeito encontrado em execucao: o despacho interno para /error exigia autenticacao, e todo
         // 500 do sistema chegava ao cliente como 401.
-        mockMvc.perform(get("/error").with(request -> {
-                    request.setDispatcherType(DispatcherType.ERROR);
-                    request.setAttribute(RequestDispatcher.ERROR_STATUS_CODE, 500);
-                    request.setAttribute(RequestDispatcher.ERROR_REQUEST_URI, "/api/v1/auth/sign-in");
-                    return request;
-                }))
-                .andExpect(status().isInternalServerError());
+        RequestPostProcessor errorDispatch = request -> {
+            request.setDispatcherType(DispatcherType.ERROR);
+            request.setAttribute(RequestDispatcher.ERROR_STATUS_CODE, 500);
+            request.setAttribute(RequestDispatcher.ERROR_REQUEST_URI, "/api/v1/auth/sign-in");
+            return request;
+        };
+
+        // when
+        ResultActions response = mockMvc.perform(get("/error").with(errorDispatch));
+
+        // then
+        response.andExpect(status().isInternalServerError());
     }
 }

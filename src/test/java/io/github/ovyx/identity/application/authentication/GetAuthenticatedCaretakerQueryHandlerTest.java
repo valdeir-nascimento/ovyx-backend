@@ -41,12 +41,15 @@ class GetAuthenticatedCaretakerQueryHandlerTest {
 
     @Test
     @DisplayName("returns the read model of the authenticated caretaker")
-    void returnsTheAuthenticatedCaretaker() {
+    void givenExistingCaretaker_whenAskingWhoIsAuthenticated_thenReturnTheReadModel() {
+        // given
         CaretakerId id = CaretakerId.generate();
         readModels.put(new AuthenticatedCaretaker(id, "Maria Silva", Role.USER, false));
 
+        // when
         Result<AuthenticatedCaretaker> result = handler.handle(new GetAuthenticatedCaretakerQuery(id));
 
+        // then
         assertThat(result.isSuccess()).isTrue();
         assertThat(result.value().fullName()).isEqualTo("Maria Silva");
         assertThat(result.value().role()).isEqualTo(Role.USER);
@@ -54,24 +57,31 @@ class GetAuthenticatedCaretakerQueryHandlerTest {
 
     @Test
     @DisplayName("fails when the session points to a caretaker that no longer exists")
-    void failsWhenTheCaretakerNoLongerExists() {
-        Result<AuthenticatedCaretaker> result =
-                handler.handle(new GetAuthenticatedCaretakerQuery(CaretakerId.generate()));
+    void givenSessionPointingToMissingCaretaker_whenAskingWhoIsAuthenticated_thenFailAsUnavailable() {
+        // given
+        CaretakerId noLongerExists = CaretakerId.generate();
 
+        // when
+        Result<AuthenticatedCaretaker> result = handler.handle(new GetAuthenticatedCaretakerQuery(noLongerExists));
+
+        // then
         assertThat(result.isFailure()).isTrue();
         assertThat(result.error().code()).isEqualTo(IdentityErrorCode.CARETAKER_UNAVAILABLE.code());
     }
 
     @Test
     @DisplayName("the read model has no way to carry the password")
-    void theReadModelCannotCarryThePassword() {
+    void givenExistingCaretaker_whenReturningTheReadModel_thenCarryNoPasswordField() {
+        // given
         // Invariante estrutural: AuthenticatedCaretaker nao tem campo de senha nem de hash.
         // Reusar a entidade de dominio como resposta arrastaria o hash ate a borda HTTP.
         CaretakerId id = CaretakerId.generate();
         readModels.put(new AuthenticatedCaretaker(id, "Maria Silva", Role.USER, false));
 
+        // when
         AuthenticatedCaretaker model = handler.handle(new GetAuthenticatedCaretakerQuery(id)).value();
 
+        // then
         assertThat(model.toString()).doesNotContain("argon2");
         assertThat(AuthenticatedCaretaker.class.getRecordComponents())
                 .extracting(java.lang.reflect.RecordComponent::getName)

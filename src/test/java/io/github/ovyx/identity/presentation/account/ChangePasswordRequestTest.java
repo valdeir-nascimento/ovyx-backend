@@ -14,9 +14,14 @@ class ChangePasswordRequestTest {
 
     @Test
     @DisplayName("masks both passwords")
-    void masksBothPasswords() {
-        String text = new ChangePasswordRequest("GranjaNorte2026", "PosturaAviario2027").toString();
+    void givenPasswordChangeBody_whenDescribingIt_thenMaskBothPasswords() {
+        // given
+        ChangePasswordRequest body = new ChangePasswordRequest("GranjaNorte2026", "PosturaAviario2027");
 
+        // when
+        String text = body.toString();
+
+        // then
         assertThat(text).doesNotContain("GranjaNorte2026").doesNotContain("PosturaAviario2027");
     }
 }

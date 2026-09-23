@@ -1,10 +1,17 @@
 package io.github.ovyx.identity.domain.valueobject;
 
-import io.github.ovyx.identity.domain.Notification;
-
+import io.github.ovyx.identity.domain.IdentityErrorCode;
+import io.github.ovyx.shared.domain.Notification;
+import io.github.ovyx.shared.domain.Rule;
+import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
+/**
+ * E-mail do responsavel, o primeiro identificador de acesso.
+ *
+ * @param value e-mail aparado e em minusculas
+ */
 public record Email(String value) {
 
     private static final int MAXIMUM_LENGTH = 254;
@@ -18,49 +25,45 @@ public record Email(String value) {
      */
     private static final Pattern FORMAT = Pattern.compile("^[^\\s@]+@[^\\s@.]+(\\.[^\\s@.]+)+$");
 
+    private static final List<Rule<String>> RULES = List.of(
+            Rule.of(
+                    email -> email.length() <= MAXIMUM_LENGTH,
+                    IdentityErrorCode.EMAIL_TOO_LONG,
+                    "O e-mail deve ter no máximo 254 caracteres."),
+            // O formato so e avaliado ate um teto de seguranca. A repeticao aninhada da expressao
+            // recursa por segmento, e uma entrada absurda poderia estourar a pilha; acima do teto, o
+            // "longo demais" ja basta para recusar.
+            Rule.of(
+                    email -> email.length() > FORMAT_CHECK_LIMIT
+                            || FORMAT.matcher(email).matches(),
+                    IdentityErrorCode.EMAIL_MALFORMED,
+                    "Informe um e-mail em formato válido."));
+
     /**
-     * Recusa na hora, para quem valida um campo so.
+     * Registra no {@link Notification} as violacoes do campo, sem lancar.
+     *
+     * <p>E o caminho do agregado, que reune as violacoes de todos os campos antes de recusar (FR-017).
+     */
+    public static void validate(String raw, Notification notification) {
+        if (notification.requirePresent(FIELD, raw, IdentityErrorCode.EMAIL_REQUIRED, "Informe o e-mail.")) {
+            notification.check(FIELD, normalized(raw), RULES);
+        }
+    }
+
+    /**
+     * Cria o e-mail, recusando na hora com as violacoes do campo.
      *
      * @throws io.github.ovyx.shared.domain.DomainException quando alguma regra do campo e violada
      */
     public static Email of(String raw) {
         Notification notification = new Notification();
-        Email email = of(raw, notification);
-        notification.throwIfAny();
-        return email;
+        validate(raw, notification);
+        notification.throwIfAny(IdentityErrorCode.VALIDATION_FAILED);
+        return new Email(normalized(raw));
     }
 
-    /**
-     * Valida escrevendo no {@link Notification} de quem chamou, em vez de lancar.
-     *
-     * <p>E o caminho do agregado, que precisa reunir as violacoes de todos os campos antes de
-     * recusar uma vez so (FR-017). As duas regras deste campo somam mensagens, sem uma descartar a
-     * outra.
-     *
-     * @return o e-mail, ou {@code null} quando alguma regra do campo foi violada
-     */
-    public static Email of(String raw, Notification notification) {
-        if (raw == null || raw.isBlank()) {
-            notification.add(FIELD, "Informe o e-mail.");
-            return null;
-        }
-
-        String normalized = raw.trim().toLowerCase(Locale.ROOT);
-        boolean rejected = false;
-
-        if (normalized.length() > MAXIMUM_LENGTH) {
-            notification.add(FIELD, "O e-mail deve ter no máximo 254 caracteres.");
-            rejected = true;
-        }
-        // O formato so e avaliado ate um teto de seguranca. A repeticao aninhada da expressao
-        // recursa por segmento, e uma entrada absurda poderia estourar a pilha; acima do teto, o
-        // "longo demais" ja basta para recusar.
-        if (normalized.length() <= FORMAT_CHECK_LIMIT && !FORMAT.matcher(normalized).matches()) {
-            notification.add(FIELD, "Informe um e-mail em formato válido.");
-            rejected = true;
-        }
-
-        return rejected ? null : new Email(normalized);
+    private static String normalized(String raw) {
+        return raw.trim().toLowerCase(Locale.ROOT);
     }
 
     @Override
