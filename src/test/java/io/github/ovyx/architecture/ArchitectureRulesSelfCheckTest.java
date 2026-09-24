@@ -206,7 +206,7 @@ class ArchitectureRulesSelfCheckTest {
     @DisplayName("every rule rejects its deliberate violation")
     void givenDeliberateViolation_whenEvaluatingTheRule_thenRejectItNamingTheViolation(
             String situation, ArchRule rule, JavaClasses classes, String expectedViolation) {
-        // given — rule, classes and expected violation from @MethodSource
+        // given — regra, classes e violacao esperada vindas do @MethodSource
 
         // when
         EvaluationResult result = rule.evaluate(classes);

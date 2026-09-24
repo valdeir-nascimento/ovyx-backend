@@ -29,7 +29,7 @@ class AccessIdentifierTest {
     @ValueSource(strings = {"91988887777", "(91) 98888-7777", " 91 98888 7777 ", "91.98888.7777"})
     @DisplayName("reduces every formatting of the same mobile phone to the same digits")
     void givenFormattedMobilePhone_whenNormalizing_thenReturnDigitsOnly(String typed) {
-        // given — typed from @ValueSource
+        // given — digitado, vindo do @ValueSource
 
         // when
         AccessIdentifier identifier = AccessIdentifier.of(typed);
@@ -69,7 +69,7 @@ class AccessIdentifierTest {
     @ValueSource(strings = {"   "})
     @DisplayName("produces an empty key for a missing identifier")
     void givenMissingIdentifier_whenNormalizing_thenReturnEmptyKey(String typed) {
-        // given — typed from @NullSource and @ValueSource
+        // given — digitado, vindo do @NullSource e do @ValueSource
 
         // when
         AccessIdentifier identifier = AccessIdentifier.of(typed);
@@ -82,7 +82,7 @@ class AccessIdentifierTest {
     @CsvSource({"'(91) 98888-7777', 91988887777", "MARIA@ovyx.com.br, maria@ovyx.com.br"})
     @DisplayName("has value equality between different spellings of the same account")
     void givenTwoSpellingsOfTheSameAccount_whenComparing_thenTreatThemAsEqual(String spelling, String canonical) {
-        // given — both spellings from @CsvSource
+        // given — as duas grafias vindas do @CsvSource
 
         // when
         AccessIdentifier typed = AccessIdentifier.of(spelling);

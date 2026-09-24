@@ -70,7 +70,7 @@ class ArchitectureRulesTest {
     @DisplayName("production code follows every architecture rule")
     void givenProductionClasses_whenEvaluatingAnArchitectureRule_thenFindNoViolation(
             String description, ArchRule rule) {
-        // given — PRODUCTION_CLASSES, imported once for the whole class
+        // given — PRODUCTION_CLASSES, importadas uma vez para a classe inteira
 
         // when
         EvaluationResult result = rule.evaluate(PRODUCTION_CLASSES);

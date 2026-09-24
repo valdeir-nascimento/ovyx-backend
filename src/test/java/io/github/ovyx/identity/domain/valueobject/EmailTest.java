@@ -49,7 +49,7 @@ class EmailTest {
     @ValueSource(strings = {"  "})
     @DisplayName("rejects a missing email")
     void givenMissingEmail_whenCreating_thenRejectAsRequired(String raw) {
-        // given — raw from @NullSource and @ValueSource
+        // given — valor bruto vindo do @NullSource e do @ValueSource
 
         // when
         List<Violation> violations = violationsOf(() -> Email.of(raw));
@@ -66,7 +66,7 @@ class EmailTest {
             })
     @DisplayName("rejects an email in an invalid format")
     void givenMalformedEmail_whenCreating_thenRejectAsMalformed(String raw) {
-        // given — raw from @ValueSource
+        // given — valor bruto vindo do @ValueSource
 
         // when
         List<Violation> violations = violationsOf(() -> Email.of(raw));

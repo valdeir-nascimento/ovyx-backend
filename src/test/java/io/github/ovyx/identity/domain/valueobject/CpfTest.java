@@ -68,7 +68,7 @@ class CpfTest {
             })
     @DisplayName("rejects a CPF that is not a real one, as a single violation")
     void givenInvalidCpf_whenCreating_thenRejectWithASingleViolation(String raw) {
-        // given — raw from @ValueSource
+        // given — valor bruto vindo do @ValueSource
 
         // when
         List<Violation> violations = violationsOf(() -> Cpf.of(raw));

@@ -70,7 +70,7 @@ class PasswordPolicyTest {
     @DisplayName("rejects a password that breaks one rule, with that rule's code")
     void givenPasswordBreakingOneRule_whenValidating_thenReportThatRuleOnly(
             String rawPassword, IdentityErrorCode rule) {
-        // given — rawPassword and the broken rule from @CsvSource
+        // given — senha e regra violada vindas do @CsvSource
 
         // when
         List<ErrorCode> codes = codesOf(rawPassword);
@@ -89,7 +89,7 @@ class PasswordPolicyTest {
     })
     @DisplayName("rejects a password equal to the email or the CPF")
     void givenPasswordEqualToAnIdentifier_whenValidating_thenRejectIt(String rawPassword, String email, String cpf) {
-        // given — password, email and CPF from @CsvSource
+        // given — senha, e-mail e CPF vindos do @CsvSource
 
         // when
         List<ErrorCode> codes = codesOf(rawPassword, email, cpf);

@@ -67,7 +67,7 @@ class MobilePhoneTest {
             })
     @DisplayName("rejects a phone that is not a valid mobile phone, as a single violation")
     void givenInvalidMobilePhone_whenCreating_thenRejectWithASingleViolation(String raw) {
-        // given — raw from @ValueSource
+        // given — valor bruto vindo do @ValueSource
 
         // when
         List<Violation> violations = violationsOf(() -> MobilePhone.of(raw));

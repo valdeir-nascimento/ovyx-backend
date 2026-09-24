@@ -36,7 +36,7 @@ class FullNameTest {
     @ValueSource(strings = {"   "})
     @DisplayName("rejects a missing name")
     void givenMissingName_whenCreating_thenRejectAsRequired(String raw) {
-        // given — raw from @NullSource and @ValueSource
+        // given — valor bruto vindo do @NullSource e do @ValueSource
 
         // when
         List<Violation> violations = violationsOf(() -> FullName.of(raw));
