@@ -1,6 +1,7 @@
 package io.github.ovyx.identity.application.administratorseeding;
 
 import io.github.ovyx.identity.domain.model.Caretaker;
+import io.github.ovyx.identity.domain.model.CaretakerStatus;
 import io.github.ovyx.identity.domain.model.Role;
 import io.github.ovyx.identity.domain.port.CaretakerRepository;
 import io.github.ovyx.identity.domain.port.PasswordHasher;
@@ -24,7 +25,7 @@ import java.util.Optional;
  * inicial e cadastrado. Nos dois casos, com a senha provisoria configurada e a troca obrigatoria
  * no primeiro acesso.
  */
-public class SeedInitialAdministratorCommandHandler implements CommandHandler<SeedInitialAdministratorCommand, SeedingOutcome> {
+public class SeedInitialAdministratorCommandHandler implements CommandHandler<SeedInitialAdministratorCommand, SeedingReport> {
 
     /**
      * Codigo da recusa quando a senha obrigatoria nao foi informada.
@@ -42,9 +43,9 @@ public class SeedInitialAdministratorCommandHandler implements CommandHandler<Se
     }
 
     @Override
-    public Result<SeedingOutcome> handle(SeedInitialAdministratorCommand command) {
+    public Result<SeedingReport> handle(SeedInitialAdministratorCommand command) {
         if (caretakerRepository.countActiveAdministrators() > 0) {
-            return Result.success(SeedingOutcome.NOT_NEEDED);
+            return Result.success(SeedingReport.notNeeded());
         }
 
         if (command.password() == null || command.password().isBlank()) {
@@ -56,10 +57,14 @@ public class SeedInitialAdministratorCommandHandler implements CommandHandler<Se
 
         Optional<Caretaker> holderOfTheCpf;
         Caretaker administrator;
+        Role previousRole = null;
+        CaretakerStatus previousStatus = null;
         try {
             holderOfTheCpf = holderOf(command.cpf());
             if (holderOfTheCpf.isPresent()) {
                 administrator = holderOfTheCpf.get();
+                previousRole = administrator.role();
+                previousStatus = administrator.status();
                 administrator.restoreAsInitialAdministrator(command.password(), passwordHasher, caretakerRepository, clock);
             } else {
                 administrator = Caretaker.register(
@@ -85,7 +90,10 @@ public class SeedInitialAdministratorCommandHandler implements CommandHandler<Se
         }
 
         caretakerRepository.save(administrator);
-        return Result.success(holderOfTheCpf.isPresent() ? SeedingOutcome.RESTORED : SeedingOutcome.CREATED);
+        String email = administrator.email().value();
+        return Result.success(holderOfTheCpf.isPresent()
+            ? SeedingReport.restored(email, previousRole, previousStatus)
+            : SeedingReport.created(email));
     }
 
     /**

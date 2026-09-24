@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.github.ovyx.identity.fixtures.InMemoryCaretakerRepository;
 import io.github.ovyx.identity.domain.FakePasswordHasher;
 import io.github.ovyx.identity.domain.model.Caretaker;
+import io.github.ovyx.identity.domain.model.CaretakerStatus;
 import io.github.ovyx.identity.domain.model.CaretakerTestDataBuilder;
 import io.github.ovyx.identity.domain.model.Role;
 import io.github.ovyx.identity.domain.valueobject.Cpf;
@@ -50,11 +51,11 @@ class SeedInitialAdministratorCommandHandlerTest {
         // given — o repositorio comeca vazio
 
         // when
-        Result<SeedingOutcome> result = handler.handle(command("87543210932", PASSWORD));
+        Result<SeedingReport> result = handler.handle(command("87543210932", PASSWORD));
 
         // then
         assertThat(result.isSuccess()).isTrue();
-        assertThat(result.value()).isEqualTo(SeedingOutcome.CREATED);
+        assertThat(result.value().outcome()).isEqualTo(SeedingOutcome.CREATED);
         Caretaker admin = repository.findByEmailOrMobilePhone("admin@ovyx.com.br").orElseThrow();
         assertThat(admin.role()).isEqualTo(Role.ADMINISTRATOR);
         assertThat(admin.mustChangePassword()).isTrue();
@@ -69,10 +70,10 @@ class SeedInitialAdministratorCommandHandlerTest {
                 aCaretaker().withRole(Role.ADMINISTRATOR).withHasher(hasher).withClock(clock).build());
 
         // when
-        Result<SeedingOutcome> result = handler.handle(command("87543210932", ""));
+        Result<SeedingReport> result = handler.handle(command("87543210932", ""));
 
         // then
-        assertThat(result.value()).isEqualTo(SeedingOutcome.NOT_NEEDED);
+        assertThat(result.value().outcome()).isEqualTo(SeedingOutcome.NOT_NEEDED);
         assertThat(repository.countActiveAdministrators()).isEqualTo(1);
         assertThat(repository.findByEmailOrMobilePhone("admin@ovyx.com.br")).isEmpty();
     }
@@ -85,7 +86,7 @@ class SeedInitialAdministratorCommandHandlerTest {
         String blankPassword = " ";
 
         // when
-        Result<SeedingOutcome> result = handler.handle(command("87543210932", blankPassword));
+        Result<SeedingReport> result = handler.handle(command("87543210932", blankPassword));
 
         // then
         assertThat(result.isFailure()).isTrue();
@@ -100,7 +101,7 @@ class SeedInitialAdministratorCommandHandlerTest {
         String invalidCpf = "12345678901";
 
         // when
-        Result<SeedingOutcome> result = handler.handle(command(invalidCpf, PASSWORD));
+        Result<SeedingReport> result = handler.handle(command(invalidCpf, PASSWORD));
 
         // then
         assertThat(result.isFailure()).isTrue();
@@ -149,10 +150,10 @@ class SeedInitialAdministratorCommandHandlerTest {
         repository.save(holder);
 
         // when
-        Result<SeedingOutcome> result = handler.handle(command(CONFIGURED_CPF, PASSWORD));
+        Result<SeedingReport> result = handler.handle(command(CONFIGURED_CPF, PASSWORD));
 
         // then
-        assertThat(result.value()).isEqualTo(SeedingOutcome.RESTORED);
+        assertThat(result.value().outcome()).isEqualTo(SeedingOutcome.RESTORED);
         Caretaker restored = repository.findById(holder.id()).orElseThrow();
         assertThat(restored.isActive()).isTrue();
         assertThat(restored.role()).isEqualTo(Role.ADMINISTRATOR);
@@ -161,6 +162,22 @@ class SeedInitialAdministratorCommandHandlerTest {
         assertThat(repository.findByEmailOrMobilePhone("admin@ovyx.com.br"))
                 .as("nobody registered with the configured email")
                 .isEmpty();
+    }
+
+    @Test
+    @DisplayName("reports the email to sign in with and what the restored caretaker was before")
+    void givenInactiveCommonUserWithTheConfiguredCpf_whenSeeding_thenReportTheEmailAndThePreviousSituation() {
+        // given
+        // O restaurado mantem o e-mail que ja tinha: sem ele no aviso, quem seguia o guia com o
+        // e-mail configurado recebia a recusa generica.
+        repository.save(holderOfTheConfiguredCpf(Role.USER).buildInactive());
+
+        // when
+        Result<SeedingReport> result = handler.handle(command(CONFIGURED_CPF, PASSWORD));
+
+        // then
+        assertThat(result.value())
+                .isEqualTo(SeedingReport.restored("antigo.administrador@ovyx.com.br", Role.USER, CaretakerStatus.INACTIVE));
     }
 
     @Test
@@ -178,7 +195,7 @@ class SeedInitialAdministratorCommandHandlerTest {
                 .build());
 
         // when
-        Result<SeedingOutcome> result = handler.handle(command(CONFIGURED_CPF, PASSWORD));
+        Result<SeedingReport> result = handler.handle(command(CONFIGURED_CPF, PASSWORD));
 
         // then
         assertThat(result.error().type()).isEqualTo(ErrorType.CONFLICT);
@@ -201,7 +218,7 @@ class SeedInitialAdministratorCommandHandlerTest {
                 .build());
 
         // when
-        Result<SeedingOutcome> result = handler.handle(command(CONFIGURED_CPF, PASSWORD));
+        Result<SeedingReport> result = handler.handle(command(CONFIGURED_CPF, PASSWORD));
 
         // then
         assertThat(result.error().type()).isEqualTo(ErrorType.CONFLICT);
