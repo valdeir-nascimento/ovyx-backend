@@ -103,6 +103,12 @@ class AuthenticationContractIT extends IntegrationTestSupport {
            AND attempted_identifier = ?
         """;
 
+    private static final String EVENTS_FOR_IDENTIFIER = """
+        SELECT count(*)
+          FROM access_event
+         WHERE attempted_identifier = ?
+        """;
+
     private static final String INVALID_CREDENTIALS_FOR_IDENTIFIER = """
         SELECT count(*)
           FROM access_event
@@ -357,6 +363,7 @@ class AuthenticationContractIT extends IntegrationTestSupport {
 
         // then
         response.andExpect(status().isUnauthorized())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
             .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"))
             // O titulo descreve a natureza da falha; o code carrega a regra violada.
             .andExpect(jsonPath("$.title").value("Não autenticado"))
@@ -413,6 +420,58 @@ class AuthenticationContractIT extends IntegrationTestSupport {
             .andExpect(jsonPath("$.code").value("REQUEST_NOT_ACCEPTABLE"))
             .andExpect(jsonPath("$.title").value("Requisição não suportada"))
             .andExpect(jsonPath("$.status").value(415));
+    }
+
+    @Test
+    @DisplayName("refuses an unavailable response format before checking the credential")
+    void givenValidCredentialsAskingForXml_whenSigningIn_thenAnswer406WithoutOpeningASession() throws Exception {
+        // given
+        // A recusa vinha depois de o tratador rodar: o cliente recebia 406 com um cookie de sessao
+        // valido, a auditoria registrava a entrada como concedida e a contencao era zerada. A falha
+        // anterior e o que torna o zerar visivel.
+        Caretaker caretaker = saved(aCaretakerForThisDatabase());
+        String email = caretaker.email().value();
+        mockMvc.perform(signInRequest(email, WRONG_PASSWORD));
+
+        // when
+        MvcResult response = mockMvc.perform(signInRequest(email, PASSWORD).accept(MediaType.APPLICATION_XML))
+                .andReturn();
+
+        // then
+        assertThat(response.getResponse().getStatus()).isEqualTo(406);
+        assertThat(response.getResponse().getCookie("SESSION")).as("session cookie").isNull();
+        assertThat(count(EVENTS_FOR_IDENTIFIER, email)).as("only the earlier failure is audited").isEqualTo(1);
+        assertThat(count(FAILURES_FROM_ORIGIN, email, "127.0.0.1")).as("contention kept").isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("refuses an unavailable response format when asking who is authenticated")
+    void givenOpenSessionAskingForXml_whenAskingWhoIsAuthenticated_thenAnswer406() throws Exception {
+        // given
+        Cookie[] cookies = signInAndKeepSession(EMAIL, PASSWORD);
+
+        // when
+        ResultActions response =
+                mockMvc.perform(get("/api/v1/auth/me").cookie(cookies).accept(MediaType.APPLICATION_XML));
+
+        // then
+        response.andExpect(status().isNotAcceptable());
+    }
+
+    @Test
+    @DisplayName("refuses to label the identity as an error body when only problem+json is accepted")
+    void givenOpenSessionAcceptingOnlyProblemJson_whenAskingWhoIsAuthenticated_thenAnswer406() throws Exception {
+        // given
+        // Sem o produces na rota, o corpo de sucesso saia rotulado como problem+json, o formato dos
+        // erros: o cliente leria a identidade como se fosse uma recusa.
+        Cookie[] cookies = signInAndKeepSession(EMAIL, PASSWORD);
+
+        // when
+        ResultActions response =
+                mockMvc.perform(get("/api/v1/auth/me").cookie(cookies).accept(MediaType.APPLICATION_PROBLEM_JSON));
+
+        // then
+        response.andExpect(status().isNotAcceptable());
     }
 
     @Test
@@ -706,7 +765,9 @@ class AuthenticationContractIT extends IntegrationTestSupport {
         ResultActions response = mockMvc.perform(get("/api/v1/auth/me").cookie(cookies));
 
         // then
-        response.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("CARETAKER_UNAVAILABLE"));
+        response.andExpect(status().isUnauthorized())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.code").value("CARETAKER_UNAVAILABLE"));
     }
 
     @Test
@@ -825,7 +886,9 @@ class AuthenticationContractIT extends IntegrationTestSupport {
         ResultActions response = mockMvc.perform(passwordChangeRequest(cookies, PASSWORD, NEW_PASSWORD));
 
         // then
-        response.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("CARETAKER_UNAVAILABLE"));
+        response.andExpect(status().isUnauthorized())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.code").value("CARETAKER_UNAVAILABLE"));
     }
 
     @Test
