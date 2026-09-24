@@ -232,13 +232,32 @@ class CaretakerAdministrationTest {
         Caretaker maria = registered(maria());
 
         // when
-        List<Violation> violations = violationsOf(() -> maria.update("", "123", "sem-arroba", "12", null, roster, clock));
+        List<Violation> violations = violationsOf(() -> maria.update("", "123", "sem-arroba", "12", (String) null, roster, clock));
 
         // then
         assertThat(violations)
                 .extracting(Violation::field)
                 .containsExactly("fullName", "cpf", "email", "mobilePhone", "role");
         assertThat(maria.email().value()).isEqualTo(MARIA_EMAIL);
+    }
+
+    @Test
+    @DisplayName("refuses a role outside the list on update, together with the other violations")
+    void givenRoleOutsideTheListAndEmptyName_whenUpdating_thenReportBothTogetherAndKeepTheRole() {
+        // given
+        Caretaker maria = registered(maria());
+
+        // when
+        List<Violation> violations = violationsOf(
+                () -> maria.update("", MARIA_CPF, MARIA_EMAIL, MARIA_MOBILE_PHONE, "ROOT", roster, clock));
+
+        // then
+        assertThat(violations)
+                .extracting(Violation::field, Violation::code)
+                .containsExactly(
+                        tuple("fullName", IdentityErrorCode.FULL_NAME_REQUIRED),
+                        tuple("role", IdentityErrorCode.ROLE_INVALID));
+        assertThat(maria.role()).isEqualTo(Role.USER);
     }
 
     @Test

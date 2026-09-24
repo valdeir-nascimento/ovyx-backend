@@ -96,7 +96,7 @@ class UpdateCaretakerCommandHandlerTest {
     void givenEveryFieldInvalid_whenUpdating_thenFailAsValidationWithEveryField() {
         // given
         Caretaker maria = saved(aCaretaker());
-        UpdateCaretakerCommand update = new UpdateCaretakerCommand(maria.id(), "", "123", "sem-arroba", "12", null);
+        UpdateCaretakerCommand update = new UpdateCaretakerCommand(maria.id(), "", "123", "sem-arroba", "12", (String) null);
 
         // when
         Result<CaretakerId> result = handler.handle(update);

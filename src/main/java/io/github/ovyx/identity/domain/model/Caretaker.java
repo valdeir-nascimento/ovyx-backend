@@ -104,7 +104,7 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
         String rawEmail,
         String rawMobilePhone,
         String rawPassword,
-        Role role,
+        String rawRole,
         boolean mustChangePassword,
         PasswordHasher hasher,
         CaretakerRoster roster,
@@ -118,9 +118,7 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
         Email.validate(rawEmail, notification);
         MobilePhone.validate(rawMobilePhone, notification);
         PasswordPolicy.validate(rawPassword, "password", rawEmail, rawCpf, notification);
-        if (role == null) {
-            notification.add("role", IdentityErrorCode.ROLE_REQUIRED, "Informe o perfil.");
-        }
+        Role.validate(rawRole, notification);
         notification.throwIfAny(IdentityErrorCode.VALIDATION_FAILED);
 
         // Daqui em diante cada campo ja passou pelas proprias regras: construir os objetos de valor
@@ -142,12 +140,42 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
             email,
             mobilePhone,
             hasher.hash(rawPassword),
-            role,
+            Role.of(rawRole),
             CaretakerStatus.ACTIVE,
             mustChangePassword,
             now,
             now
         );
+    }
+
+    /**
+     * Cadastra com o perfil ja escolhido, para quem nao recebe texto digitado, como a semeadura.
+     *
+     * @throws io.github.ovyx.shared.domain.DomainException quando algum campo viola uma regra
+     */
+    public static Caretaker register(
+        String rawFullName,
+        String rawCpf,
+        String rawEmail,
+        String rawMobilePhone,
+        String rawPassword,
+        Role role,
+        boolean mustChangePassword,
+        PasswordHasher hasher,
+        CaretakerRoster roster,
+        Clock clock
+    ) {
+        return register(
+            rawFullName,
+            rawCpf,
+            rawEmail,
+            rawMobilePhone,
+            rawPassword,
+            role == null ? null : role.name(),
+            mustChangePassword,
+            hasher,
+            roster,
+            clock);
     }
 
     /**
@@ -240,7 +268,7 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
         String rawCpf,
         String rawEmail,
         String rawMobilePhone,
-        Role newRole,
+        String rawNewRole,
         CaretakerRoster roster,
         Clock clock
     ) {
@@ -249,11 +277,10 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
         Cpf.validate(rawCpf, notification);
         Email.validate(rawEmail, notification);
         MobilePhone.validate(rawMobilePhone, notification);
-        if (newRole == null) {
-            notification.add("role", IdentityErrorCode.ROLE_REQUIRED, "Informe o perfil.");
-        }
+        Role.validate(rawNewRole, notification);
         notification.throwIfAny(IdentityErrorCode.VALIDATION_FAILED);
 
+        Role newRole = Role.of(rawNewRole);
         Cpf newCpf = Cpf.of(rawCpf);
         Email newEmail = Email.of(rawEmail);
         MobilePhone newMobilePhone = MobilePhone.of(rawMobilePhone);
@@ -269,6 +296,23 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
         this.mobilePhone = newMobilePhone;
         this.role = newRole;
         touch(clock);
+    }
+
+    /**
+     * Edita com o perfil ja escolhido, para quem nao recebe texto digitado.
+     *
+     * @throws io.github.ovyx.shared.domain.DomainException nos mesmos casos da edicao por texto
+     */
+    public void update(
+        String rawFullName,
+        String rawCpf,
+        String rawEmail,
+        String rawMobilePhone,
+        Role newRole,
+        CaretakerRoster roster,
+        Clock clock
+    ) {
+        update(rawFullName, rawCpf, rawEmail, rawMobilePhone, newRole == null ? null : newRole.name(), roster, clock);
     }
 
     /**

@@ -11,8 +11,14 @@ import io.github.ovyx.shared.application.Command;
  * o agregado (FR-017).
  */
 public record RegisterCaretakerCommand(
-        String fullName, String cpf, String email, String mobilePhone, String password, Role role)
+        String fullName, String cpf, String email, String mobilePhone, String password, String role)
         implements Command<CaretakerId> {
+
+    /** Para quem ja tem o perfil escolhido; o texto digitado chega pelo construtor canonico. */
+    public RegisterCaretakerCommand(
+            String fullName, String cpf, String email, String mobilePhone, String password, Role role) {
+        this(fullName, cpf, email, mobilePhone, password, role == null ? null : role.name());
+    }
 
     /** Nunca mostra a senha: o comando passa por log de erro e por depurador. */
     @Override

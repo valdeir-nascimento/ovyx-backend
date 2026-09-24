@@ -32,7 +32,7 @@ public final class CaretakerTestDataBuilder {
     private String email = "maria.silva@ovyx.com.br";
     private String mobilePhone = "91988887777";
     private String password = DEFAULT_PASSWORD;
-    private Role role = Role.USER;
+    private String role = Role.USER.name();
     private boolean mustChangePassword = false;
     private PasswordHasher hasher = new FakePasswordHasher();
     private CaretakerRoster roster = new InMemoryCaretakerRepository();
@@ -81,6 +81,12 @@ public final class CaretakerTestDataBuilder {
     }
 
     public CaretakerTestDataBuilder withRole(Role role) {
+        this.role = role == null ? null : role.name();
+        return this;
+    }
+
+    /** O perfil como chega digitado, para os cenarios de perfil fora da lista. */
+    public CaretakerTestDataBuilder withRoleNamed(String role) {
         this.role = role;
         return this;
     }
