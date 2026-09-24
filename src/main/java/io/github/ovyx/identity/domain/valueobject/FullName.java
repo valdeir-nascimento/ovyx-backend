@@ -4,6 +4,7 @@ import io.github.ovyx.identity.domain.IdentityErrorCode;
 import io.github.ovyx.shared.domain.Notification;
 import io.github.ovyx.shared.domain.Rule;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Nome completo do responsavel.
@@ -32,6 +33,16 @@ public record FullName(String value) {
                     name -> name.chars().anyMatch(Character::isLetter),
                     IdentityErrorCode.FULL_NAME_WITHOUT_LETTER,
                     "O nome deve conter ao menos uma letra."));
+
+    /**
+     * Construtor canonico: so a garantia estrutural, sem regra de negocio.
+     *
+     * <p>E o caminho da reidratacao, que le do banco um valor ja validado. Revalidar ali reprovaria
+     * registros antigos a cada regra nova; aceitar nulo deixaria um objeto de valor sem valor.
+     */
+    public FullName {
+        Objects.requireNonNull(value, "value");
+    }
 
     /**
      * Registra no {@link Notification} as violacoes do campo, sem lancar.

@@ -2,11 +2,13 @@ package io.github.ovyx.identity.domain.valueobject;
 
 import static io.github.ovyx.identity.domain.DomainViolations.violationsOf;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 import io.github.ovyx.identity.domain.IdentityErrorCode;
 import io.github.ovyx.shared.domain.Violation;
 import java.util.List;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -75,5 +77,18 @@ class CpfTest {
         assertThat(violations)
                 .extracting(Violation::field, Violation::code)
                 .containsExactly(tuple("cpf", IdentityErrorCode.CPF_INVALID));
+    }
+
+    @Test
+    @DisplayName("refuses a null value on the canonical constructor, the rehydration path")
+    void givenNullValue_whenConstructingDirectly_thenThrowNullPointerException() {
+        // given
+        String missing = null;
+
+        // when
+        ThrowingCallable constructing = () -> new Cpf(missing);
+
+        // then
+        assertThatThrownBy(constructing).isInstanceOf(NullPointerException.class).hasMessage("value");
     }
 }
