@@ -7,6 +7,13 @@ package io.github.ovyx.shared.application;
  * Um handler nunca chama outro handler: reuso de logica sobe para o dominio.
  * </p>
  *
+ * <p>
+ * O despachante roda cada comando numa transacao, e a confirma tambem quando o {@code Result} e
+ * falha: e assim que a auditoria de uma entrada recusada fica gravada. Por isso um handler que
+ * devolve falha so pode ter gravado auditoria — nunca um agregado. Toda recusa acontece antes de
+ * qualquer gravacao do caso de uso.
+ * </p>
+ *
  * @param <C> tipo do comando tratado.
  * @param <R> tipo devolvido em caso de sucesso.
  */

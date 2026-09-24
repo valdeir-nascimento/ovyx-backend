@@ -6,6 +6,15 @@ spring:
     url: ${OVYX_DB_URL:jdbc:postgresql://localhost:5432/ovyx}
     username: ${OVYX_DB_USER:ovyx}
     password: ${OVYX_DB_PASSWORD:ovyx}
+    hikari:
+      # Cada comando segura uma conexao do comeco ao fim do caso de uso, inclusive durante o
+      # Argon2 da entrada e da troca de senha, e a reconferencia da sessao usa uma a cada requisicao
+      # autenticada. Dez atende as dezenas de pessoas do sistema; ver research.md, R-002.
+      maximum-pool-size: ${OVYX_DB_POOL_SIZE:10}
+      data-source-properties:
+        # Sem os valores recusados nas mensagens do PostgreSQL: a violacao de unicidade trazia
+        # "Key (email)=(...)" e "Key (cpf)=(...)", e o Hibernate registrava isso no log.
+        logServerErrorDetail: false
 
   jpa:
     # O schema e criado e evoluido exclusivamente por migracao Flyway (NFR-005).

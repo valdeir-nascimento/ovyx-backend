@@ -66,15 +66,15 @@ class DatabaseMigrationIT extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("records the four migrations as successfully applied")
-    void givenMigratedDatabase_whenReadingTheHistory_thenFindTheFourMigrationsApplied() {
+    @DisplayName("records the five migrations as successfully applied")
+    void givenMigratedDatabase_whenReadingTheHistory_thenFindTheFiveMigrationsApplied() {
         // given — o contentor compartilhado, migrado na subida
 
         // when
         List<String> versions = jdbc().queryForList(APPLIED_VERSIONS, String.class);
 
         // then
-        assertThat(versions).containsExactly("1", "2", "3", "4");
+        assertThat(versions).containsExactly("1", "2", "3", "4", "5");
     }
 
     @ParameterizedTest

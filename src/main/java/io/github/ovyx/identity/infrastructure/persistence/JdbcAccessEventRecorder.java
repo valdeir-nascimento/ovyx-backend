@@ -4,15 +4,19 @@ import io.github.ovyx.identity.domain.model.AccessEvent;
 import io.github.ovyx.identity.domain.port.AccessEventRecorder;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Adaptador da trilha de auditoria de acesso (FR-006).
  *
- * <p>Usa {@code REQUIRES_NEW}: o registro de auditoria precisa sobreviver mesmo que a transacao que
- * o disparou seja desfeita. Uma tentativa de acesso recusada nao deve desaparecer da trilha porque
- * a operacao que a produziu falhou — e justamente a tentativa recusada que interessa investigar.
+ * <p>Grava na transacao do comando que registra o acesso. A tentativa recusada fica na trilha porque
+ * o despachante confirma a transacao tambem quando o {@code Result} e falha — e justamente a
+ * tentativa recusada que interessa investigar. So um defeito tecnico, que desfaz o comando inteiro,
+ * leva o registro junto.
+ *
+ * <p>Ja usou transacao propria ({@code REQUIRES_NEW}). Com a transacao por comando, cada entrada
+ * passou a segurar duas conexoes, e 10 entradas simultaneas esgotavam o pool: todas esperavam a
+ * segunda conexao ate o tempo limite, e a API inteira parava.
  *
  * <p>Somente inclusao: nao ha update nem delete nesta classe.
  */
@@ -26,7 +30,7 @@ public class JdbcAccessEventRecorder implements AccessEventRecorder {
     }
 
     @Override
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public void record(AccessEvent event) {
         jdbcClient
                 .sql(
