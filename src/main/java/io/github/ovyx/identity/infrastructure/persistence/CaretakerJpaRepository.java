@@ -1,8 +1,8 @@
 package io.github.ovyx.identity.infrastructure.persistence;
 
 import io.github.ovyx.identity.domain.model.CaretakerStatus;
-import io.github.ovyx.identity.domain.model.Role;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -31,5 +31,23 @@ interface CaretakerJpaRepository extends JpaRepository<CaretakerRecord, UUID> {
             """)
     List<CaretakerRecord> findByEmailOrMobilePhone(@Param("identifier") String identifier);
 
-    long countByRoleAndStatus(Role role, CaretakerStatus status);
+    /**
+     * Os administradores ativos, travados ate o fim da transacao.
+     *
+     * <p>Com a trava, duas transacoes que decidem sobre o ultimo administrador se enfileiram: a
+     * segunda espera a primeira, e o PostgreSQL reavalia a condicao nas linhas que ela alterou. Quem
+     * inativou um ja nao conta.
+     */
+    @Query(
+            value = "select id from caretaker where role = 'ADMINISTRATOR' and status = 'ACTIVE' for update",
+            nativeQuery = true)
+    List<UUID> lockActiveAdministrators();
+
+    Optional<CaretakerRecord> findByCpf(String cpf);
+
+    boolean existsByCpfAndIdNot(String cpf, UUID id);
+
+    boolean existsByEmailAndStatusAndIdNot(String email, CaretakerStatus status, UUID id);
+
+    boolean existsByMobilePhoneAndStatusAndIdNot(String mobilePhone, CaretakerStatus status, UUID id);
 }

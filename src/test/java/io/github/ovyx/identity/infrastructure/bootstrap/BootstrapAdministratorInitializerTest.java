@@ -1,15 +1,22 @@
 package io.github.ovyx.identity.infrastructure.bootstrap;
 
+import static io.github.ovyx.identity.domain.model.CaretakerTestDataBuilder.aCaretaker;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import io.github.ovyx.identity.application.InMemoryCaretakerRepository;
+import io.github.ovyx.identity.fixtures.InMemoryCaretakerRepository;
 import io.github.ovyx.identity.application.administratorseeding.SeedInitialAdministratorCommandHandler;
 import io.github.ovyx.identity.domain.FakePasswordHasher;
+import io.github.ovyx.identity.domain.model.Caretaker;
+import io.github.ovyx.identity.domain.model.Role;
+import io.github.ovyx.shared.application.Dispatcher;
 import io.github.ovyx.shared.domain.FixedClock;
+import io.github.ovyx.shared.infrastructure.SpringBeanDispatcher;
+import java.util.List;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.support.TransactionOperations;
 
 /**
  * Testes da execucao da semeadura na subida da aplicacao.
@@ -23,14 +30,18 @@ class BootstrapAdministratorInitializerTest {
 
     private static final String PASSWORD = "TrocarNoPrimeiroAcesso2026";
 
+    private final FakePasswordHasher hasher = new FakePasswordHasher();
     private final InMemoryCaretakerRepository repository = new InMemoryCaretakerRepository();
-    private final SeedInitialAdministratorCommandHandler handler = new SeedInitialAdministratorCommandHandler(
-            repository, new FakePasswordHasher(), FixedClock.at("2026-09-21T12:00:00Z"));
+    private final Dispatcher dispatcher = new SpringBeanDispatcher(
+            List.of(new SeedInitialAdministratorCommandHandler(
+                    repository, hasher, FixedClock.at("2026-09-21T12:00:00Z"))),
+            List.of(),
+            TransactionOperations.withoutTransaction());
 
     private BootstrapAdministratorInitializer initializer(String cpf, String password) {
         BootstrapAdministratorProperties properties = new BootstrapAdministratorProperties(
                 "Administrador do Sistema", cpf, "admin@ovyx.com.br", "11988880000", password);
-        return new BootstrapAdministratorInitializer(handler, properties);
+        return new BootstrapAdministratorInitializer(dispatcher, properties);
     }
 
     @Test
@@ -44,6 +55,25 @@ class BootstrapAdministratorInitializerTest {
 
         // then
         assertThat(repository.findByEmailOrMobilePhone("admin@ovyx.com.br")).isPresent();
+    }
+
+    @Test
+    @DisplayName("starts restoring the only inactive administrator, instead of refusing to start")
+    void givenOnlyAnInactiveAdministratorWithTheConfiguredCpf_whenStarting_thenStartWithThemActive() {
+        // given
+        Caretaker former = aCaretaker()
+                .withCpf("87543210932")
+                .withRole(Role.ADMINISTRATOR)
+                .withHasher(hasher)
+                .buildInactive();
+        repository.save(former);
+        BootstrapAdministratorInitializer initializer = initializer("87543210932", PASSWORD);
+
+        // when
+        initializer.run(null);
+
+        // then
+        assertThat(repository.findById(former.id()).orElseThrow().isActive()).isTrue();
     }
 
     @Test

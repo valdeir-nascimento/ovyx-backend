@@ -66,7 +66,26 @@ public enum IdentityErrorCode implements ErrorCode {
     CARETAKER_UNAVAILABLE,
 
     /** Nao ha administrador ativo e a senha do administrador inicial nao foi informada (FR-025). */
-    ADMINISTRATOR_PASSWORD_REQUIRED;
+    ADMINISTRATOR_PASSWORD_REQUIRED,
+
+    /** O responsavel pedido nao existe. */
+    CARETAKER_NOT_FOUND,
+
+    // ---------------------------------------------------------------- conflitos com outros responsaveis
+    // Cada um e, ao mesmo tempo, a regra violada num campo e a recusa da operacao: quando ha mais de
+    // um conflito, todos vem em details, e o codigo da recusa e o do primeiro, na ordem do formulario.
+
+    /** Outro responsavel, ativo ou nao, ja tem este CPF. */
+    CPF_ALREADY_IN_USE,
+
+    /** Outro responsavel ativo ja usa este e-mail (FR-016). */
+    EMAIL_ALREADY_IN_USE,
+
+    /** Outro responsavel ativo ja usa este celular (FR-016). */
+    MOBILE_PHONE_ALREADY_IN_USE,
+
+    /** A operacao deixaria o sistema sem administrador ativo (FR-019). */
+    LAST_ADMINISTRATOR;
 
     @Override
     public String code() {

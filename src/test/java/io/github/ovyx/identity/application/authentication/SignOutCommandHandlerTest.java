@@ -3,7 +3,7 @@ package io.github.ovyx.identity.application.authentication;
 import static io.github.ovyx.identity.domain.model.CaretakerTestDataBuilder.aCaretaker;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.github.ovyx.identity.application.InMemoryCaretakerRepository;
+import io.github.ovyx.identity.fixtures.InMemoryCaretakerRepository;
 import io.github.ovyx.identity.application.RecordingAccessEventRecorder;
 import io.github.ovyx.identity.domain.model.AccessOutcome;
 import io.github.ovyx.identity.domain.model.Caretaker;

@@ -3,7 +3,7 @@ package io.github.ovyx.identity.application.account;
 import static io.github.ovyx.identity.domain.model.CaretakerTestDataBuilder.aCaretaker;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.github.ovyx.identity.application.InMemoryCaretakerRepository;
+import io.github.ovyx.identity.fixtures.InMemoryCaretakerRepository;
 import io.github.ovyx.identity.domain.FakePasswordHasher;
 import io.github.ovyx.identity.domain.IdentityErrorCode;
 import io.github.ovyx.identity.domain.model.Caretaker;
@@ -54,7 +54,7 @@ class ChangeOwnPasswordCommandHandlerTest {
     @Test
     @DisplayName("changes the password and the previous one stops working")
     void givenMatchingCurrentPassword_whenChanging_thenAcceptOnlyTheNewPassword() {
-        // given — Maria is registered in setUp with CURRENT
+        // given — Maria foi cadastrada no setUp com CURRENT
 
         // when
         Result<CaretakerId> result = change(CURRENT, NEW);
@@ -118,7 +118,7 @@ class ChangeOwnPasswordCommandHandlerTest {
         // given
         // A sessao pode sobreviver a inativacao. Inativo nao entra no sistema (invariante 4), e
         // trocar a senha por uma sessao antiga seria um jeito de continuar agindo sobre a conta.
-        maria.deactivate(clock);
+        maria.deactivate(repository, clock);
         repository.save(maria);
 
         // when
@@ -127,7 +127,7 @@ class ChangeOwnPasswordCommandHandlerTest {
         // then
         assertThat(result.isFailure()).isTrue();
         assertThat(result.error().code()).isEqualTo(IdentityErrorCode.CARETAKER_UNAVAILABLE.code());
-        maria.reactivate(clock);
+        maria.reactivate(repository, clock);
         assertThat(reloadedMaria().authenticate(CURRENT, hasher))
                 .as("a senha anterior continua valendo")
                 .isTrue();

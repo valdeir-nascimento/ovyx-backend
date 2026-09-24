@@ -264,12 +264,12 @@ class AuthenticationContractIT extends IntegrationTestSupport {
     }
 
     private void deactivate(Caretaker caretaker) {
-        caretaker.deactivate(clock);
+        caretaker.deactivate(caretakerRepository, clock);
         caretakerRepository.save(caretaker);
     }
 
     private void reactivate(Caretaker caretaker) {
-        caretaker.reactivate(clock);
+        caretaker.reactivate(caretakerRepository, clock);
         caretakerRepository.save(caretaker);
     }
 
@@ -292,7 +292,7 @@ class AuthenticationContractIT extends IntegrationTestSupport {
     @Test
     @DisplayName("signs in by email and returns the authenticated identity without any credential")
     void givenCorrectEmailAndPassword_whenSigningIn_thenReturnTheIdentityWithoutAnyCredential() throws Exception {
-        // given — Maria is registered in setUp
+        // given — Maria foi cadastrada no setUp
 
         // when
         ResultActions response = mockMvc.perform(signInRequest(EMAIL, PASSWORD));
@@ -310,7 +310,7 @@ class AuthenticationContractIT extends IntegrationTestSupport {
     @ValueSource(strings = {MOBILE, "(91) 98888-7777"})
     @DisplayName("signs in by mobile phone, plain or formatted")
     void givenMobilePhoneInAnySpelling_whenSigningIn_thenAccept(String mobilePhone) throws Exception {
-        // given — mobilePhone from @ValueSource
+        // given — celular vindo do @ValueSource
 
         // when
         int status = signInStatus(mobilePhone, PASSWORD);
@@ -356,7 +356,7 @@ class AuthenticationContractIT extends IntegrationTestSupport {
     @Test
     @DisplayName("responds 401 as problem+json on invalid credentials")
     void givenWrongPassword_whenSigningIn_thenAnswer401WithTheGenericMessage() throws Exception {
-        // given — Maria is registered in setUp
+        // given — Maria foi cadastrada no setUp
 
         // when
         ResultActions response = mockMvc.perform(signInRequest(EMAIL, WRONG_PASSWORD));
@@ -716,7 +716,7 @@ class AuthenticationContractIT extends IntegrationTestSupport {
     @Test
     @DisplayName("querying the identity without a session is unauthorized")
     void givenNoSession_whenAskingWhoIsAuthenticated_thenAnswer401() throws Exception {
-        // given — no cookie at all
+        // given — nenhum cookie
 
         // when
         ResultActions response = mockMvc.perform(get("/api/v1/auth/me"));
@@ -743,7 +743,7 @@ class AuthenticationContractIT extends IntegrationTestSupport {
     @Test
     @DisplayName("signing out without a session is unauthorized")
     void givenNoSession_whenSigningOut_thenAnswer401() throws Exception {
-        // given — no cookie at all
+        // given — nenhum cookie
 
         // when
         ResultActions response = mockMvc.perform(post("/api/v1/auth/sign-out").with(csrf()));

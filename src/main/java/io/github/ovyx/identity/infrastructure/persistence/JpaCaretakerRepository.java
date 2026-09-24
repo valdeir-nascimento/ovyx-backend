@@ -3,8 +3,10 @@ package io.github.ovyx.identity.infrastructure.persistence;
 import io.github.ovyx.identity.domain.model.Caretaker;
 import io.github.ovyx.identity.domain.model.CaretakerId;
 import io.github.ovyx.identity.domain.model.CaretakerStatus;
-import io.github.ovyx.identity.domain.model.Role;
 import io.github.ovyx.identity.domain.port.CaretakerRepository;
+import io.github.ovyx.identity.domain.valueobject.Cpf;
+import io.github.ovyx.identity.domain.valueobject.Email;
+import io.github.ovyx.identity.domain.valueobject.MobilePhone;
 import java.util.Optional;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -52,7 +54,39 @@ public class JpaCaretakerRepository implements CaretakerRepository {
 
     @Override
     @Transactional(readOnly = true)
+    public Optional<Caretaker> findByCpf(Cpf cpf) {
+        return jpaRepository.findByCpf(cpf.value()).map(CaretakerRecordMapper::toDomain);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isCpfTakenByAnother(Cpf cpf, CaretakerId self) {
+        return jpaRepository.existsByCpfAndIdNot(cpf.value(), self.value());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isEmailTakenByAnotherActive(Email email, CaretakerId self) {
+        return jpaRepository.existsByEmailAndStatusAndIdNot(email.value(), CaretakerStatus.ACTIVE, self.value());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isMobilePhoneTakenByAnotherActive(MobilePhone mobilePhone, CaretakerId self) {
+        return jpaRepository.existsByMobilePhoneAndStatusAndIdNot(
+                mobilePhone.value(), CaretakerStatus.ACTIVE, self.value());
+    }
+
+    /**
+     * Conta travando as linhas contadas (FR-019).
+     *
+     * <p>Contar sem travar deixava duas inativacoes simultaneas dos dois ultimos administradores
+     * verem dois e gravarem as duas. Nao e somente leitura, de proposito: o PostgreSQL recusa
+     * {@code for update} numa transacao de leitura.
+     */
+    @Override
+    @Transactional
     public long countActiveAdministrators() {
-        return jpaRepository.countByRoleAndStatus(Role.ADMINISTRATOR, CaretakerStatus.ACTIVE);
+        return jpaRepository.lockActiveAdministrators().size();
     }
 }

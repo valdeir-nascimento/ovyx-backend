@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 import io.github.ovyx.shared.domain.DomainException;
+import io.github.ovyx.shared.domain.ErrorCode;
 import io.github.ovyx.shared.domain.Violation;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +28,16 @@ public final class DomainViolations {
     /** Executa o que deve ser recusado e devolve o que a API publica: campo -> mensagens em portugues. */
     public static Map<String, String> detailsOf(ThrowingCallable refused) {
         return refusalOf(refused).details();
+    }
+
+    /** Executa o que deve ser recusado e devolve o codigo da recusa, o que chega ao cliente em {@code code}. */
+    public static ErrorCode refusalCodeOf(ThrowingCallable refused) {
+        return refusalOf(refused).errorCode();
+    }
+
+    /** Executa o que deve ser recusado e devolve a mensagem geral da recusa, o que chega em {@code detail}. */
+    public static String refusalMessageOf(ThrowingCallable refused) {
+        return refusalOf(refused).getMessage();
     }
 
     private static DomainException refusalOf(ThrowingCallable refused) {

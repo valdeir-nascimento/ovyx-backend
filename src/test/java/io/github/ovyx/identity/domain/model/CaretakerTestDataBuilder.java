@@ -1,6 +1,8 @@
 package io.github.ovyx.identity.domain.model;
 
+import io.github.ovyx.identity.fixtures.InMemoryCaretakerRepository;
 import io.github.ovyx.identity.domain.FakePasswordHasher;
+import io.github.ovyx.identity.domain.port.CaretakerRoster;
 import io.github.ovyx.identity.domain.port.PasswordHasher;
 import io.github.ovyx.shared.domain.FixedClock;
 import java.time.Clock;
@@ -33,6 +35,7 @@ public final class CaretakerTestDataBuilder {
     private Role role = Role.USER;
     private boolean mustChangePassword = false;
     private PasswordHasher hasher = new FakePasswordHasher();
+    private CaretakerRoster roster = new InMemoryCaretakerRepository();
     private Clock clock = FixedClock.at("2026-09-19T12:00:00Z");
 
     private CaretakerTestDataBuilder() {}
@@ -93,6 +96,12 @@ public final class CaretakerTestDataBuilder {
         return this;
     }
 
+    /** Os demais responsaveis, para os cenarios de unicidade; por padrao, nenhum. */
+    public CaretakerTestDataBuilder withRoster(CaretakerRoster roster) {
+        this.roster = roster;
+        return this;
+    }
+
     public CaretakerTestDataBuilder withClock(Clock clock) {
         this.clock = clock;
         return this;
@@ -103,7 +112,30 @@ public final class CaretakerTestDataBuilder {
      * recusaria em producao.
      */
     public Caretaker build() {
-        return Caretaker.register(fullName, cpf, email, mobilePhone, password, role, mustChangePassword, hasher, clock);
+        return Caretaker.register(
+                fullName, cpf, email, mobilePhone, password, role, mustChangePassword, hasher, roster, clock);
+    }
+
+    /**
+     * Responsavel ja gravado como inativo, reidratado como o adaptador de persistencia faz.
+     *
+     * <p>Serve ao estado que as regras do agregado nao deixam alcancar por elas mesmas, como o
+     * ultimo administrador inativo: foi o banco que chegou nele, e a aplicacao precisa sair dele.
+     */
+    public Caretaker buildInactive() {
+        Caretaker active = build();
+        return Caretaker.restore(
+                active.id(),
+                active.fullName(),
+                active.cpf(),
+                active.email(),
+                active.mobilePhone(),
+                active.passwordHash(),
+                active.role(),
+                CaretakerStatus.INACTIVE,
+                active.mustChangePassword(),
+                active.createdAt(),
+                active.updatedAt());
     }
 
     /** CPF aleatorio com digitos verificadores corretos. */

@@ -74,8 +74,9 @@ public class OpenApiConfiguration {
                         ou formato de resposta indisponível (406) respondem com `code` \
                         `REQUEST_NOT_ACCEPTABLE`, mantendo o status real. Corpo que o parser não \
                         consegue ler responde 400 com o mesmo código, sem repetir o conteúdo \
-                        enviado. Nas operações que devolvem corpo de sucesso — a entrada e \
-                        `/auth/me` —, um `Accept` que aceita só `application/problem+json` \
+                        enviado. Nas operações que devolvem corpo de sucesso — a entrada, \
+                        `/auth/me` e as de responsáveis —, um `Accept` que aceita só \
+                        `application/problem+json` \
                         também recebe 406: esse é o formato dos erros, e não serve a uma \
                         resposta de sucesso.
 

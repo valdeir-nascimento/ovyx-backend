@@ -50,6 +50,11 @@ class ManagementPortIT extends IntegrationTestSupport {
     private static final String SIGN_OUT = "/paths/~1api~1v1~1auth~1sign-out/post";
     private static final String ME = "/paths/~1api~1v1~1auth~1me/get";
     private static final String PASSWORD = "/paths/~1api~1v1~1me~1password/put";
+    private static final String REGISTER = "/paths/~1api~1v1~1caretakers/post";
+    private static final String SEARCH = "/paths/~1api~1v1~1caretakers/get";
+    private static final String FIND = "/paths/~1api~1v1~1caretakers~1{caretakerId}/get";
+    private static final String UPDATE = "/paths/~1api~1v1~1caretakers~1{caretakerId}/put";
+    private static final String DEACTIVATE = "/paths/~1api~1v1~1caretakers~1{caretakerId}~1deactivation/post";
 
     private static final Set<String> HTTP_METHODS = Set.of("get", "post", "put", "patch", "delete");
 
@@ -197,7 +202,15 @@ class ManagementPortIT extends IntegrationTestSupport {
     }
 
     @ParameterizedTest(name = "{0} under \"{1}\"")
-    @CsvSource({SIGN_IN + ", Acesso", PASSWORD + ", Minha conta"})
+    @CsvSource({
+        SIGN_IN + ", Acesso",
+        PASSWORD + ", Minha conta",
+        REGISTER + ", Responsáveis",
+        SEARCH + ", Responsáveis",
+        FIND + ", Responsáveis",
+        UPDATE + ", Responsáveis",
+        DEACTIVATE + ", Responsáveis"
+    })
     @DisplayName("each operation is published under the tag the contract assigns")
     void givenPublishedDocument_whenReadingAnOperationTag_thenUseTheTagTheContractAssigns(String pointer, String tag)
             throws Exception {
@@ -265,25 +278,17 @@ class ManagementPortIT extends IntegrationTestSupport {
         assertThat(response.statusCode()).isEqualTo(405);
     }
 
-    @Test
-    @DisplayName("no caretaker administration tag is published before the story that delivers it")
-    void givenPublishedDocument_whenReadingTheTags_thenPublishNoCaretakerAdministrationYet() throws Exception {
-        // given
-        JsonNode document = document();
-
-        // when
-        String tags = document.at("/tags").toString();
-
-        // then
-        assertThat(tags).doesNotContain("Responsáveis");
-    }
-
     @ParameterizedTest(name = "{0}: {1}")
     @CsvSource({
         SIGN_IN + ", Entrar no sistema",
         SIGN_OUT + ", Sair do sistema",
         ME + ", Consultar o responsável autenticado",
-        PASSWORD + ", Trocar a própria senha"
+        PASSWORD + ", Trocar a própria senha",
+        REGISTER + ", Cadastrar responsável",
+        SEARCH + ", Listar e pesquisar responsáveis",
+        FIND + ", Consultar responsável",
+        UPDATE + ", Editar responsável",
+        DEACTIVATE + ", Inativar responsável"
     })
     @DisplayName("every operation keeps its summary")
     void givenPublishedDocument_whenReadingAnOperation_thenKeepItsSummary(String pointer, String summary)
@@ -308,7 +313,23 @@ class ManagementPortIT extends IntegrationTestSupport {
         SIGN_IN + ", 406",
         ME + ", 401",
         ME + ", 406",
-        PASSWORD + ", 400"
+        PASSWORD + ", 400",
+        REGISTER + ", 400",
+        REGISTER + ", 401",
+        REGISTER + ", 403",
+        REGISTER + ", 406",
+        REGISTER + ", 409",
+        REGISTER + ", 415",
+        SEARCH + ", 400",
+        SEARCH + ", 401",
+        SEARCH + ", 403",
+        FIND + ", 400",
+        FIND + ", 404",
+        UPDATE + ", 400",
+        UPDATE + ", 404",
+        UPDATE + ", 409",
+        DEACTIVATE + ", 404",
+        DEACTIVATE + ", 409"
     })
     @DisplayName("every operation publishes the error responses it can produce")
     void givenPublishedDocument_whenReadingAnOperationResponses_thenPublishTheErrorsItCanProduce(
@@ -323,6 +344,24 @@ class ManagementPortIT extends IntegrationTestSupport {
 
         // then
         assertThat(responses.has(status)).isTrue();
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {REGISTER, SEARCH, FIND, UPDATE, DEACTIVATE, PASSWORD})
+    @DisplayName("every operation that revalidates the session publishes the caretaker deactivated with it open")
+    void givenPublishedDocument_whenReadingARevalidatedOperation401_thenPublishTheCaretakerUnavailableExample(
+            String pointer) throws Exception {
+        // given
+        // A sessao e reconferida a cada requisicao: quem integra precisa saber que o 401 pode chegar
+        // com a sessao aberta, e que ela termina ali.
+        JsonNode document = document();
+
+        // when
+        JsonNode example = document.at(
+                pointer + "/responses/401/content/application~1problem+json/examples/responsavelIndisponivel/value");
+
+        // then
+        assertThat(example.path("code").asString()).isEqualTo("CARETAKER_UNAVAILABLE");
     }
 
     @ParameterizedTest
@@ -357,7 +396,12 @@ class ManagementPortIT extends IntegrationTestSupport {
                         "POST /api/v1/auth/sign-in",
                         "POST /api/v1/auth/sign-out",
                         "GET /api/v1/auth/me",
-                        "PUT /api/v1/me/password");
+                        "PUT /api/v1/me/password",
+                        "POST /api/v1/caretakers",
+                        "GET /api/v1/caretakers",
+                        "GET /api/v1/caretakers/{caretakerId}",
+                        "PUT /api/v1/caretakers/{caretakerId}",
+                        "POST /api/v1/caretakers/{caretakerId}/deactivation");
     }
 
     @TestFactory
@@ -423,7 +467,16 @@ class ManagementPortIT extends IntegrationTestSupport {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {SIGN_IN + "/responses/200/content", ME + "/responses/200/content"})
+    @ValueSource(
+            strings = {
+                SIGN_IN + "/responses/200/content",
+                ME + "/responses/200/content",
+                REGISTER + "/responses/201/content",
+                SEARCH + "/responses/200/content",
+                FIND + "/responses/200/content",
+                UPDATE + "/responses/200/content",
+                DEACTIVATE + "/responses/200/content"
+            })
     @DisplayName("every successful body is published as JSON")
     void givenPublishedDocument_whenReadingA200Response_thenPublishItAsJson(String pointer) throws Exception {
         // given
@@ -440,7 +493,7 @@ class ManagementPortIT extends IntegrationTestSupport {
     @ValueSource(strings = {"/actuator/swagger-ui/swagger-initializer.js", "/actuator/swagger-ui/swagger-config"})
     @DisplayName("the Swagger UI assets and configuration are reachable")
     void givenSwaggerUiAsset_whenRequestingIt_thenAnswerOk(String asset) throws Exception {
-        // given — asset from @ValueSource
+        // given — arquivo vindo do @ValueSource
         // A liberacao passou a ser por endpoint. Os arquivos da interface vivem abaixo do caminho
         // do endpoint e precisam continuar alcancaveis, ou a pagina abre em branco.
 

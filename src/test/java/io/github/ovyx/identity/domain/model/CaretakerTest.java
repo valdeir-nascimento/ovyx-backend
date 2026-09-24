@@ -7,6 +7,7 @@ import static io.github.ovyx.identity.domain.model.CaretakerTestDataBuilder.aCar
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
+import io.github.ovyx.identity.fixtures.InMemoryCaretakerRepository;
 import io.github.ovyx.identity.domain.FakePasswordHasher;
 import io.github.ovyx.identity.domain.IdentityErrorCode;
 import io.github.ovyx.identity.domain.port.PasswordHasher;
@@ -20,9 +21,9 @@ import org.junit.jupiter.api.Test;
 /**
  * Testes do agregado {@code Caretaker} — sem mock de dominio, conforme o principio VI.
  *
- * <p>As invariantes verificadas aqui sao as de data-model.md. As invariantes <em>entre</em>
- * agregados (unicidade de e-mail e celular, ultimo administrador ativo) nao cabem aqui: dependem
- * de consulta ao repositorio e sao verificadas nos testes dos handlers.
+ * <p>As invariantes verificadas aqui sao as de data-model.md que dependem so do proprio
+ * responsavel. As que consultam os demais — unicidade do CPF, do e-mail e do celular, e o ultimo
+ * administrador ativo — estao em {@link CaretakerAdministrationTest}.
  */
 @DisplayName("Caretaker")
 class CaretakerTest {
@@ -132,7 +133,7 @@ class CaretakerTest {
     void givenInactiveCaretaker_whenAuthenticatingWithCorrectPassword_thenRefuse() {
         // given
         Caretaker caretaker = aValidCaretaker().build();
-        caretaker.deactivate(clock);
+        caretaker.deactivate(new InMemoryCaretakerRepository(), clock);
 
         // when
         boolean authenticated = caretaker.authenticate(DEFAULT_PASSWORD, hasher);
@@ -147,10 +148,10 @@ class CaretakerTest {
     void givenDeactivatedCaretaker_whenReactivating_thenAuthenticateAgain() {
         // given
         Caretaker caretaker = aValidCaretaker().build();
-        caretaker.deactivate(clock);
+        caretaker.deactivate(new InMemoryCaretakerRepository(), clock);
 
         // when
-        caretaker.reactivate(clock);
+        caretaker.reactivate(new InMemoryCaretakerRepository(), clock);
 
         // then
         assertThat(caretaker.status()).isEqualTo(CaretakerStatus.ACTIVE);

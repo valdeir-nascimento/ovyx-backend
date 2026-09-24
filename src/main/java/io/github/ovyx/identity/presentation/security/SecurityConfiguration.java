@@ -1,5 +1,6 @@
 package io.github.ovyx.identity.presentation.security;
 
+import io.github.ovyx.identity.domain.model.Role;
 import jakarta.servlet.DispatcherType;
 import org.springframework.boot.security.autoconfigure.actuate.web.servlet.EndpointRequest;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
@@ -21,6 +22,9 @@ import org.springframework.security.web.savedrequest.NullRequestCache;
 @Configuration
 @EnableWebSecurity
 public class SecurityConfiguration {
+
+    /** Perfil que administra responsaveis; o nome vem de {@code Role}, sem o prefixo ROLE_. */
+    private static final String ADMINISTRATOR = Role.ADMINISTRATOR.name();
 
     private final ProblemAuthenticationEntryPoint authenticationEntryPoint;
     private final ProblemAccessDeniedHandler accessDeniedHandler;
@@ -72,7 +76,8 @@ public class SecurityConfiguration {
 
     @Bean
     @Order(2)
-    SecurityFilterChain apiSecurityFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain apiSecurityFilterChain(HttpSecurity http, SessionRevalidationFilter sessionRevalidationFilter)
+        throws Exception {
         return http.authorizeHttpRequests(requests -> requests
                 // Despacho interno de erro: sem esta liberacao, todo 500 era reenviado a /error,
                 // barrado por falta de autenticacao e entregue ao cliente como 401.
@@ -87,6 +92,18 @@ public class SecurityConfiguration {
                 .authenticated()
                 .requestMatchers(HttpMethod.PUT, "/api/v1/me/password")
                 .authenticated()
+                // Rotas da Historia 2: a administracao de responsaveis e so do perfil Administrador
+                // (FR-008), uma rota por vez, para que um metodo novo nasca negado.
+                .requestMatchers(HttpMethod.POST, "/api/v1/caretakers")
+                .hasRole(ADMINISTRATOR)
+                .requestMatchers(HttpMethod.GET, "/api/v1/caretakers")
+                .hasRole(ADMINISTRATOR)
+                .requestMatchers(HttpMethod.GET, "/api/v1/caretakers/*")
+                .hasRole(ADMINISTRATOR)
+                .requestMatchers(HttpMethod.PUT, "/api/v1/caretakers/*")
+                .hasRole(ADMINISTRATOR)
+                .requestMatchers(HttpMethod.POST, "/api/v1/caretakers/*/deactivation")
+                .hasRole(ADMINISTRATOR)
                 // Negacao por omissao para todos, inclusive autenticados (FR-012). Com
                 // authenticated() aqui, uma rota administrativa esquecida nasceria aberta a
                 // qualquer usuario comum.
@@ -116,6 +133,9 @@ public class SecurityConfiguration {
             .formLogin(AbstractHttpConfigurer::disable)
             .httpBasic(AbstractHttpConfigurer::disable)
             .logout(AbstractHttpConfigurer::disable)
+            // Antes da autorizacao: ela precisa decidir pela situacao e pelo perfil de agora, e nao
+            // pelos gravados na sessao no login (FR-005, FR-008).
+            .addFilterBefore(sessionRevalidationFilter, AuthorizationFilter.class)
             // Depois da autorizacao: so faz sentido cobrar a troca de senha de quem ja passou por
             // ela. Antes, o filtro nem teria identidade para inspecionar.
             .addFilterAfter(passwordChangeRequiredFilter, AuthorizationFilter.class)
@@ -129,6 +149,15 @@ public class SecurityConfiguration {
      * este ja entra na cadeia de seguranca, sem esta desativacao ele rodaria duas vezes por
      * requisicao — a primeira antes da autenticacao, sem identidade para inspecionar.
      */
+    /** Pelo mesmo motivo do filtro de troca de senha: ele ja entra na cadeia de seguranca. */
+    @Bean
+    FilterRegistrationBean<SessionRevalidationFilter> sessionRevalidationFilterRegistration(
+        SessionRevalidationFilter filter) {
+        FilterRegistrationBean<SessionRevalidationFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
+    }
+
     @Bean
     FilterRegistrationBean<PasswordChangeRequiredFilter> passwordChangeRequiredFilterRegistration(
         PasswordChangeRequiredFilter filter) {
