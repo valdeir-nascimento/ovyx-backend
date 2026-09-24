@@ -2,6 +2,7 @@ package io.github.ovyx.identity.presentation.security;
 
 import static io.github.ovyx.identity.domain.model.CaretakerTestDataBuilder.aUniqueCaretaker;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -11,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import io.github.ovyx.CsrfHandshake;
 import io.github.ovyx.IntegrationTestSupport;
 import io.github.ovyx.identity.domain.model.Caretaker;
+import io.github.ovyx.identity.domain.model.Role;
 import io.github.ovyx.identity.domain.port.CaretakerRepository;
 import io.github.ovyx.identity.domain.port.PasswordHasher;
 import java.time.Clock;
@@ -65,7 +67,12 @@ class DenyByDefaultIT extends IntegrationTestSupport {
     private ApplicationContext context;
 
     private Cookie[] signInAsUser() throws Exception {
+        return signInAs(Role.USER);
+    }
+
+    private Cookie[] signInAs(Role role) throws Exception {
         Caretaker user = aUniqueCaretaker()
+                .withRole(role)
                 .withPassword(PASSWORD)
                 .withHasher(passwordHasher)
                 .withClock(clock)
@@ -101,10 +108,28 @@ class DenyByDefaultIT extends IntegrationTestSupport {
     @DisplayName("an undeclared route is forbidden even to an authenticated caretaker")
     void givenAuthenticatedCaretaker_whenCallingAnUndeclaredRoute_thenForbid() throws Exception {
         // given
+        // A rota precisa ser uma que ninguem declarou. A versao anterior usava /api/v1/caretakers,
+        // que a US2 declarou: o 403 passou a vir do perfil, e a negacao por omissao ficou sem teste.
         Cookie[] cookies = signInAsUser();
 
         // when
-        ResultActions response = mockMvc.perform(get("/api/v1/caretakers").cookie(cookies));
+        ResultActions response = mockMvc.perform(get("/api/v1/rota-que-ninguem-declarou").cookie(cookies));
+
+        // then
+        response.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("an undeclared method on a declared route is forbidden even to an administrator")
+    void givenAdministrator_whenCallingAnUndeclaredMethodOnADeclaredRoute_thenForbid() throws Exception {
+        // given
+        // Excluir responsavel nao existe (FR-018): o metodo nao declarado e negado, e nao respondido 405.
+        Cookie[] cookies = signInAs(Role.ADMINISTRATOR);
+
+        // when
+        ResultActions response = mockMvc.perform(delete("/api/v1/caretakers/9f8e7d6c-5b4a-4938-2716-0f1e2d3c4b5a")
+                .with(csrf())
+                .cookie(cookies));
 
         // then
         response.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("FORBIDDEN"));

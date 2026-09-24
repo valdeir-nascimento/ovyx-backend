@@ -10,6 +10,12 @@ public enum SeedingOutcome {
     /** O administrador inicial foi criado. */
     CREATED,
 
+    /**
+     * Nao havia administrador ativo, e quem ja tinha o CPF configurado voltou a administrar, com a
+     * senha provisoria e a troca obrigatoria no primeiro acesso.
+     */
+    RESTORED,
+
     /** Ja havia administrador ativo; nada foi criado. */
     NOT_NEEDED
 }

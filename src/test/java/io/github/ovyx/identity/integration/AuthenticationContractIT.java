@@ -103,6 +103,12 @@ class AuthenticationContractIT extends IntegrationTestSupport {
            AND attempted_identifier = ?
         """;
 
+    private static final String EVENTS_FOR_IDENTIFIER = """
+        SELECT count(*)
+          FROM access_event
+         WHERE attempted_identifier = ?
+        """;
+
     private static final String INVALID_CREDENTIALS_FOR_IDENTIFIER = """
         SELECT count(*)
           FROM access_event
@@ -258,12 +264,12 @@ class AuthenticationContractIT extends IntegrationTestSupport {
     }
 
     private void deactivate(Caretaker caretaker) {
-        caretaker.deactivate(clock);
+        caretaker.deactivate(caretakerRepository, clock);
         caretakerRepository.save(caretaker);
     }
 
     private void reactivate(Caretaker caretaker) {
-        caretaker.reactivate(clock);
+        caretaker.reactivate(caretakerRepository, clock);
         caretakerRepository.save(caretaker);
     }
 
@@ -286,7 +292,7 @@ class AuthenticationContractIT extends IntegrationTestSupport {
     @Test
     @DisplayName("signs in by email and returns the authenticated identity without any credential")
     void givenCorrectEmailAndPassword_whenSigningIn_thenReturnTheIdentityWithoutAnyCredential() throws Exception {
-        // given — Maria is registered in setUp
+        // given — Maria foi cadastrada no setUp
 
         // when
         ResultActions response = mockMvc.perform(signInRequest(EMAIL, PASSWORD));
@@ -304,7 +310,7 @@ class AuthenticationContractIT extends IntegrationTestSupport {
     @ValueSource(strings = {MOBILE, "(91) 98888-7777"})
     @DisplayName("signs in by mobile phone, plain or formatted")
     void givenMobilePhoneInAnySpelling_whenSigningIn_thenAccept(String mobilePhone) throws Exception {
-        // given — mobilePhone from @ValueSource
+        // given — celular vindo do @ValueSource
 
         // when
         int status = signInStatus(mobilePhone, PASSWORD);
@@ -350,13 +356,14 @@ class AuthenticationContractIT extends IntegrationTestSupport {
     @Test
     @DisplayName("responds 401 as problem+json on invalid credentials")
     void givenWrongPassword_whenSigningIn_thenAnswer401WithTheGenericMessage() throws Exception {
-        // given — Maria is registered in setUp
+        // given — Maria foi cadastrada no setUp
 
         // when
         ResultActions response = mockMvc.perform(signInRequest(EMAIL, WRONG_PASSWORD));
 
         // then
         response.andExpect(status().isUnauthorized())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
             .andExpect(jsonPath("$.code").value("INVALID_CREDENTIALS"))
             // O titulo descreve a natureza da falha; o code carrega a regra violada.
             .andExpect(jsonPath("$.title").value("Não autenticado"))
@@ -413,6 +420,58 @@ class AuthenticationContractIT extends IntegrationTestSupport {
             .andExpect(jsonPath("$.code").value("REQUEST_NOT_ACCEPTABLE"))
             .andExpect(jsonPath("$.title").value("Requisição não suportada"))
             .andExpect(jsonPath("$.status").value(415));
+    }
+
+    @Test
+    @DisplayName("refuses an unavailable response format before checking the credential")
+    void givenValidCredentialsAskingForXml_whenSigningIn_thenAnswer406WithoutOpeningASession() throws Exception {
+        // given
+        // A recusa vinha depois de o tratador rodar: o cliente recebia 406 com um cookie de sessao
+        // valido, a auditoria registrava a entrada como concedida e a contencao era zerada. A falha
+        // anterior e o que torna o zerar visivel.
+        Caretaker caretaker = saved(aCaretakerForThisDatabase());
+        String email = caretaker.email().value();
+        mockMvc.perform(signInRequest(email, WRONG_PASSWORD));
+
+        // when
+        MvcResult response = mockMvc.perform(signInRequest(email, PASSWORD).accept(MediaType.APPLICATION_XML))
+                .andReturn();
+
+        // then
+        assertThat(response.getResponse().getStatus()).isEqualTo(406);
+        assertThat(response.getResponse().getCookie("SESSION")).as("session cookie").isNull();
+        assertThat(count(EVENTS_FOR_IDENTIFIER, email)).as("only the earlier failure is audited").isEqualTo(1);
+        assertThat(count(FAILURES_FROM_ORIGIN, email, "127.0.0.1")).as("contention kept").isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("refuses an unavailable response format when asking who is authenticated")
+    void givenOpenSessionAskingForXml_whenAskingWhoIsAuthenticated_thenAnswer406() throws Exception {
+        // given
+        Cookie[] cookies = signInAndKeepSession(EMAIL, PASSWORD);
+
+        // when
+        ResultActions response =
+                mockMvc.perform(get("/api/v1/auth/me").cookie(cookies).accept(MediaType.APPLICATION_XML));
+
+        // then
+        response.andExpect(status().isNotAcceptable());
+    }
+
+    @Test
+    @DisplayName("refuses to label the identity as an error body when only problem+json is accepted")
+    void givenOpenSessionAcceptingOnlyProblemJson_whenAskingWhoIsAuthenticated_thenAnswer406() throws Exception {
+        // given
+        // Sem o produces na rota, o corpo de sucesso saia rotulado como problem+json, o formato dos
+        // erros: o cliente leria a identidade como se fosse uma recusa.
+        Cookie[] cookies = signInAndKeepSession(EMAIL, PASSWORD);
+
+        // when
+        ResultActions response =
+                mockMvc.perform(get("/api/v1/auth/me").cookie(cookies).accept(MediaType.APPLICATION_PROBLEM_JSON));
+
+        // then
+        response.andExpect(status().isNotAcceptable());
     }
 
     @Test
@@ -657,7 +716,7 @@ class AuthenticationContractIT extends IntegrationTestSupport {
     @Test
     @DisplayName("querying the identity without a session is unauthorized")
     void givenNoSession_whenAskingWhoIsAuthenticated_thenAnswer401() throws Exception {
-        // given — no cookie at all
+        // given — nenhum cookie
 
         // when
         ResultActions response = mockMvc.perform(get("/api/v1/auth/me"));
@@ -684,7 +743,7 @@ class AuthenticationContractIT extends IntegrationTestSupport {
     @Test
     @DisplayName("signing out without a session is unauthorized")
     void givenNoSession_whenSigningOut_thenAnswer401() throws Exception {
-        // given — no cookie at all
+        // given — nenhum cookie
 
         // when
         ResultActions response = mockMvc.perform(post("/api/v1/auth/sign-out").with(csrf()));
@@ -706,7 +765,9 @@ class AuthenticationContractIT extends IntegrationTestSupport {
         ResultActions response = mockMvc.perform(get("/api/v1/auth/me").cookie(cookies));
 
         // then
-        response.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("CARETAKER_UNAVAILABLE"));
+        response.andExpect(status().isUnauthorized())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.code").value("CARETAKER_UNAVAILABLE"));
     }
 
     @Test
@@ -825,7 +886,9 @@ class AuthenticationContractIT extends IntegrationTestSupport {
         ResultActions response = mockMvc.perform(passwordChangeRequest(cookies, PASSWORD, NEW_PASSWORD));
 
         // then
-        response.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("CARETAKER_UNAVAILABLE"));
+        response.andExpect(status().isUnauthorized())
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.code").value("CARETAKER_UNAVAILABLE"));
     }
 
     @Test

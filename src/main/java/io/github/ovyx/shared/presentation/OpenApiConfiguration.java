@@ -74,9 +74,20 @@ public class OpenApiConfiguration {
                         ou formato de resposta indisponível (406) respondem com `code` \
                         `REQUEST_NOT_ACCEPTABLE`, mantendo o status real. Corpo que o parser não \
                         consegue ler responde 400 com o mesmo código, sem repetir o conteúdo \
-                        enviado. Método ou rota que não foram declarados não chegam a produzir \
-                        405: a autorização é por endpoint, e o que não está declarado responde \
-                        403 `FORBIDDEN` antes disso.
+                        enviado. Nas operações que devolvem corpo de sucesso — a entrada, \
+                        `/auth/me` e as de responsáveis —, um `Accept` que aceita só \
+                        `application/problem+json` \
+                        também recebe 406: esse é o formato dos erros, e não serve a uma \
+                        resposta de sucesso.
+
+                        **Método ou rota não declarados**: não produzem 405, com uma exceção: \
+                        `TRACE`, que o próprio servidor recusa com 405 antes de a requisição \
+                        chegar à aplicação, num corpo fora do formato de erro deste documento. \
+                        A autorização é declarada por endpoint e método, e o que não está \
+                        declarado é negado antes de o roteamento avaliar o método: sem sessão, \
+                        a resposta é 401 `UNAUTHENTICATED`; com sessão, 403 `FORBIDDEN`. Uma \
+                        requisição que altera estado sem o cabeçalho `X-XSRF-TOKEN` é recusada \
+                        antes disso, com 403 `CSRF_TOKEN_INVALID`.
 
                         **Falha inesperada**: defeito técnico responde 500 com `code` \
                         `INTERNAL_ERROR`, sem nenhum detalhe da causa.

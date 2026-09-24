@@ -4,6 +4,7 @@ import io.github.ovyx.identity.domain.IdentityErrorCode;
 import io.github.ovyx.shared.domain.Notification;
 import io.github.ovyx.shared.domain.Rule;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Celular do responsavel, o segundo identificador de acesso.
@@ -40,6 +41,16 @@ public record MobilePhone(String value) {
             MobilePhone::isValid,
             IdentityErrorCode.MOBILE_PHONE_INVALID,
             "Informe um celular com DDD, contendo 10 ou 11 dígitos."));
+
+    /**
+     * Construtor canonico: so a garantia estrutural, sem regra de negocio.
+     *
+     * <p>E o caminho da reidratacao, que le do banco um valor ja validado. Revalidar ali reprovaria
+     * registros antigos a cada regra nova; aceitar nulo deixaria um objeto de valor sem valor.
+     */
+    public MobilePhone {
+        Objects.requireNonNull(value, "value");
+    }
 
     /**
      * Registra no {@link Notification} as violacoes do campo, sem lancar.

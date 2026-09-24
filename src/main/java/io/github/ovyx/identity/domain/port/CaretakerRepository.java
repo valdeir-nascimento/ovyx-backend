@@ -2,6 +2,7 @@ package io.github.ovyx.identity.domain.port;
 
 import io.github.ovyx.identity.domain.model.Caretaker;
 import io.github.ovyx.identity.domain.model.CaretakerId;
+import io.github.ovyx.identity.domain.valueobject.Cpf;
 import java.util.Optional;
 
 /**
@@ -11,10 +12,11 @@ import java.util.Optional;
  * Consulta para tela tem porta propria, declarada na funcionalidade de {@code application} que a usa
  * (principio V).
  *
- * <p>Contem so o que a Historia 1 usa. As verificacoes de unicidade de e-mail, celular e CPF entram
- * com a Historia 2, por TDD, junto com o cadastro que as exige.
+ * <p>Estende {@link CaretakerRoster}: e o mesmo repositorio que responde ao agregado as perguntas
+ * sobre os demais responsaveis — unicidade e ultimo administrador —, sem que o agregado ganhe
+ * acesso a gravacao.
  */
-public interface CaretakerRepository {
+public interface CaretakerRepository extends CaretakerRoster {
 
     /** Grava o agregado, criando ou atualizando conforme a identidade ja exista. */
     void save(Caretaker caretaker);
@@ -34,6 +36,10 @@ public interface CaretakerRepository {
      */
     Optional<Caretaker> findByEmailOrMobilePhone(String canonicalIdentifier);
 
-    /** Quantos administradores ativos existem. Decide se a semeadura do administrador e necessaria. */
-    long countActiveAdministrators();
+    /**
+     * Localiza o responsavel com o CPF, ativo ou nao.
+     *
+     * <p>Ha no maximo um: o CPF nao se repete entre responsaveis, em nenhuma situacao (FR-016).
+     */
+    Optional<Caretaker> findByCpf(Cpf cpf);
 }

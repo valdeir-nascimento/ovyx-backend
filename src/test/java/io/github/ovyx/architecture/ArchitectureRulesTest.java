@@ -59,7 +59,10 @@ class ArchitectureRulesTest {
                         ArchitectureRules.CONTROLLERS_MUST_IMPLEMENT_THEIR_API_INTERFACE),
                 Arguments.of(
                         "no handler lets a domain refusal escape",
-                        ArchitectureRules.HANDLERS_MUST_CATCH_DOMAIN_REFUSALS));
+                        ArchitectureRules.HANDLERS_MUST_CATCH_DOMAIN_REFUSALS),
+                Arguments.of(
+                        "outside domain and application, a domain refusal arrives only as a Failure",
+                        ArchitectureRules.OUTER_LAYERS_MUST_NOT_RECEIVE_DOMAIN_REFUSALS));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -67,7 +70,7 @@ class ArchitectureRulesTest {
     @DisplayName("production code follows every architecture rule")
     void givenProductionClasses_whenEvaluatingAnArchitectureRule_thenFindNoViolation(
             String description, ArchRule rule) {
-        // given — PRODUCTION_CLASSES, imported once for the whole class
+        // given — PRODUCTION_CLASSES, importadas uma vez para a classe inteira
 
         // when
         EvaluationResult result = rule.evaluate(PRODUCTION_CLASSES);

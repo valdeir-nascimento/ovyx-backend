@@ -47,6 +47,16 @@ public final class AuthenticationExamples {
               "instance": "/api/v1/auth/sign-in"
             }""";
 
+    public static final String SIGN_IN_NOT_ACCEPTABLE =
+        """
+            {
+              "code": "REQUEST_NOT_ACCEPTABLE",
+              "title": "Requisição não suportada",
+              "status": 406,
+              "detail": "A requisição não é suportada por este endereço.",
+              "instance": "/api/v1/auth/sign-in"
+            }""";
+
     public static final String SIGN_IN_UNSUPPORTED_MEDIA_TYPE =
         """
             {

@@ -6,7 +6,11 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import com.tngtech.archunit.base.DescribedPredicate;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaCodeUnit;
-import com.tngtech.archunit.core.domain.JavaMethodCall;
+import com.tngtech.archunit.core.domain.JavaCodeUnitAccess;
+import com.tngtech.archunit.core.domain.JavaCodeUnitReference;
+import com.tngtech.archunit.core.domain.JavaConstructor;
+import com.tngtech.archunit.core.domain.JavaMethod;
+import com.tngtech.archunit.core.domain.JavaModifier;
 import com.tngtech.archunit.core.domain.properties.CanBeAnnotated;
 import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
@@ -15,9 +19,15 @@ import com.tngtech.archunit.lang.SimpleConditionEvent;
 import io.github.ovyx.shared.application.CommandHandler;
 import io.github.ovyx.shared.application.QueryHandler;
 import io.github.ovyx.shared.domain.DomainException;
+import java.util.ArrayDeque;
+import java.util.Collection;
+import java.util.Deque;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * As regras de arquitetura do Ovyx, em um unico lugar.
@@ -178,12 +188,45 @@ public final class ArchitectureRules {
      *
      * <p>A {@code DomainException} nao e declarada, entao o compilador nao cobra o {@code catch}. Sem
      * esta regra, um {@code catch} esquecido deixa a excecao chegar ao tratador global, que ainda
-     * responde um 400 plausivel — a fatia parece funcionar, o {@code Result} deixa de ser o canal de
-     * falha, e nenhum teste percebe.
+     * responde um 409 "Operacao recusada" — a fatia parece funcionar, o {@code Result} deixa de ser o
+     * canal de falha, e so um teste que confira o status exato percebe.
      *
-     * <p>A verificacao e sobre a <em>chamada</em>, nao sobre a classe: exige que a chamada que pode
-     * provocar a recusa esteja dentro de um {@code try} que a captura. Um {@code catch} em outro
+     * <p>A verificacao e sobre o <em>ponto</em> de cada chamada, nao sobre a classe: o que pode
+     * provocar a recusa precisa estar dentro de um {@code try} que a captura. Um {@code catch} em outro
      * metodo, ou em outro trecho do mesmo metodo, nao conta.
+     *
+     * <p>Pode provocar a recusa o que, seguido por dominio e aplicacao, chega a construcao de uma
+     * {@code DomainException} sem passar por um {@code try} que a capture. O caminho segue chamadas e
+     * referencias, de metodo e de construtor, inclusive as fabricas da propria recusa; as sobrescritas
+     * e implementacoes importadas, e as de interfaces de fora do projeto, como {@code Supplier},
+     * quando instanciadas pela propria classe de quem chama; e os colaboradores de {@code application},
+     * inclusive os metodos privados do proprio tratador —
+     * que por isso podem deixar a recusa subir, desde que o tratador a capture onde os chama.
+     * Adaptadores ficam fora: o que eles lancam nao e recusa do dominio.
+     *
+     * <p>Limites conhecidos, todos da leitura do bytecode pelo ArchUnit:
+     *
+     * <ul>
+     *   <li>um {@code catch} que relanca a recusa conta como captura, porque o conteudo do bloco
+     *       {@code catch} nao e visivel;
+     *   <li>a chamada feita dentro de uma lambda nao conta como dentro do {@code try} que envolve a
+     *       lambda, porque o acesso e atribuido ao metodo, nao ao bloco. A regra reprova, e o
+     *       {@code catch} precisa ficar dentro da propria lambda;
+     *   <li>a implementacao de uma interface de fora do projeto — uma {@code Function} ou um
+     *       {@code Predicate} do dominio — so e seguida quando a propria classe de quem chama a
+     *       instancia. Injetada pelo construtor, devolvida por uma fabrica, ou entregue a quem a
+     *       executa ({@code result.map(new Regra())}, {@code stream.map(regra)}), ela nao e seguida.
+     *       Seguir todas fazia de cada {@code Result.map} uma recusa. Lambdas e referencias de metodo
+     *       sao seguidas;
+     *   <li>so o metodo privado e avaliado no ponto em que o tratador o chama. Um auxiliar protegido
+     *       ou de pacote sem {@code catch} e reprovado mesmo chamado dentro do {@code try}, porque
+     *       pode ser chamado de fora;
+     *   <li>a chamada por uma interface ou classe-base do projeto conta como recusa se
+     *       <em>qualquer</em> implementacao importada recusar;
+     *   <li>uma recusa construida antes e guardada — num campo estatico, lancada com
+     *       {@code throw RECUSA} — nao e seguida: ler um campo nao e chamada, e o caminho parte da
+     *       construcao.
+     * </ul>
      */
     public static final ArchRule HANDLERS_MUST_CATCH_DOMAIN_REFUSALS = classes()
             .that()
@@ -193,72 +236,199 @@ public final class ArchitectureRules {
             .should(catchTheDomainRefusalsTheyProvoke())
             .because("o caso de uso traduz a recusa do dominio em Failure; deixa-la escapar reprova (principio IV)");
 
+    /**
+     * Principio IV: fora de dominio e aplicacao, a recusa do dominio so chega como {@code Failure}, pelo
+     * caso de uso.
+     *
+     * <p>E a premissa de {@link #HANDLERS_MUST_CATCH_DOMAIN_REFUSALS}: um colaborador de
+     * {@code application} pode deixar a recusa subir porque so o tratador o chama. Sem esta regra, um
+     * controller que chamasse o colaborador — ou o dominio — direto receberia a recusa sem ninguem a
+     * traduzir, e ela sairia como 409 pelo tratador global. Um {@code catch} na borda nao conserta:
+     * traduzir a recusa e papel do caso de uso. Vale para tudo o que nao e dominio nem aplicacao, e
+     * nao so para apresentacao e infraestrutura: um pacote novo fora das quatro camadas nao vira
+     * brecha.
+     */
+    public static final ArchRule OUTER_LAYERS_MUST_NOT_RECEIVE_DOMAIN_REFUSALS = classes()
+            .that()
+            .resideOutsideOfPackages("..domain..", "..application..")
+            .should(notInvokeWhatLetsADomainRefusalEscape())
+            .because("a recusa do dominio chega a borda so como Failure do caso de uso (principio IV)");
+
     private static ArchCondition<JavaClass> catchTheDomainRefusalsTheyProvoke() {
         return new ArchCondition<>("catch the domain refusals they provoke") {
             @Override
             public void check(JavaClass handler, ConditionEvents events) {
-                for (JavaCodeUnit codeUnit : handler.getCodeUnits()) {
-                    for (JavaMethodCall call : codeUnit.getMethodCallsFromSelf()) {
-                        // So a chamada que cruza para o dominio interessa. Sem este filtro, o metodo
-                        // ponte que o compilador gera para a interface generica — handle(Command),
-                        // que so delega ao handle tipado — aparecia como violacao, embora o metodo
-                        // real capture. Chamada interna da propria classe e avaliada no ponto em que
-                        // ela mesma chama o dominio.
-                        if (!isDomain(call.getTargetOwner())) {
-                            continue;
-                        }
-                        if (provokesRefusal(call) && !isCaughtAtTheCall(call)) {
-                            events.add(SimpleConditionEvent.violated(
-                                    handler,
-                                    codeUnit.getFullName() + " chama " + call.getTarget().getFullName()
-                                            + ", que recusa por DomainException, sem capturar a recusa"));
-                        }
-                    }
-                }
+                Set<JavaCodeUnit> escaping = refusalsEscapingFrom(handler.getCodeUnits());
+                handler.getCodeUnits().stream()
+                        .filter(ArchitectureRules::isEntryPoint)
+                        .forEach(entryPoint -> invocationsFrom(entryPoint)
+                                .filter(access -> provokesRefusal(access, escaping) && !isCaughtAtTheSite(access))
+                                .forEach(access -> events.add(SimpleConditionEvent.violated(
+                                        handler,
+                                        entryPoint.getFullName() + " " + verbOf(access) + " "
+                                                + access.getTarget().getFullName()
+                                                + ", que pode recusar por DomainException, sem capturar a recusa"))));
             }
         };
     }
 
-    /** Classes do dominio, de qualquer contexto delimitado. */
-    private static boolean isDomain(JavaClass javaClass) {
-        return javaClass.getPackageName().contains(".domain");
-    }
-
-    /** Verdadeiro quando o alvo da chamada pode recusar, direta ou indiretamente, dentro do dominio. */
-    private static boolean provokesRefusal(JavaMethodCall call) {
-        return call.getTarget()
-                .resolveMember()
-                .map(target -> refuses(target, new HashSet<>()))
-                .orElse(false);
+    private static ArchCondition<JavaClass> notInvokeWhatLetsADomainRefusalEscape() {
+        return new ArchCondition<>("not invoke what lets a domain refusal escape") {
+            @Override
+            public void check(JavaClass outer, ConditionEvents events) {
+                Set<JavaCodeUnit> escaping = refusalsEscapingFrom(outer.getCodeUnits());
+                outer.getCodeUnits()
+                        .forEach(codeUnit -> invocationsFrom(codeUnit)
+                                .filter(access -> provokesRefusal(access, escaping))
+                                .forEach(access -> events.add(SimpleConditionEvent.violated(
+                                        outer,
+                                        codeUnit.getFullName() + " " + verbOf(access) + " "
+                                                + access.getTarget().getFullName()
+                                                + ", que pode recusar por DomainException; a recusa so chega a"
+                                                + " borda como Failure do caso de uso"))));
+            }
+        };
     }
 
     /**
-     * Verdadeiro quando o metodo constroi uma {@code DomainException}, ou chama alguem do dominio que
-     * a constroi.
+     * Por onde o tratador e chamado de fora.
      *
-     * <p>Olha a construcao da excecao, e nao o nome de quem acumula: assim a regra sobrevive a
-     * renomeacao do acumulador, e vale para qualquer recusa futura escrita a mao.
+     * <p>O metodo privado e avaliado no ponto em que o tratador o chama: um auxiliar sem {@code catch},
+     * chamado dentro de um {@code try}, esta correto. O metodo ponte que o compilador gera para a
+     * interface generica — {@code handle(Command)}, que so delega ao {@code handle} tipado — repetiria
+     * a violacao do metodo real.
      */
-    private static boolean refuses(JavaCodeUnit codeUnit, Set<String> visited) {
-        if (!visited.add(codeUnit.getFullName())) {
-            return false;
-        }
-        boolean buildsRefusal = codeUnit.getConstructorCallsFromSelf().stream()
-                .anyMatch(construction -> construction.getTargetOwner().isAssignableTo(DomainException.class));
-        if (buildsRefusal) {
-            return true;
-        }
-        return codeUnit.getMethodCallsFromSelf().stream()
-                .filter(call -> isDomain(call.getTargetOwner()))
-                .map(call -> call.getTarget().resolveMember())
-                .flatMap(Optional::stream)
-                .anyMatch(target -> refuses(target, visited));
+    private static boolean isEntryPoint(JavaCodeUnit codeUnit) {
+        Set<JavaModifier> modifiers = codeUnit.getModifiers();
+        return !modifiers.contains(JavaModifier.PRIVATE)
+                && !modifiers.contains(JavaModifier.BRIDGE)
+                && !modifiers.contains(JavaModifier.SYNTHETIC);
     }
 
-    /** Verdadeiro quando a propria chamada esta dentro de um {@code try} que captura a recusa. */
-    private static boolean isCaughtAtTheCall(JavaMethodCall call) {
-        return call.getOwner().getTryCatchBlocks().stream()
-                .filter(block -> block.getAccessesContainedInTryBlock().contains(call))
+    /**
+     * Os trechos de dominio e aplicacao, alcancaveis a partir das raizes, que deixam sair uma recusa
+     * que eles mesmos nao capturaram.
+     *
+     * <p>Calculado por ponto fixo: o conjunto comeca vazio e cresce ate estabilizar. Assim o resultado
+     * nao depende da ordem em que o ArchUnit entrega os acessos. Com uma memoria gravada no meio de um
+     * ciclo, dependia — e a violacao escapava em parte das importacoes.
+     */
+    private static Set<JavaCodeUnit> refusalsEscapingFrom(Collection<JavaCodeUnit> roots) {
+        Set<JavaCodeUnit> reachable = new HashSet<>();
+        Deque<JavaCodeUnit> pending = new ArrayDeque<>(roots);
+        while (!pending.isEmpty()) {
+            JavaCodeUnit codeUnit = pending.pop();
+            if (reachable.add(codeUnit)) {
+                invocationsFrom(codeUnit).flatMap(ArchitectureRules::candidatesOf).forEach(pending::push);
+            }
+        }
+        Set<JavaCodeUnit> escaping = reachable.stream()
+                .filter(ArchitectureRules::isRefusalConstructor)
+                .collect(Collectors.toCollection(HashSet::new));
+        boolean grew;
+        do {
+            List<JavaCodeUnit> found = reachable.stream()
+                    .filter(codeUnit -> !escaping.contains(codeUnit))
+                    .filter(codeUnit -> invocationsFrom(codeUnit)
+                            .anyMatch(access -> provokesRefusal(access, escaping) && !isCaughtAtTheSite(access)))
+                    .toList();
+            grew = escaping.addAll(found);
+        } while (grew);
+        return escaping;
+    }
+
+    /** Chamadas e referencias, de metodo e de construtor, feitas pelo trecho de codigo. */
+    private static Stream<JavaCodeUnitAccess<?>> invocationsFrom(JavaCodeUnit codeUnit) {
+        return Stream.<JavaCodeUnitAccess<?>>concat(
+                codeUnit.getCallsFromSelf().stream(), codeUnit.getCodeUnitReferencesFromSelf().stream());
+    }
+
+    private static String verbOf(JavaCodeUnitAccess<?> access) {
+        return access instanceof JavaCodeUnitReference<?> ? "referencia" : "chama";
+    }
+
+    /** Verdadeiro quando o acesso alcanca um trecho que deixa uma recusa do dominio sair. */
+    private static boolean provokesRefusal(JavaCodeUnitAccess<?> access, Set<JavaCodeUnit> escaping) {
+        return candidatesOf(access).anyMatch(escaping::contains);
+    }
+
+    /**
+     * Onde a recusa nasce: um construtor da {@code DomainException} ou de uma subclasse dela.
+     *
+     * <p>Olha a construcao da excecao, e nao o nome de quem acumula: assim a regra sobrevive a
+     * renomeacao do acumulador, e vale para qualquer recusa futura escrita a mao. Chamar o construtor,
+     * referencia-lo ({@code orElseThrow(Recusa::new)}) ou chamar uma fabrica estatica que o chama sao
+     * caminhos como quaisquer outros ate ele.
+     */
+    private static boolean isRefusalConstructor(JavaCodeUnit codeUnit) {
+        return codeUnit instanceof JavaConstructor && codeUnit.getOwner().isAssignableTo(DomainException.class);
+    }
+
+    /**
+     * O que o acesso pode executar, dentro de dominio e aplicacao: o alvo e as sobrescritas e
+     * implementacoes importadas — a chamada por uma interface executa uma delas.
+     */
+    private static Stream<JavaCodeUnit> candidatesOf(JavaCodeUnitAccess<?> access) {
+        Optional<? extends JavaCodeUnit> target = access.getTarget().resolveMember();
+        return target.stream()
+                .flatMap(codeUnit ->
+                        Stream.concat(Stream.of(codeUnit), overridesOf(codeUnit, access.getOriginOwner())))
+                .filter(codeUnit -> isInnerLayer(codeUnit.getOwner()));
+    }
+
+    /**
+     * Sobrescritas e implementacoes importadas do metodo, que a chamada pode executar.
+     *
+     * <p>Para um tipo do projeto, qualquer implementacao importada conta. Para uma interface de fora
+     * — {@code Supplier}, {@code Function} —, so as que a propria classe de quem chama instancia, como
+     * a classe anonima montada ali mesmo. Contar todas fazia de cada {@code Result.map}, que chama
+     * {@code Function.apply}, uma recusa, bastando que alguma {@code Function} do dominio recusasse.
+     * Classes de fora nao entram: todo objeto estende {@code Object}, e cada {@code toString} viraria
+     * candidato.
+     */
+    private static Stream<JavaCodeUnit> overridesOf(JavaCodeUnit target, JavaClass caller) {
+        JavaClass owner = target.getOwner();
+        boolean overridable = target instanceof JavaMethod && !target.getModifiers().contains(JavaModifier.STATIC);
+        if (!overridable || !(isInnerLayer(owner) || owner.isInterface())) {
+            return Stream.empty();
+        }
+        Set<JavaClass> implementations = isInnerLayer(owner)
+                ? owner.getAllSubclasses()
+                : instantiatedBy(caller).stream()
+                        .filter(instantiated -> instantiated.isAssignableTo(owner.getName()))
+                        .collect(Collectors.toSet());
+        List<String> parameters = parameterNamesOf(target);
+        return implementations.stream()
+                .flatMap(subclass -> subclass.getMethods().stream())
+                .filter(method -> method.getName().equals(target.getName()))
+                .filter(method -> parameterNamesOf(method).equals(parameters))
+                .map(JavaCodeUnit.class::cast);
+    }
+
+    /** Classes que a classe instancia, por {@code new} ou por referencia ao construtor. */
+    private static Set<JavaClass> instantiatedBy(JavaClass javaClass) {
+        return javaClass.getCodeUnits().stream()
+                .flatMap(codeUnit -> Stream.<JavaCodeUnitAccess<?>>concat(
+                        codeUnit.getConstructorCallsFromSelf().stream(),
+                        codeUnit.getConstructorReferencesFromSelf().stream()))
+                .map(JavaCodeUnitAccess::getTargetOwner)
+                .collect(Collectors.toSet());
+    }
+
+    private static List<String> parameterNamesOf(JavaCodeUnit codeUnit) {
+        return codeUnit.getRawParameterTypes().stream().map(JavaClass::getName).toList();
+    }
+
+    /** Dominio e aplicacao, de qualquer contexto delimitado: as camadas onde a recusa nasce e e capturada. */
+    private static boolean isInnerLayer(JavaClass javaClass) {
+        String packageName = javaClass.getPackageName();
+        return packageName.contains(".domain") || packageName.contains(".application");
+    }
+
+    /** Verdadeiro quando o proprio acesso esta dentro de um {@code try} que captura a recusa. */
+    private static boolean isCaughtAtTheSite(JavaCodeUnitAccess<?> access) {
+        return access.getOwner().getTryCatchBlocks().stream()
+                .filter(block -> block.getAccessesContainedInTryBlock().contains(access))
                 .anyMatch(block -> block.getCaughtThrowables().stream()
                         .anyMatch(caught -> caught.isAssignableFrom(DomainException.class)));
     }

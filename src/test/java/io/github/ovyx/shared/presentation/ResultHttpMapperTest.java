@@ -7,11 +7,14 @@ import io.github.ovyx.shared.application.ErrorType;
 import io.github.ovyx.shared.application.Result;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.net.URI;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 
@@ -91,6 +94,45 @@ class ResultHttpMapperTest {
         assertThat(bodyOf(response).getProperties())
                 .containsEntry("code", "VALIDATION_FAILED")
                 .containsEntry("details", Map.of("email", "Informe o e-mail.", "cpf", "CPF inválido."));
+    }
+
+    @Test
+    @DisplayName("keeps the field order of the refusal in the body, which is the order the form shows")
+    void givenValidationFailureWithFieldsInFormOrder_whenAnswering_thenKeepThatOrderInTheBody() {
+        // given
+        Map<String, String> inFormOrder = new LinkedHashMap<>();
+        inFormOrder.put("fullName", "Informe o nome completo.");
+        inFormOrder.put("cpf", "Informe o CPF.");
+        inFormOrder.put("email", "Informe o e-mail.");
+        inFormOrder.put("mobilePhone", "Informe o celular.");
+        inFormOrder.put("password", "Informe a senha.");
+        inFormOrder.put("role", "Informe o perfil.");
+        ApplicationError error =
+                new ApplicationError(ErrorType.VALIDATION, "VALIDATION_FAILED", "Dados inválidos.", inFormOrder);
+
+        // when
+        ResponseEntity<Object> response = mapper.problem(error);
+
+        // then
+        assertThat(bodyOf(response).getProperties().get("details"))
+                .asInstanceOf(InstanceOfAssertFactories.map(String.class, String.class))
+                .containsExactlyEntriesOf(inFormOrder);
+    }
+
+    @Test
+    @DisplayName("labels the failure as problem+json, whatever the route declares it produces")
+    void givenFailure_whenAnswering_thenLabelTheBodyAsProblemJson() {
+        // given
+        // O produces = application/json da rota fazia a negociacao rotular o erro como JSON comum,
+        // contra o contrato; o tipo precisa vir da resposta, e nao da rota.
+        ApplicationError error =
+                ApplicationError.of(ErrorType.UNAUTHENTICATED, "INVALID_CREDENTIALS", "Inválidos.");
+
+        // when
+        ResponseEntity<Object> response = mapper.problem(error);
+
+        // then
+        assertThat(response.getHeaders().getContentType()).isEqualTo(MediaType.APPLICATION_PROBLEM_JSON);
     }
 
     @ParameterizedTest(name = "{0} answers {1}")

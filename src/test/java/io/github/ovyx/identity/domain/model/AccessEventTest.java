@@ -73,7 +73,7 @@ class AccessEventTest {
     @DisplayName("distinguishes causes only in the audit trail")
     void givenEachRefusalCause_whenRecording_thenKeepTheRealCauseInTheTrail(
             EventFactory factory, AccessOutcome expected) {
-        // given — factory and expected cause from @MethodSource
+        // given — fabrica e causa esperada vindas do @MethodSource
         // A resposta ao cliente e sempre a mesma (FR-002). Aqui, porem, precisamos saber o que
         // realmente aconteceu — senao a trilha de auditoria nao serve para investigar nada.
 
@@ -104,7 +104,7 @@ class AccessEventTest {
     @CsvSource({", 203.0.113.42", "maria.silva@ovyx.com.br, '  '"})
     @DisplayName("requires identifier and origin")
     void givenMissingIdentifierOrOrigin_whenRecording_thenRejectTheEvent(String identifier, String origin) {
-        // given — identifier and origin from @CsvSource
+        // given — identificador e origem vindos do @CsvSource
 
         // when
         ThrowingCallable recording = () -> AccessEvent.invalidCredentials(identifier, null, origin, clock);

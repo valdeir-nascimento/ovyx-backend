@@ -2,6 +2,8 @@ package io.github.ovyx.shared.application;
 
 import io.github.ovyx.shared.domain.DomainException;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -29,7 +31,21 @@ public record ApplicationError(
         Objects.requireNonNull(type, "type");
         Objects.requireNonNull(code, "code");
         Objects.requireNonNull(message, "message");
-        details = Map.copyOf(Objects.requireNonNull(details, "details"));
+        details = orderedCopyOf(details);
+    }
+
+    /**
+     * Copia imutavel que preserva a ordem e recusa campo ou mensagem nulos.
+     *
+     * <p>{@code Map.copyOf} recusava os nulos, mas embaralhava, a cada subida da JVM, a ordem dos
+     * campos que o dominio montou — e essa e a ordem do formulario que a pessoa esta lendo.
+     */
+    private static Map<String, String> orderedCopyOf(final Map<String, String> details) {
+        final Map<String, String> copy = new LinkedHashMap<>();
+        Objects.requireNonNull(details, "details").forEach((field, message) -> copy.put(
+            Objects.requireNonNull(field, "details field"),
+            Objects.requireNonNull(message, "details message")));
+        return Collections.unmodifiableMap(copy);
     }
 
     public static ApplicationError of(

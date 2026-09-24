@@ -69,6 +69,15 @@ public interface AuthenticationApi {
             schema = @Schema(implementation = ProblemResponse.class),
             examples = @ExampleObject(value = AuthenticationExamples.SIGN_IN_CSRF_TOKEN_INVALID)))
     @ApiResponse(
+        responseCode = "406",
+        description = "Formato de resposta indisponível (`REQUEST_NOT_ACCEPTABLE`). A negociação recusa antes de"
+            + " a credencial ser conferida: nenhuma sessão é aberta e nenhum acesso é registrado.",
+        content =
+        @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(value = AuthenticationExamples.SIGN_IN_NOT_ACCEPTABLE)))
+    @ApiResponse(
         responseCode = "415",
         description = "Corpo em formato diferente de JSON (`REQUEST_NOT_ACCEPTABLE`).",
         content =
@@ -144,7 +153,9 @@ public interface AuthenticationApi {
             }))
     @ApiResponse(
         responseCode = "406",
-        description = "Formato de resposta indisponível (`REQUEST_NOT_ACCEPTABLE`).",
+        description = "Formato de resposta indisponível (`REQUEST_NOT_ACCEPTABLE`). A negociação recusa antes de"
+            + " a consulta rodar: a sessão de um responsável inativado só é encerrada na próxima requisição"
+            + " em JSON.",
         content =
         @Content(
             mediaType = PROBLEM_JSON,

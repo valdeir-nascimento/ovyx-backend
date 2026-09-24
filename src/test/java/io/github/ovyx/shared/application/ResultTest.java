@@ -2,13 +2,18 @@ package io.github.ovyx.shared.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 import io.github.ovyx.shared.domain.DomainException;
 import io.github.ovyx.shared.domain.ErrorCode;
+import io.github.ovyx.shared.domain.Notification;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 /**
  * Testes do retorno dos casos de uso.
@@ -151,6 +156,45 @@ class ResultTest {
         assertThat(translated.code()).isEqualTo("RULE_VIOLATED");
         assertThat(translated.type()).isEqualTo(ErrorType.VALIDATION);
         assertThat(translated.details()).containsEntry("email", "Informe o e-mail.");
+    }
+
+    @Test
+    @DisplayName("keeps the field order of the refusal, which is the order the form shows")
+    void givenRefusalWithSixFieldsInFormOrder_whenTranslating_thenKeepTheFieldOrder() {
+        // given
+        // Um mapa sem ordem aqui embaralhava, a cada subida da JVM, a ordem que o dominio montou.
+        Notification notification = new Notification()
+                .add("fullName", CODE, "Informe o nome completo.")
+                .add("cpf", CODE, "Informe o CPF.")
+                .add("email", CODE, "Informe o e-mail.")
+                .add("mobilePhone", CODE, "Informe o celular.")
+                .add("password", CODE, "Informe a senha.")
+                .add("role", CODE, "Informe o perfil.");
+        DomainException refusal = catchThrowableOfType(DomainException.class, () -> notification.throwIfAny(CODE));
+
+        // when
+        ApplicationError translated = ApplicationError.from(refusal, ErrorType.VALIDATION);
+
+        // then
+        assertThat(translated.details().keySet())
+                .containsExactly("fullName", "cpf", "email", "mobilePhone", "password", "role");
+    }
+
+    @ParameterizedTest(name = "field [{0}], message [{1}]")
+    @CsvSource(value = {"NULL, Informe o e-mail.", "email, NULL"}, nullValues = "NULL")
+    @DisplayName("refuses a null field or message, as the unordered copy used to")
+    void givenDetailsWithANullFieldOrMessage_whenBuildingTheError_thenThrowNullPointerException(
+            String field, String message) {
+        // given
+        Map<String, String> withANull = new LinkedHashMap<>();
+        withANull.put(field, message);
+
+        // when
+        ThrowingCallable building =
+                () -> new ApplicationError(ErrorType.VALIDATION, "VALIDATION_FAILED", "Dados inválidos.", withANull);
+
+        // then
+        assertThatThrownBy(building).isInstanceOf(NullPointerException.class);
     }
 
     @Test

@@ -1,6 +1,12 @@
 package io.github.ovyx.identity.infrastructure;
 
 import io.github.ovyx.identity.application.account.ChangeOwnPasswordCommandHandler;
+import io.github.ovyx.identity.application.caretaker.CaretakerDirectory;
+import io.github.ovyx.identity.application.caretaker.DeactivateCaretakerCommandHandler;
+import io.github.ovyx.identity.application.caretaker.FindCaretakerByIdQueryHandler;
+import io.github.ovyx.identity.application.caretaker.RegisterCaretakerCommandHandler;
+import io.github.ovyx.identity.application.caretaker.SearchCaretakersQueryHandler;
+import io.github.ovyx.identity.application.caretaker.UpdateCaretakerCommandHandler;
 import io.github.ovyx.identity.application.administratorseeding.SeedInitialAdministratorCommandHandler;
 import io.github.ovyx.identity.application.authentication.SignInCommandHandler;
 import io.github.ovyx.identity.application.authentication.SignOutCommandHandler;
@@ -53,6 +59,33 @@ public class IdentityBeanConfiguration {
     SeedInitialAdministratorCommandHandler seedInitialAdministratorCommandHandler(
             CaretakerRepository caretakerRepository, PasswordHasher passwordHasher, Clock clock) {
         return new SeedInitialAdministratorCommandHandler(caretakerRepository, passwordHasher, clock);
+    }
+
+    @Bean
+    RegisterCaretakerCommandHandler registerCaretakerCommandHandler(
+            CaretakerRepository caretakerRepository, PasswordHasher passwordHasher, Clock clock) {
+        return new RegisterCaretakerCommandHandler(caretakerRepository, passwordHasher, clock);
+    }
+
+    @Bean
+    UpdateCaretakerCommandHandler updateCaretakerCommandHandler(CaretakerRepository caretakerRepository, Clock clock) {
+        return new UpdateCaretakerCommandHandler(caretakerRepository, clock);
+    }
+
+    @Bean
+    DeactivateCaretakerCommandHandler deactivateCaretakerCommandHandler(
+            CaretakerRepository caretakerRepository, Clock clock) {
+        return new DeactivateCaretakerCommandHandler(caretakerRepository, clock);
+    }
+
+    @Bean
+    SearchCaretakersQueryHandler searchCaretakersQueryHandler(CaretakerDirectory caretakerDirectory) {
+        return new SearchCaretakersQueryHandler(caretakerDirectory);
+    }
+
+    @Bean
+    FindCaretakerByIdQueryHandler findCaretakerByIdQueryHandler(CaretakerDirectory caretakerDirectory) {
+        return new FindCaretakerByIdQueryHandler(caretakerDirectory);
     }
 
     @Bean

@@ -55,7 +55,7 @@ class DatabaseMigrationIT extends IntegrationTestSupport {
     @Test
     @DisplayName("creates every table of the slice")
     void givenMigratedDatabase_whenListingTables_thenFindEveryTableOfTheSlice() {
-        // given — the shared container, migrated at startup
+        // given — o contentor compartilhado, migrado na subida
 
         // when
         List<String> tables = jdbc().queryForList(PUBLIC_TABLES, String.class);
@@ -68,7 +68,7 @@ class DatabaseMigrationIT extends IntegrationTestSupport {
     @Test
     @DisplayName("records the four migrations as successfully applied")
     void givenMigratedDatabase_whenReadingTheHistory_thenFindTheFourMigrationsApplied() {
-        // given — the shared container, migrated at startup
+        // given — o contentor compartilhado, migrado na subida
 
         // when
         List<String> versions = jdbc().queryForList(APPLIED_VERSIONS, String.class);
@@ -81,7 +81,7 @@ class DatabaseMigrationIT extends IntegrationTestSupport {
     @ValueSource(strings = {"ux_caretaker_email_active", "ux_caretaker_mobile_active"})
     @DisplayName("email and mobile phone indexes are partial, restricted to active caretakers")
     void givenIdentifierIndex_whenReadingItsDefinition_thenRestrictUniquenessToActiveCaretakers(String index) {
-        // given — index from @ValueSource
+        // given — indice vindo do @ValueSource
 
         // when
         List<String> definitions = jdbc().queryForList(CARETAKER_INDEX, String.class, index);
