@@ -6,7 +6,7 @@ import io.github.ovyx.identity.domain.model.CaretakerId;
 import io.github.ovyx.shared.application.Dispatcher;
 import io.github.ovyx.shared.application.Result;
 import io.github.ovyx.shared.presentation.AuthenticatedUser;
-import io.github.ovyx.shared.presentation.ProblemResponses;
+import io.github.ovyx.shared.presentation.ResultHttpMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -14,9 +14,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Set;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import tools.jackson.databind.ObjectMapper;
@@ -33,8 +32,9 @@ import tools.jackson.databind.ObjectMapper;
  * <p>Roda antes da autorizacao, para que ela decida pelo perfil atual:
  *
  * <ul>
- *   <li>responsavel inativo ou inexistente: a sessao e encerrada e a resposta e 401
- *       {@code CARETAKER_UNAVAILABLE}, a mesma da consulta da propria identidade;
+ *   <li>responsavel inativo ou inexistente: a sessao e encerrada, e a recusa do caso de uso sai
+ *       pelo {@link ResultHttpMapper}, como na consulta da propria identidade — 401
+ *       {@code CARETAKER_UNAVAILABLE}, contado na metrica de falhas como qualquer outra;
  *   <li>perfil, nome ou obrigacao de troca de senha diferentes dos da sessao: a sessao e atualizada,
  *       e a requisicao segue com o que vale agora (cenario 4 da US3).
  * </ul>
@@ -51,12 +51,17 @@ public class SessionRevalidationFilter extends OncePerRequestFilter {
 
     private final Dispatcher dispatcher;
     private final SessionAuthenticator sessionAuthenticator;
+    private final ResultHttpMapper resultHttpMapper;
     private final ObjectMapper objectMapper;
 
     public SessionRevalidationFilter(
-        Dispatcher dispatcher, SessionAuthenticator sessionAuthenticator, ObjectMapper objectMapper) {
+        Dispatcher dispatcher,
+        SessionAuthenticator sessionAuthenticator,
+        ResultHttpMapper resultHttpMapper,
+        ObjectMapper objectMapper) {
         this.dispatcher = dispatcher;
         this.sessionAuthenticator = sessionAuthenticator;
+        this.resultHttpMapper = resultHttpMapper;
         this.objectMapper = objectMapper;
     }
 
@@ -76,7 +81,7 @@ public class SessionRevalidationFilter extends OncePerRequestFilter {
         if (current.isFailure()) {
             // A sessao sobreviveu ao responsavel: e encerrada, e nao usada.
             sessionAuthenticator.invalidate(request);
-            refuse(request, response, current.error().code(), current.error().message());
+            write(resultHttpMapper.problem(current.error()), request, response);
             return;
         }
 
@@ -91,13 +96,17 @@ public class SessionRevalidationFilter extends OncePerRequestFilter {
         chain.doFilter(request, response);
     }
 
-    private void refuse(HttpServletRequest request, HttpServletResponse response, String code, String detail)
+    /**
+     * Escreve a resposta que o mapeador montou. Fora do controller, ninguem preenche o
+     * {@code instance}, e por isso ele entra aqui, como a borda faz nas demais recusas.
+     */
+    private void write(ResponseEntity<Object> refusal, HttpServletRequest request, HttpServletResponse response)
         throws IOException {
-        ProblemDetail problem = ProblemResponses.of(
-            HttpStatus.UNAUTHORIZED, code, "Não autenticado", detail, URI.create(request.getRequestURI()));
+        ProblemDetail problem = (ProblemDetail) refusal.getBody();
+        problem.setInstance(URI.create(request.getRequestURI()));
 
-        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-        response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
+        response.setStatus(refusal.getStatusCode().value());
+        response.setContentType(String.valueOf(refusal.getHeaders().getContentType()));
         response.setCharacterEncoding("UTF-8");
         response.getWriter().write(objectMapper.writeValueAsString(problem));
     }

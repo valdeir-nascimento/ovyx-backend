@@ -142,13 +142,6 @@ public class SecurityConfiguration {
             .build();
     }
 
-    /**
-     * Impede que o Spring Boot registre o filtro tambem no servlet.
-     *
-     * <p>Um {@code Filter} exposto como bean e registrado automaticamente na cadeia do servlet. Como
-     * este ja entra na cadeia de seguranca, sem esta desativacao ele rodaria duas vezes por
-     * requisicao — a primeira antes da autenticacao, sem identidade para inspecionar.
-     */
     /** Pelo mesmo motivo do filtro de troca de senha: ele ja entra na cadeia de seguranca. */
     @Bean
     FilterRegistrationBean<SessionRevalidationFilter> sessionRevalidationFilterRegistration(
@@ -158,6 +151,13 @@ public class SecurityConfiguration {
         return registration;
     }
 
+    /**
+     * Impede que o Spring Boot registre o filtro tambem no servlet.
+     *
+     * <p>Um {@code Filter} exposto como bean e registrado automaticamente na cadeia do servlet. Como
+     * este ja entra na cadeia de seguranca, sem esta desativacao ele rodaria duas vezes por
+     * requisicao — a primeira antes da autenticacao, sem identidade para inspecionar.
+     */
     @Bean
     FilterRegistrationBean<PasswordChangeRequiredFilter> passwordChangeRequiredFilterRegistration(
         PasswordChangeRequiredFilter filter) {
