@@ -8,11 +8,19 @@ import io.github.ovyx.shared.application.CommandHandler;
 import io.github.ovyx.shared.application.Query;
 import io.github.ovyx.shared.application.QueryHandler;
 import io.github.ovyx.shared.application.Result;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionOperations;
 
@@ -57,15 +65,21 @@ class SpringBeanDispatcherTest {
     }
 
     /**
-     * Transacao de mentira que roda o trabalho e, nas primeiras vezes, recusa a confirmacao como o
-     * banco recusaria uma escrita concorrente.
+     * Transacao de mentira que roda o trabalho e, nas primeiras vezes, recusa a confirmacao com a
+     * falha informada, como o banco recusaria.
      */
     private static final class RefusingCommits implements TransactionOperations {
+        private final Supplier<RuntimeException> refusal;
         private int refusalsLeft;
         private int transactions;
 
-        private RefusingCommits(int refusals) {
+        private RefusingCommits(int refusals, Supplier<RuntimeException> refusal) {
             this.refusalsLeft = refusals;
+            this.refusal = refusal;
+        }
+
+        private static RefusingCommits none() {
+            return new RefusingCommits(0, IllegalStateException::new);
         }
 
         @Override
@@ -74,10 +88,22 @@ class SpringBeanDispatcherTest {
             T result = action.doInTransaction(null);
             if (refusalsLeft > 0) {
                 refusalsLeft--;
-                throw new DataIntegrityViolationException("ux_caretaker_email_active");
+                throw refusal.get();
             }
             return result;
         }
+    }
+
+    /** O indice unico recusando a segunda de duas escritas simultaneas, como o PostgreSQL recusa. */
+    private static DataIntegrityViolationException uniqueViolation() {
+        return new DataIntegrityViolationException(
+                "could not execute statement", new SQLException("duplicate key value", "23505"));
+    }
+
+    /** Uma restricao que recusaria de novo a cada tentativa: a regra de verificacao da coluna. */
+    private static DataIntegrityViolationException checkViolation() {
+        return new DataIntegrityViolationException(
+                "could not execute statement", new SQLException("violates check constraint", "23514"));
     }
 
     @Test
@@ -150,12 +176,11 @@ class SpringBeanDispatcherTest {
                 .hasMessageContaining("GreetHandler");
     }
 
-    /** Pequeno apoio para manter a chamada sob teste no bloco {@code when}. */
     @Test
     @DisplayName("Runs each command inside one transaction, so what it reads and what it writes go together")
     void givenCommand_whenDispatching_thenRunItInsideOneTransaction() {
         // given
-        RefusingCommits transaction = new RefusingCommits(0);
+        RefusingCommits transaction = RefusingCommits.none();
         SpringBeanDispatcher dispatcher = new SpringBeanDispatcher(List.of(new GreetHandler()), List.of(), transaction);
 
         // when
@@ -165,15 +190,30 @@ class SpringBeanDispatcherTest {
         assertThat(transaction.transactions).isEqualTo(1);
     }
 
-    @Test
+    private static Stream<Arguments> concurrentWrites() {
+        return Stream.of(
+                Arguments.of(
+                        "a unique index refusing the second write",
+                        (Supplier<RuntimeException>) SpringBeanDispatcherTest::uniqueViolation),
+                Arguments.of(
+                        "a duplicate key already translated by Spring",
+                        (Supplier<RuntimeException>) () -> new DuplicateKeyException("ux_caretaker_email_active")),
+                Arguments.of(
+                        "a row changed since it was loaded",
+                        (Supplier<RuntimeException>) () -> new OptimisticLockingFailureException("caretaker")));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("concurrentWrites")
     @DisplayName("Tries a command once more when the database refuses a concurrent write")
-    void givenDatabaseRefusingTheFirstCommit_whenDispatching_thenRunTheCommandAgainInANewTransaction() {
+    void givenDatabaseRefusingTheFirstCommitAsAConcurrentWrite_whenDispatching_thenRunTheCommandAgain(
+            String situation, Supplier<RuntimeException> refusal) {
         // given
-        // Duas escritas simultaneas passam pela mesma verificacao, e o indice unico recusa a segunda.
-        // Na nova tentativa, o dominio ja enxerga a linha gravada e recusa com o codigo da regra.
+        // Duas escritas simultaneas passam pela mesma verificacao, ou partem da mesma copia do
+        // registro. Na nova tentativa, o dominio decide sobre o estado que a outra acabou de gravar.
         CountingGreetHandler handler = new CountingGreetHandler();
         SpringBeanDispatcher dispatcher =
-                new SpringBeanDispatcher(List.of(handler), List.of(), new RefusingCommits(1));
+                new SpringBeanDispatcher(List.of(handler), List.of(), new RefusingCommits(1, refusal));
 
         // when
         Result<String> result = dispatcher.dispatch(new Greet("Maria"));
@@ -186,8 +226,10 @@ class SpringBeanDispatcherTest {
     @DisplayName("Gives up when the database refuses the second attempt too")
     void givenDatabaseRefusingBothCommits_whenDispatching_thenLetTheRefusalThrough() {
         // given
-        SpringBeanDispatcher dispatcher =
-                new SpringBeanDispatcher(List.of(new GreetHandler()), List.of(), new RefusingCommits(2));
+        SpringBeanDispatcher dispatcher = new SpringBeanDispatcher(
+                List.of(new GreetHandler()),
+                List.of(),
+                new RefusingCommits(2, SpringBeanDispatcherTest::uniqueViolation));
 
         // when
         ThrowingAsk dispatching = () -> dispatcher.dispatch(new Greet("Maria"));
@@ -196,6 +238,33 @@ class SpringBeanDispatcherTest {
         assertThatThrownBy(dispatching::run).isInstanceOf(DataIntegrityViolationException.class);
     }
 
+    private static Stream<Arguments> failuresThatAreNotConcurrentWrites() {
+        return Stream.of(
+                Arguments.of("a check constraint", (Supplier<RuntimeException>) SpringBeanDispatcherTest::checkViolation),
+                Arguments.of("an unexpected error", (Supplier<RuntimeException>) IllegalStateException::new));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("failuresThatAreNotConcurrentWrites")
+    @DisplayName("Does not try again a failure that would repeat, running the command only once")
+    void givenFailureThatIsNotAConcurrentWrite_whenDispatching_thenLetItThroughWithoutRunningTheCommandAgain(
+            String situation, Supplier<RuntimeException> refusal) {
+        // given
+        // Repetir uma falha deterministica so roda o comando inteiro de novo, a toa.
+        CountingGreetHandler handler = new CountingGreetHandler();
+        RuntimeException expected = refusal.get();
+        SpringBeanDispatcher dispatcher =
+                new SpringBeanDispatcher(List.of(handler), List.of(), new RefusingCommits(2, () -> expected));
+
+        // when
+        ThrowingAsk dispatching = () -> dispatcher.dispatch(new Greet("Maria"));
+
+        // then
+        assertThatThrownBy(dispatching::run).isSameAs(expected);
+        assertThat(handler.calls).hasValue(1);
+    }
+
+    /** Pequeno apoio para manter a chamada sob teste no bloco {@code when}. */
     @FunctionalInterface
     private interface ThrowingAsk {
         void run();

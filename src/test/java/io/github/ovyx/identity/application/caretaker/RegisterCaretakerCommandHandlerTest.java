@@ -89,7 +89,7 @@ class RegisterCaretakerCommandHandlerTest {
                 Arguments.of("email", new RegisterCaretakerCommand(FULL_NAME, CPF, "sem-arroba", MOBILE_PHONE, PASSWORD, Role.USER)),
                 Arguments.of("mobilePhone", new RegisterCaretakerCommand(FULL_NAME, CPF, EMAIL, "123", PASSWORD, Role.USER)),
                 Arguments.of("password", new RegisterCaretakerCommand(FULL_NAME, CPF, EMAIL, MOBILE_PHONE, "curta1", Role.USER)),
-                Arguments.of("role", new RegisterCaretakerCommand(FULL_NAME, CPF, EMAIL, MOBILE_PHONE, PASSWORD, null)));
+                Arguments.of("role", new RegisterCaretakerCommand(FULL_NAME, CPF, EMAIL, MOBILE_PHONE, PASSWORD, (String) null)));
     }
 
     @ParameterizedTest(name = "invalid {0}")

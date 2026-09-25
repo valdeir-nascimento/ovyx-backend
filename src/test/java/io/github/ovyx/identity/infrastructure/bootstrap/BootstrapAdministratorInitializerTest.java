@@ -16,6 +16,9 @@ import java.util.List;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.transaction.support.TransactionOperations;
 
 /**
@@ -26,6 +29,7 @@ import org.springframework.transaction.support.TransactionOperations;
  * falha, com uma mensagem que diga o que fazer e nao repita a senha.
  */
 @DisplayName("BootstrapAdministratorInitializer")
+@ExtendWith(OutputCaptureExtension.class)
 class BootstrapAdministratorInitializerTest {
 
     private static final String PASSWORD = "TrocarNoPrimeiroAcesso2026";
@@ -74,6 +78,25 @@ class BootstrapAdministratorInitializerTest {
 
         // then
         assertThat(repository.findById(former.id()).orElseThrow().isActive()).isTrue();
+    }
+
+    @Test
+    @DisplayName("tells, when it restores, the email to sign in with and what the caretaker was before")
+    void givenOnlyAnInactiveAdministratorWithTheConfiguredCpf_whenStarting_thenLogTheEmailToSignInWith(
+            CapturedOutput output) {
+        // given
+        repository.save(aCaretaker()
+                .withCpf("87543210932")
+                .withRole(Role.ADMINISTRATOR)
+                .withHasher(hasher)
+                .buildInactive());
+        BootstrapAdministratorInitializer initializer = initializer("87543210932", PASSWORD);
+
+        // when
+        initializer.run(null);
+
+        // then
+        assertThat(output).contains("maria.silva@ovyx.com.br").contains("antes administrador e inativo");
     }
 
     @Test

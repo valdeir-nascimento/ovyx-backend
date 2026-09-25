@@ -19,8 +19,11 @@ import io.github.ovyx.identity.domain.model.Role;
 import io.github.ovyx.identity.domain.port.CaretakerRepository;
 import io.github.ovyx.identity.domain.port.PasswordHasher;
 import io.github.ovyx.shared.application.Dispatcher;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.servlet.http.Cookie;
 import java.time.Clock;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Stream;
 import javax.sql.DataSource;
@@ -49,6 +52,13 @@ import org.springframework.test.web.servlet.ResultActions;
 @DisplayName("Session revalidation")
 class SessionRevalidationIT extends IntegrationTestSupport {
 
+    private static final String SIGN_OUTS_OF = """
+        SELECT count(*)
+          FROM access_event
+         WHERE caretaker_id = ?
+           AND outcome = 'SIGNED_OUT'
+        """;
+
     private static final String CARETAKERS_WITH_EMAIL = """
         SELECT count(*)
           FROM caretaker
@@ -72,6 +82,9 @@ class SessionRevalidationIT extends IntegrationTestSupport {
 
     @Autowired
     private DataSource dataSource;
+
+    @Autowired
+    private MeterRegistry meterRegistry;
 
     private JdbcTemplate jdbc;
 
@@ -113,6 +126,20 @@ class SessionRevalidationIT extends IntegrationTestSupport {
                 caretaker.email().value(),
                 caretaker.mobilePhone().value(),
                 role));
+    }
+
+    private double unavailableRefusalsCounted() {
+        return Optional.ofNullable(meterRegistry
+                        .find("ovyx.result.failure")
+                        .tag("code", "CARETAKER_UNAVAILABLE")
+                        .counter())
+                .map(Counter::count)
+                .orElse(0.0);
+    }
+
+    private long signOutsOf(Caretaker caretaker) {
+        Long result = jdbc.queryForObject(SIGN_OUTS_OF, Long.class, caretaker.id().value());
+        return result == null ? 0 : result;
     }
 
     private long caretakersWithEmail(String email) {
@@ -158,6 +185,67 @@ class SessionRevalidationIT extends IntegrationTestSupport {
                 .as("nothing deactivated")
                 .isTrue();
         mockMvc.perform(get("/api/v1/auth/me").cookie(session)).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("refuses a deactivated caretaker like any failure of a use case, and counts the refusal")
+    void givenAdministratorDeactivatedWithTheSessionOpen_whenListingCaretakers_thenAnswerThroughTheResultMapper()
+            throws Exception {
+        // given
+        // A recusa vem do caso de uso e sai pelo ResultHttpMapper, como no /auth/me: status, titulo e
+        // metrica sao os de qualquer falha, e nao escritos a mao no filtro (principio IV).
+        Caretaker administrator = saved(Role.ADMINISTRATOR);
+        Cookie[] session = signedIn(administrator);
+        dispatcher.dispatch(new DeactivateCaretakerCommand(administrator.id()));
+        double countedBefore = unavailableRefusalsCounted();
+
+        // when
+        ResultActions response = mockMvc.perform(get("/api/v1/caretakers").cookie(session));
+
+        // then
+        response.andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.title").value("Não autenticado"))
+                .andExpect(jsonPath("$.instance").value("/api/v1/caretakers"));
+        assertThat(unavailableRefusalsCounted()).isEqualTo(countedBefore + 1);
+    }
+
+    @Test
+    @DisplayName("an administrator restored with the session open owes the password change right away (FR-025)")
+    void givenAdministratorRestoredWithTheSessionOpen_whenListingCaretakers_thenAnswer403PasswordChangeRequired()
+            throws Exception {
+        // given
+        // A semeadura restaura com senha provisoria. A sessao que ja estava aberta passa a dever a
+        // troca na requisicao seguinte, como uma entrada nova com a senha provisoria deveria.
+        Caretaker administrator = saved(Role.ADMINISTRATOR);
+        Cookie[] session = signedIn(administrator);
+        Caretaker stored = caretakerRepository.findById(administrator.id()).orElseThrow();
+        stored.restoreAsInitialAdministrator("RecuperarAcesso2026", passwordHasher, caretakerRepository, clock);
+        caretakerRepository.save(stored);
+
+        // when
+        ResultActions response = mockMvc.perform(get("/api/v1/caretakers").cookie(session));
+
+        // then
+        response.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("PASSWORD_CHANGE_REQUIRED"));
+    }
+
+    @Test
+    @DisplayName("a caretaker deactivated with the session open still signs out, and the sign-out is audited (FR-006)")
+    void givenCaretakerDeactivatedWithTheSessionOpen_whenSigningOut_thenAnswer204AndAuditTheSignOut() throws Exception {
+        // given
+        // A saida nao passa pela reconferencia: encerrar a sessao do inativado so antecipa o que ela
+        // mesma faz, e passar por ela registra o evento na auditoria.
+        Caretaker caretaker = saved(Role.USER);
+        Cookie[] session = signedIn(caretaker);
+        dispatcher.dispatch(new DeactivateCaretakerCommand(caretaker.id()));
+
+        // when
+        ResultActions response = mockMvc.perform(
+                post("/api/v1/auth/sign-out").with(CsrfHandshake.using(mockMvc)).cookie(session));
+
+        // then
+        response.andExpect(status().isNoContent());
+        assertThat(signOutsOf(caretaker)).isEqualTo(1);
     }
 
     @Test

@@ -17,6 +17,8 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * Testes do agregado {@code Caretaker} — sem mock de dominio, conforme o principio VI.
@@ -264,6 +266,27 @@ class CaretakerTest {
                 .containsExactly(
                         tuple("fullName", IdentityErrorCode.FULL_NAME_REQUIRED),
                         tuple("role", IdentityErrorCode.ROLE_REQUIRED));
+    }
+
+    @ParameterizedTest(name = "refuses \"{0}\"")
+    @ValueSource(strings = {"admin", "ROOT", "administrator"})
+    @DisplayName("refuses a role outside the list and reports it together with the other violations")
+    void givenRoleOutsideTheListAndMissingName_whenRegistering_thenReportBothTogether(String unknownRole) {
+        // given
+        // Convertido em enum na borda, o perfil desconhecido tornava o corpo inteiro ilegivel e
+        // escondia as demais violacoes (FR-017). So o nome exato vale, como o contrato publica.
+        CaretakerTestDataBuilder withUnknownRoleAndNoName =
+                aValidCaretaker().withRoleNamed(unknownRole).withFullName("");
+
+        // when
+        List<Violation> violations = violationsOf(withUnknownRoleAndNoName::build);
+
+        // then
+        assertThat(violations)
+                .extracting(Violation::field, Violation::code)
+                .containsExactly(
+                        tuple("fullName", IdentityErrorCode.FULL_NAME_REQUIRED),
+                        tuple("role", IdentityErrorCode.ROLE_INVALID));
     }
 
     @Test

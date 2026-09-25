@@ -44,6 +44,7 @@ public enum IdentityErrorCode implements ErrorCode {
     CURRENT_PASSWORD_INCORRECT,
 
     ROLE_REQUIRED,
+    ROLE_INVALID,
 
     // ---------------------------------------------------------------- recusas de operacao
 

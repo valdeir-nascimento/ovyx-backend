@@ -2,7 +2,9 @@ package io.github.ovyx.identity.infrastructure.bootstrap;
 
 import io.github.ovyx.identity.application.administratorseeding.SeedInitialAdministratorCommand;
 import io.github.ovyx.identity.application.administratorseeding.SeedInitialAdministratorCommandHandler;
-import io.github.ovyx.identity.application.administratorseeding.SeedingOutcome;
+import io.github.ovyx.identity.application.administratorseeding.SeedingReport;
+import io.github.ovyx.identity.domain.model.CaretakerStatus;
+import io.github.ovyx.identity.domain.model.Role;
 import io.github.ovyx.shared.application.Dispatcher;
 import io.github.ovyx.shared.application.Result;
 import org.slf4j.Logger;
@@ -19,9 +21,11 @@ import org.springframework.stereotype.Component;
  * configuracao e decidir o que fazer com o {@code Result}.
  *
  * <p>O comando passa pelo {@link Dispatcher}, como qualquer outro, e nao direto ao tratador: e ele
- * que abre a transacao. Com duas instancias subindo juntas sobre um banco sem administrador ativo, a
- * contagem trava as linhas, e a segunda instancia, na nova tentativa, encontra o administrador que a
- * primeira acabou de gravar.
+ * que abre a transacao e repete o comando numa escrita concorrente. Com duas instancias subindo
+ * juntas sobre um banco sem administrador ativo, nao ha linha para a contagem travar: quem segura a
+ * corrida do cadastro e o indice unico do CPF, e a segunda instancia, na nova tentativa, encontra o
+ * administrador que a primeira acabou de gravar. Na restauracao, a versao da linha recusa a
+ * segunda gravacao, e a nova tentativa tambem encontra o administrador ja restaurado.
  *
  * <p>Falha na semeadura impede a subida. Um sistema sem administrador e sem como criar um nao tem
  * por onde ser acessado, e descobrir isso na tela de login e pior do que numa mensagem clara no
@@ -42,7 +46,7 @@ public class BootstrapAdministratorInitializer implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        Result<SeedingOutcome> result = dispatcher.dispatch(new SeedInitialAdministratorCommand(
+        Result<SeedingReport> result = dispatcher.dispatch(new SeedInitialAdministratorCommand(
                 properties.fullName(),
                 properties.cpf(),
                 properties.email(),
@@ -61,13 +65,27 @@ public class BootstrapAdministratorInitializer implements ApplicationRunner {
                             + "ovyx.bootstrap.administrator. Violações: " + result.error().details());
         }
 
-        switch (result.value()) {
-            case CREATED -> log.info("Administrador inicial criado com o e-mail {}.", properties.email());
-            // Sem o CPF no log: e dado pessoal, e o operador ja sabe qual configurou.
+        SeedingReport report = result.value();
+        switch (report.outcome()) {
+            case CREATED -> log.info("Administrador inicial criado com o e-mail {}.", report.email());
+            // Sem o CPF no log: e dado pessoal, e o operador ja sabe qual configurou. O e-mail entra
+            // porque o restaurado mantem o dele, que pode nao ser o configurado.
             case RESTORED -> log.warn(
-                    "Não havia administrador ativo: o responsável com o CPF configurado voltou a administrar, "
-                            + "com a senha provisória e a troca obrigatória no primeiro acesso.");
+                    "Não havia administrador ativo: o responsável com o CPF configurado, antes {} e {}, voltou a "
+                            + "administrar. Ele entra com o e-mail {} e a senha provisória, e troca a senha no primeiro "
+                            + "acesso.",
+                    describe(report.previousRole()),
+                    describe(report.previousStatus()),
+                    report.email());
             case NOT_NEEDED -> log.debug("Já existe administrador ativo; a semeadura não é necessária.");
         }
+    }
+
+    private static String describe(Role role) {
+        return role == Role.ADMINISTRATOR ? "administrador" : "usuário comum";
+    }
+
+    private static String describe(CaretakerStatus status) {
+        return status == CaretakerStatus.ACTIVE ? "ativo" : "inativo";
     }
 }

@@ -1,10 +1,12 @@
 package io.github.ovyx.identity.integration;
 
+import static io.github.ovyx.identity.domain.model.CaretakerTestDataBuilder.DEFAULT_PASSWORD;
 import static io.github.ovyx.identity.domain.model.CaretakerTestDataBuilder.aUniqueCaretaker;
 import static io.github.ovyx.identity.domain.model.CaretakerTestDataBuilder.randomValidCpf;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.ovyx.IntegrationTestSupport;
+import io.github.ovyx.identity.application.account.ChangeOwnPasswordCommand;
 import io.github.ovyx.identity.application.caretaker.DeactivateCaretakerCommand;
 import io.github.ovyx.identity.application.caretaker.RegisterCaretakerCommand;
 import io.github.ovyx.identity.application.caretaker.UpdateCaretakerCommand;
@@ -29,17 +31,21 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.RepeatedTest;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * Duas escritas ao mesmo tempo contra PostgreSQL real (FR-016, FR-019, T271).
+ * Duas escritas ao mesmo tempo contra PostgreSQL real (FR-005, FR-014, FR-016, FR-019, T271).
  *
  * <p>Decidir no agregado nao basta sem fronteira transacional: sem ela, cada metodo do repositorio
  * abria a propria transacao, e a revisao mediu 40 de 40 rodadas terminando sem nenhum administrador
  * ativo. Cada teste se repete porque uma corrida pode passar por sorte numa rodada so.
  */
 @DisplayName("Caretaker concurrency")
+@ExtendWith(OutputCaptureExtension.class)
 class CaretakerConcurrencyIT extends IntegrationTestSupport {
 
     private static final String OTHER_ACTIVE_ADMINISTRATORS = """
@@ -61,6 +67,12 @@ class CaretakerConcurrencyIT extends IntegrationTestSupport {
         SELECT count(*)
           FROM caretaker
          WHERE email = ?
+        """;
+
+    private static final String STATUS_OF = """
+        SELECT status
+          FROM caretaker
+         WHERE id = ?
         """;
 
     private static final String SET_STATUS = """
@@ -102,15 +114,23 @@ class CaretakerConcurrencyIT extends IntegrationTestSupport {
         setAside.forEach(id -> jdbc.update(SET_STATUS, "ACTIVE", id));
     }
 
-    private Caretaker savedAdministrator() {
-        Caretaker administrator = aUniqueCaretaker()
-                .withRole(Role.ADMINISTRATOR)
+    private Caretaker saved(Role role) {
+        Caretaker caretaker = aUniqueCaretaker()
+                .withRole(role)
                 .withHasher(passwordHasher)
                 .withRoster(caretakerRepository)
                 .withClock(clock)
                 .build();
-        caretakerRepository.save(administrator);
-        return administrator;
+        caretakerRepository.save(caretaker);
+        return caretaker;
+    }
+
+    private Caretaker savedAdministrator() {
+        return saved(Role.ADMINISTRATOR);
+    }
+
+    private String statusOf(Caretaker caretaker) {
+        return jdbc.queryForObject(STATUS_OF, String.class, caretaker.id().value());
     }
 
     /** Deixa os dois como os unicos administradores ativos do banco compartilhado. */
@@ -149,6 +169,16 @@ class CaretakerConcurrencyIT extends IntegrationTestSupport {
                 administrator.email().value(),
                 administrator.mobilePhone().value(),
                 Role.USER);
+    }
+
+    private static UpdateCaretakerCommand rename(Caretaker caretaker) {
+        return new UpdateCaretakerCommand(
+                caretaker.id(),
+                caretaker.fullName().value() + " Renomeado",
+                caretaker.cpf().value(),
+                caretaker.email().value(),
+                caretaker.mobilePhone().value(),
+                caretaker.role());
     }
 
     private long count(String sql, Object... args) {
@@ -202,6 +232,44 @@ class CaretakerConcurrencyIT extends IntegrationTestSupport {
     }
 
     @RepeatedTest(value = 10, name = "rodada {currentRepetition} de {totalRepetitions}")
+    @DisplayName("an edition that loaded the caretaker before a simultaneous deactivation does not reactivate it (FR-014)")
+    void givenActiveCaretaker_whenEditingAndDeactivatingAtOnce_thenEndInactive() throws Exception {
+        // given
+        // A edicao gravava todas as colunas a partir da copia que tinha carregado antes da
+        // inativacao: a revisao mediu 30 de 30 rodadas com o responsavel de volta a ativa, e os dois
+        // comandos respondendo sucesso. Inativar e o meio de revogar acesso.
+        Caretaker caretaker = saved(Role.USER);
+
+        // when
+        List<Result<CaretakerId>> results = simultaneously(
+                () -> dispatcher.dispatch(rename(caretaker)),
+                () -> dispatcher.dispatch(new DeactivateCaretakerCommand(caretaker.id())));
+
+        // then
+        assertThat(results).allMatch(Result::isSuccess);
+        assertThat(statusOf(caretaker)).isEqualTo("INACTIVE");
+    }
+
+    @RepeatedTest(value = 10, name = "rodada {currentRepetition} de {totalRepetitions}")
+    @DisplayName("a password change that loaded the caretaker before a simultaneous deactivation does not reactivate it (FR-005)")
+    void givenActiveCaretaker_whenChangingThePasswordAndBeingDeactivatedAtOnce_thenEndInactive() throws Exception {
+        // given
+        // A troca calcula dois hashes antes de gravar, e essa janela bastava para a inativacao
+        // confirmar no meio: a revisao mediu 29 de 30 rodadas com o responsavel de volta a ativa.
+        Caretaker caretaker = saved(Role.USER);
+
+        // when
+        List<Result<CaretakerId>> results = simultaneously(
+                () -> dispatcher.dispatch(
+                        new ChangeOwnPasswordCommand(caretaker.id(), DEFAULT_PASSWORD, "PosturaAviario2027")),
+                () -> dispatcher.dispatch(new DeactivateCaretakerCommand(caretaker.id())));
+
+        // then
+        assertThat(results.get(1).isSuccess()).as("the deactivation goes through").isTrue();
+        assertThat(statusOf(caretaker)).isEqualTo("INACTIVE");
+    }
+
+    @RepeatedTest(value = 10, name = "rodada {currentRepetition} de {totalRepetitions}")
     @DisplayName("of two simultaneous registrations with the same email, the second is a conflict, not an error (T271)")
     void givenTwoRegistrationsWithTheSameEmail_whenSubmittedAtOnce_thenRegisterOneAndRefuseTheOther() throws Exception {
         // given
@@ -220,5 +288,21 @@ class CaretakerConcurrencyIT extends IntegrationTestSupport {
                 .extracting(result -> result.error().code())
                 .containsExactly("EMAIL_ALREADY_IN_USE");
         assertThat(count(CARETAKERS_WITH_EMAIL, email)).isEqualTo(1);
+    }
+
+    @RepeatedTest(value = 3, name = "rodada {currentRepetition} de {totalRepetitions}")
+    @DisplayName("keeps the refused email out of the log when the unique index refuses the second registration")
+    void givenTwoRegistrationsWithTheSameEmail_whenTheIndexRefusesOne_thenLeaveTheEmailOutOfTheLog(CapturedOutput output)
+            throws Exception {
+        // given
+        // O PostgreSQL descreve a violacao com o valor recusado, "Key (email)=(...)", e o Hibernate
+        // registrava isso em WARN: dado pessoal no log a cada corrida (QA da T275).
+        String email = "sigilo." + UUID.randomUUID().toString().substring(0, 8) + "@ovyx.com.br";
+
+        // when
+        simultaneously(() -> dispatcher.dispatch(registration(email)), () -> dispatcher.dispatch(registration(email)));
+
+        // then
+        assertThat(output).doesNotContain(email);
     }
 }

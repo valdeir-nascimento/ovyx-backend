@@ -8,6 +8,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -61,6 +62,18 @@ public class CaretakerRecord {
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    /**
+     * Versao da linha, para controle otimista de concorrencia.
+     *
+     * <p>O tratador carrega o responsavel, o dominio decide e o {@code save} aplica o resultado sobre a
+     * mesma linha carregada, na mesma transacao. Se outro comando gravou nesse meio-tempo, a versao
+     * nao confere e o banco recusa, em vez de a copia vencida apagar a gravacao mais nova — foi assim
+     * que uma edicao simultanea desfazia a inativacao.
+     */
+    @Version
+    @Column(name = "version", nullable = false)
+    private long version;
 
     /** Exigido pelo Hibernate. */
     protected CaretakerRecord() {}

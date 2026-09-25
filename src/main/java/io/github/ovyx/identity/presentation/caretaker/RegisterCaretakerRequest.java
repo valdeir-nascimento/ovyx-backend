@@ -1,6 +1,5 @@
 package io.github.ovyx.identity.presentation.caretaker;
 
-import io.github.ovyx.identity.domain.model.Role;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
@@ -23,7 +22,11 @@ public record RegisterCaretakerRequest(
             + " primeiro acesso",
         example = "AviarioSul2026")
     String password,
-    @Schema(example = "USER") Role role) {
+    @Schema(
+        description = "Perfil. Um valor fora da lista volta em details, com as demais violações",
+        allowableValues = {"ADMINISTRATOR", "USER"},
+        example = "USER")
+    String role) {
 
     @Override
     public String toString() {

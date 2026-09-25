@@ -304,6 +304,28 @@ class CaretakerContractIT extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("reports a role outside the list together with the other violations, not as an unreadable body")
+    void givenRoleOutsideTheListEmptyNameAndInvalidCpf_whenRegistering_thenAnswer400WithTheThreeFields()
+            throws Exception {
+        // given
+        // Antes, o perfil desconhecido tornava o corpo inteiro ilegivel: 400 REQUEST_NOT_ACCEPTABLE,
+        // sem details, e as falhas de nome e CPF sumiam (QA da T275, FR-017).
+        String body = """
+                {"fullName": "", "cpf": "123", "email": "%s", "mobilePhone": "%s", "password": "%s", "role": "admin"}
+                """.formatted(uniqueEmail(), uniqueMobilePhone(), PASSWORD);
+
+        // when
+        ResultActions response = mockMvc.perform(register(body));
+
+        // then
+        response.andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.details.fullName").exists())
+                .andExpect(jsonPath("$.details.cpf").exists())
+                .andExpect(jsonPath("$.details.role").value("Perfil inválido."));
+    }
+
+    @Test
     @DisplayName("refuses an unavailable response format before registering anyone")
     void givenValidRegistrationAskingForXml_whenRegistering_thenAnswer406AndRegisterNobody() throws Exception {
         // given
@@ -394,6 +416,23 @@ class CaretakerContractIT extends IntegrationTestSupport {
     }
 
     // ------------------------------------------------------------------------------- edicao
+
+    @Test
+    @DisplayName("reports a role outside the list on update as a field violation, and changes nothing")
+    void givenRoleOutsideTheList_whenUpdating_thenAnswer400OnTheRoleAndKeepIt() throws Exception {
+        // given
+        Caretaker caretaker = saved(Role.USER);
+        String body = updateOf(caretaker, Role.USER).replace("\"USER\"", "\"ROOT\"");
+
+        // when
+        ResultActions response = mockMvc.perform(update(caretaker.id().value(), body));
+
+        // then
+        response.andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.details.role").value("Perfil inválido."));
+        assertThat(caretakerRepository.findById(caretaker.id()).orElseThrow().role()).isEqualTo(Role.USER);
+    }
 
     @Test
     @DisplayName("refuses an unavailable response format before changing anyone")

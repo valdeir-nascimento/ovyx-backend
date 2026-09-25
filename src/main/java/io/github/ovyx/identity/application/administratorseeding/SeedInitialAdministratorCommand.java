@@ -8,7 +8,7 @@ public record SeedInitialAdministratorCommand(
     String email,
     String mobilePhone,
     String password
-) implements Command<SeedingOutcome> {
+) implements Command<SeedingReport> {
 
     @Override
     public String toString() {
