@@ -1,6 +1,6 @@
 package io.github.ovyx.identity.domain.valueobject;
 
-import static io.github.ovyx.identity.domain.DomainViolations.violationsOf;
+import static io.github.ovyx.shared.domain.DomainViolations.violationsOf;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;

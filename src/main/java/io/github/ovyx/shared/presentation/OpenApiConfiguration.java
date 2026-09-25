@@ -29,8 +29,11 @@ import org.springframework.context.annotation.Configuration;
  * <p>Descricoes em portugues por exigencia de FR-029 e do principio VII: quem le a documentacao e
  * pessoa, nao compilador.
  *
- * <p>O texto geral e o esquema de seguranca espelham {@code contracts/identity-api.yaml}: o cookie de
- * sessao vale para todas as operacoes, e a entrada, que e publica, o dispensa por anotacao propria.
+ * <p>Um documento so para os dois contratos, {@code identity-api.yaml} e {@code farm-api.yaml} (R-012 da
+ * feature 002): quem integra entra e cadastra um setor na mesma pagina. O texto geral e o da identidade,
+ * seguido do da granja sem o paragrafo que remete a identidade; o esquema de seguranca e o dos dois: o
+ * cookie de sessao vale para todas as operacoes, e a entrada, que e publica, o dispensa por anotacao
+ * propria.
  *
  * <p>A interface chama a API de outra origem, com o cookie da sessao e o cabecalho CSRF: o CORS fica
  * em {@code SecurityConfiguration}; as credenciais, em {@code application.yml}; e o cabecalho CSRF entre
@@ -48,7 +51,7 @@ public class OpenApiConfiguration {
             // Servidor declarado: com ele, o springdoc nunca o calcula pelo Host da requisicao.
             .servers(List.of(new Server().url(apiDocs.serverUrl()).description(apiDocs.serverDescription())))
             .info(new Info()
-                .title("Ovyx — API de Identidade")
+                .title("Ovyx — API")
                 .version("1.0.0")
                 .description(
                     """
@@ -101,6 +104,16 @@ public class OpenApiConfiguration {
 
                         **Falha inesperada**: defeito técnico responde 500 com `code` `INTERNAL_ERROR`, sem nenhum \
                         detalhe da causa, que vai apenas para o log do servidor.
+
+                        Setores e gaiolas da granja (`Sector`, `Cage`): a estrutura produtiva onde as features \
+                        seguintes lançam produção, ração, mortalidade e peso.
+
+                        **Perfis**: qualquer responsável autenticado consulta setores e gaiolas. Cadastrar, editar, \
+                        inativar e reativar é exclusivo do perfil Administrador; o usuário comum recebe o 403 \
+                        `FORBIDDEN` genérico, sem saber se o setor ou a gaiola existem.
+
+                        **Nada é apagado**: setores e gaiolas são inativados, e continuam consultáveis. Inativar um \
+                        setor inativa junto as gaiolas ativas dele; reativá-lo traz de volta exatamente essas gaiolas.
                         """))
             .tags(List.of(
                 new Tag()
@@ -111,7 +124,13 @@ public class OpenApiConfiguration {
                     .description("Gestão de responsáveis — exclusiva do perfil Administrador"),
                 new Tag()
                     .name("Minha conta")
-                    .description("Operações do responsável autenticado sobre a própria conta")))
+                    .description("Operações do responsável autenticado sobre a própria conta"),
+                new Tag()
+                    .name("Setores")
+                    .description("Cadastro, consulta, inativação e reativação de setores"),
+                new Tag()
+                    .name("Gaiolas")
+                    .description("Cadastro, consulta, inativação e reativação das gaiolas de um setor")))
             .addSecurityItem(new SecurityRequirement().addList(SESSION_COOKIE))
             .components(new Components()
                 .addSecuritySchemes(

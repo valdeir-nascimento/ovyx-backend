@@ -1,11 +1,8 @@
-package io.github.ovyx.identity.domain;
+package io.github.ovyx.shared.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
-import io.github.ovyx.shared.domain.DomainException;
-import io.github.ovyx.shared.domain.ErrorCode;
-import io.github.ovyx.shared.domain.Violation;
 import java.util.List;
 import java.util.Map;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;

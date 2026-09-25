@@ -7,6 +7,8 @@ import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.lang.ArchRule;
 import com.tngtech.archunit.lang.EvaluationResult;
 import io.github.ovyx.architecture.sample.domain.SignalController;
+import io.github.ovyx.architecture.violation.crosscontext.farm.HouseUsingShared;
+import io.github.ovyx.architecture.violation.crosscontext.shared.Label;
 import io.github.ovyx.architecture.violation.application.SwaggerInApplication;
 import io.github.ovyx.architecture.violation.presentation.DocumentedController;
 import java.util.stream.Stream;
@@ -24,7 +26,7 @@ import ovyxarchviolation.presentation.AnnotatedResource;
  * <p>Uma suite de arquitetura que nunca reprovou nada pode estar apenas mal escrita: regra com
  * pacote errado passa silenciosamente para sempre. Este teste submete classes com violacoes
  * deliberadas as <strong>mesmas</strong> regras de {@link ArchitectureRulesTest} e exige que
- * <strong>cada uma</strong> das onze as reprove.
+ * <strong>cada uma</strong> das treze as reprove.
  *
  * <p>Cada caso exige que o relatorio cite a violacao esperada. Aceitar qualquer
  * {@link AssertionError} nao bastava: a regra que deixa de casar com a classe tambem falha, com
@@ -41,6 +43,17 @@ class ArchitectureRulesSelfCheckTest {
     private static JavaClasses only(Class<?>... classes) {
         return new ClassFileImporter().importClasses(classes);
     }
+
+    /** Raiz das amostras de contexto: cada pacote abaixo dela faz o papel de um contexto delimitado. */
+    private static final String CROSS_CONTEXT_ROOT = "io.github.ovyx.architecture.violation.crosscontext";
+
+    /** A regra entre contextos, com as amostras no lugar dos contextos de producao. */
+    private static final ArchRule BOUNDED_CONTEXTS_OF_THE_SAMPLES =
+            ArchitectureRules.boundedContextsMustBeIndependent(CROSS_CONTEXT_ROOT);
+
+    /** A regra do nucleo compartilhado, com as amostras no lugar do shared e dos contextos. */
+    private static final ArchRule SHARED_KERNEL_OF_THE_SAMPLES =
+            ArchitectureRules.sharedKernelMustNotDependOnBoundedContexts(CROSS_CONTEXT_ROOT);
 
     private static final String SAMPLE_DOMAIN = "io.github.ovyx.architecture.sample.domain";
     private static final String SAMPLE_APPLICATION = "io.github.ovyx.architecture.sample.application";
@@ -137,6 +150,16 @@ class ArchitectureRulesSelfCheckTest {
                         ArchitectureRules.PRESENTATION_MUST_NOT_DEPEND_ON_INFRASTRUCTURE,
                         VIOLATING_CLASSES,
                         "SomeController"),
+                Arguments.of(
+                        "a bounded context depending on another one",
+                        BOUNDED_CONTEXTS_OF_THE_SAMPLES,
+                        VIOLATING_CLASSES,
+                        "HouseUsingKeeper"),
+                Arguments.of(
+                        "the shared kernel depending on a bounded context",
+                        SHARED_KERNEL_OF_THE_SAMPLES,
+                        VIOLATING_CLASSES,
+                        "LabelUsingKeeper"),
                 Arguments.of(
                         "OpenAPI annotations on a presentation class named as a controller",
                         ArchitectureRules.CONTROLLERS_MUST_NOT_CARRY_API_DOCUMENTATION,
@@ -264,6 +287,33 @@ class ArchitectureRulesSelfCheckTest {
         // when
         EvaluationResult result =
                 ArchitectureRules.OUTER_LAYERS_MUST_NOT_RECEIVE_DOMAIN_REFUSALS.evaluate(compliant);
+
+        // then
+        assertThat(result.getFailureReport().getDetails()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("accepts a bounded context that depends only on the shared kernel")
+    void givenContextDependingOnlyOnTheSharedKernel_whenEvaluatingTheRule_thenAcceptIt() {
+        // given
+        // Sem este caso, uma regra que reprovasse qualquer dependencia passaria no teste de rejeicao.
+        JavaClasses compliant = only(HouseUsingShared.class, Label.class);
+
+        // when
+        EvaluationResult result = BOUNDED_CONTEXTS_OF_THE_SAMPLES.evaluate(compliant);
+
+        // then
+        assertThat(result.getFailureReport().getDetails()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("accepts a shared kernel that depends on no bounded context")
+    void givenSharedKernelDependingOnNoContext_whenEvaluatingTheRule_thenAcceptIt() {
+        // given
+        JavaClasses compliant = only(Label.class);
+
+        // when
+        EvaluationResult result = SHARED_KERNEL_OF_THE_SAMPLES.evaluate(compliant);
 
         // then
         assertThat(result.getFailureReport().getDetails()).isEmpty();

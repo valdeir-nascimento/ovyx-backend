@@ -1,7 +1,7 @@
 package io.github.ovyx.identity.presentation.security;
 
-import io.github.ovyx.identity.domain.model.Role;
 import io.github.ovyx.shared.presentation.ApiDocsProperties;
+import io.github.ovyx.shared.presentation.RouteAuthorization;
 import jakarta.servlet.DispatcherType;
 import java.time.Duration;
 import java.util.List;
@@ -10,7 +10,6 @@ import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -31,27 +30,31 @@ import tools.jackson.databind.ObjectMapper;
 @EnableWebSecurity
 public class SecurityConfiguration {
 
-    /** Perfil que administra responsaveis; o nome vem de {@code Role}, sem o prefixo ROLE_. */
-    private static final String ADMINISTRATOR = Role.ADMINISTRATOR.name();
-
     private final ProblemAuthenticationEntryPoint authenticationEntryPoint;
     private final ProblemAccessDeniedHandler accessDeniedHandler;
     private final PasswordChangeRequiredFilter passwordChangeRequiredFilter;
     private final ApiDocsProperties apiDocs;
     private final ObjectMapper objectMapper;
+    private final List<RouteAuthorization> routeAuthorizations;
 
+    /**
+     * @param routeAuthorizations as rotas de cada contexto (R-008 da feature 002). Nenhum contexto
+     *     conhece as rotas de outro; esta configuracao so as aplica, antes da negacao por omissao.
+     */
     public SecurityConfiguration(
         ProblemAuthenticationEntryPoint authenticationEntryPoint,
         ProblemAccessDeniedHandler accessDeniedHandler,
         PasswordChangeRequiredFilter passwordChangeRequiredFilter,
         ApiDocsProperties apiDocs,
-        ObjectMapper objectMapper
+        ObjectMapper objectMapper,
+        List<RouteAuthorization> routeAuthorizations
     ) {
         this.authenticationEntryPoint = authenticationEntryPoint;
         this.accessDeniedHandler = accessDeniedHandler;
         this.passwordChangeRequiredFilter = passwordChangeRequiredFilter;
         this.apiDocs = apiDocs;
         this.objectMapper = objectMapper;
+        this.routeAuthorizations = List.copyOf(routeAuthorizations);
     }
 
     /**
@@ -113,37 +116,17 @@ public class SecurityConfiguration {
     @Order(2)
     SecurityFilterChain apiSecurityFilterChain(HttpSecurity http, SessionRevalidationFilter sessionRevalidationFilter)
         throws Exception {
-        http.authorizeHttpRequests(requests -> requests
+        http.authorizeHttpRequests(requests -> {
                 // Despacho interno de erro: sem esta liberacao, todo 500 era reenviado a /error,
                 // barrado por falta de autenticacao e entregue ao cliente como 401.
-                .dispatcherTypeMatchers(DispatcherType.ERROR)
-                .permitAll()
-                // Rotas da Historia 1, uma a uma, cada uma com a sua regra.
-                .requestMatchers(HttpMethod.POST, "/api/v1/auth/sign-in")
-                .permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/v1/auth/sign-out")
-                .authenticated()
-                .requestMatchers(HttpMethod.GET, "/api/v1/auth/me")
-                .authenticated()
-                .requestMatchers(HttpMethod.PUT, "/api/v1/me/password")
-                .authenticated()
-                // Rotas da Historia 2: a administracao de responsaveis e so do perfil Administrador
-                // (FR-008), uma rota por vez, para que um metodo novo nasca negado.
-                .requestMatchers(HttpMethod.POST, "/api/v1/caretakers")
-                .hasRole(ADMINISTRATOR)
-                .requestMatchers(HttpMethod.GET, "/api/v1/caretakers")
-                .hasRole(ADMINISTRATOR)
-                .requestMatchers(HttpMethod.GET, "/api/v1/caretakers/*")
-                .hasRole(ADMINISTRATOR)
-                .requestMatchers(HttpMethod.PUT, "/api/v1/caretakers/*")
-                .hasRole(ADMINISTRATOR)
-                .requestMatchers(HttpMethod.POST, "/api/v1/caretakers/*/deactivation")
-                .hasRole(ADMINISTRATOR)
+                requests.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll();
+                // As rotas de cada contexto, declaradas por ele mesmo (R-008 da feature 002).
+                routeAuthorizations.forEach(routes -> routes.authorize(requests));
                 // Negacao por omissao para todos, inclusive autenticados (FR-012). Com
                 // authenticated() aqui, uma rota administrativa esquecida nasceria aberta a
                 // qualquer usuario comum.
-                .anyRequest()
-                .denyAll())
+                requests.anyRequest().denyAll();
+            })
             // O CORS da documentacao entra como filtro proprio, abaixo, para recusar no formato de erro
             // do contrato; o configurador do Spring Security nao aceita outro processador.
             .cors(AbstractHttpConfigurer::disable)
