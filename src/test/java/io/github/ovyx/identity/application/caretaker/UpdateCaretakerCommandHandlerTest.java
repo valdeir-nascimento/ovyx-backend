@@ -53,7 +53,7 @@ class UpdateCaretakerCommandHandlerTest {
                 caretaker.cpf().value(),
                 caretaker.email().value(),
                 caretaker.mobilePhone().value(),
-                Role.ADMINISTRATOR);
+                Role.ADMINISTRATOR.name());
     }
 
     @Test
@@ -63,7 +63,7 @@ class UpdateCaretakerCommandHandlerTest {
         Caretaker maria = saved(aCaretaker());
         clock.advance(Duration.ofHours(1));
         UpdateCaretakerCommand update = new UpdateCaretakerCommand(
-                maria.id(), "Maria Silva Souza", MARIA_CPF, "maria.souza@ovyx.com.br", MARIA_MOBILE_PHONE, Role.ADMINISTRATOR);
+                maria.id(), "Maria Silva Souza", MARIA_CPF, "maria.souza@ovyx.com.br", MARIA_MOBILE_PHONE, Role.ADMINISTRATOR.name());
 
         // when
         Result<CaretakerId> result = handler.handle(update);
@@ -81,7 +81,7 @@ class UpdateCaretakerCommandHandlerTest {
     void givenUnknownCaretaker_whenUpdating_thenFailAsNotFound() {
         // given
         UpdateCaretakerCommand update = new UpdateCaretakerCommand(
-                CaretakerId.generate(), "Maria Silva", MARIA_CPF, MARIA_EMAIL, MARIA_MOBILE_PHONE, Role.USER);
+                CaretakerId.generate(), "Maria Silva", MARIA_CPF, MARIA_EMAIL, MARIA_MOBILE_PHONE, Role.USER.name());
 
         // when
         Result<CaretakerId> result = handler.handle(update);
@@ -96,7 +96,7 @@ class UpdateCaretakerCommandHandlerTest {
     void givenEveryFieldInvalid_whenUpdating_thenFailAsValidationWithEveryField() {
         // given
         Caretaker maria = saved(aCaretaker());
-        UpdateCaretakerCommand update = new UpdateCaretakerCommand(maria.id(), "", "123", "sem-arroba", "12", (String) null);
+        UpdateCaretakerCommand update = new UpdateCaretakerCommand(maria.id(), "", "123", "sem-arroba", "12", null);
 
         // when
         Result<CaretakerId> result = handler.handle(update);
@@ -114,7 +114,7 @@ class UpdateCaretakerCommandHandlerTest {
         Caretaker maria = saved(aCaretaker());
         Caretaker joao = joao();
         UpdateCaretakerCommand update = new UpdateCaretakerCommand(
-                maria.id(), "Maria Silva", MARIA_CPF, joao.email().value(), MARIA_MOBILE_PHONE, Role.USER);
+                maria.id(), "Maria Silva", MARIA_CPF, joao.email().value(), MARIA_MOBILE_PHONE, Role.USER.name());
 
         // when
         Result<CaretakerId> result = handler.handle(update);
@@ -130,7 +130,7 @@ class UpdateCaretakerCommandHandlerTest {
         // given
         Caretaker administrator = saved(aCaretaker().withRole(Role.ADMINISTRATOR));
         UpdateCaretakerCommand demotion = new UpdateCaretakerCommand(
-                administrator.id(), "Maria Silva", MARIA_CPF, MARIA_EMAIL, MARIA_MOBILE_PHONE, Role.USER);
+                administrator.id(), "Maria Silva", MARIA_CPF, MARIA_EMAIL, MARIA_MOBILE_PHONE, Role.USER.name());
 
         // when
         Result<CaretakerId> result = handler.handle(demotion);

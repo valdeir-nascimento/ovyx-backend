@@ -1,17 +1,10 @@
 package io.github.ovyx.identity.application.caretaker;
 
 import io.github.ovyx.identity.domain.model.CaretakerId;
-import io.github.ovyx.identity.domain.model.Role;
 import io.github.ovyx.shared.application.Command;
 
 /** Edicao dos dados cadastrais e do perfil de um responsavel (FR-014). A senha nao muda por aqui. */
 public record UpdateCaretakerCommand(
         CaretakerId caretakerId, String fullName, String cpf, String email, String mobilePhone, String role)
         implements Command<CaretakerId> {
-
-    /** Para quem ja tem o perfil escolhido; o texto digitado chega pelo construtor canonico. */
-    public UpdateCaretakerCommand(
-            CaretakerId caretakerId, String fullName, String cpf, String email, String mobilePhone, Role role) {
-        this(caretakerId, fullName, cpf, email, mobilePhone, role == null ? null : role.name());
-    }
 }

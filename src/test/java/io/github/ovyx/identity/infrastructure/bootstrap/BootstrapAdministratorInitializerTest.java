@@ -8,15 +8,21 @@ import io.github.ovyx.identity.fixtures.InMemoryCaretakerRepository;
 import io.github.ovyx.identity.application.administratorseeding.SeedInitialAdministratorCommandHandler;
 import io.github.ovyx.identity.domain.FakePasswordHasher;
 import io.github.ovyx.identity.domain.model.Caretaker;
+import io.github.ovyx.identity.domain.model.CaretakerTestDataBuilder;
 import io.github.ovyx.identity.domain.model.Role;
 import io.github.ovyx.shared.application.Dispatcher;
 import io.github.ovyx.shared.domain.FixedClock;
 import io.github.ovyx.shared.infrastructure.SpringBeanDispatcher;
 import java.util.List;
+import java.util.function.Function;
+import java.util.stream.Stream;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.transaction.support.TransactionOperations;
@@ -80,23 +86,33 @@ class BootstrapAdministratorInitializerTest {
         assertThat(repository.findById(former.id()).orElseThrow().isActive()).isTrue();
     }
 
-    @Test
+    private static Stream<Arguments> holdersOfTheConfiguredCpf() {
+        return Stream.of(
+                Arguments.of(
+                        Role.ADMINISTRATOR,
+                        (Function<CaretakerTestDataBuilder, Caretaker>) CaretakerTestDataBuilder::buildInactive,
+                        "antes administrador e inativo"),
+                Arguments.of(
+                        Role.USER,
+                        (Function<CaretakerTestDataBuilder, Caretaker>) CaretakerTestDataBuilder::build,
+                        "antes usuário comum e ativo"));
+    }
+
+    @ParameterizedTest(name = "{2}")
+    @MethodSource("holdersOfTheConfiguredCpf")
     @DisplayName("tells, when it restores, the email to sign in with and what the caretaker was before")
-    void givenOnlyAnInactiveAdministratorWithTheConfiguredCpf_whenStarting_thenLogTheEmailToSignInWith(
+    void givenAHolderOfTheConfiguredCpf_whenStarting_thenLogTheEmailToSignInWithAndThePreviousSituation(
+            Role role, Function<CaretakerTestDataBuilder, Caretaker> stored, String previousSituation,
             CapturedOutput output) {
         // given
-        repository.save(aCaretaker()
-                .withCpf("87543210932")
-                .withRole(Role.ADMINISTRATOR)
-                .withHasher(hasher)
-                .buildInactive());
+        repository.save(stored.apply(aCaretaker().withCpf("87543210932").withRole(role).withHasher(hasher)));
         BootstrapAdministratorInitializer initializer = initializer("87543210932", PASSWORD);
 
         // when
         initializer.run(null);
 
         // then
-        assertThat(output).contains("maria.silva@ovyx.com.br").contains("antes administrador e inativo");
+        assertThat(output).contains("maria.silva@ovyx.com.br").contains(previousSituation);
     }
 
     @Test

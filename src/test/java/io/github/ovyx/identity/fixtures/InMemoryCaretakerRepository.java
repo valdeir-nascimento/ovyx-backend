@@ -12,6 +12,8 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -79,10 +81,11 @@ public final class InMemoryCaretakerRepository implements CaretakerRepository {
     }
 
     @Override
-    public long countActiveAdministrators() {
+    public Set<CaretakerId> activeAdministrators() {
         return stored.values().stream()
             .filter(Caretaker::isActive)
             .filter(caretaker -> caretaker.role() == Role.ADMINISTRATOR)
-            .count();
+            .map(Caretaker::id)
+            .collect(Collectors.toUnmodifiableSet());
     }
 }

@@ -16,6 +16,7 @@ import io.github.ovyx.shared.domain.Violation;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Set;
 
 /**
  * Raiz de agregado do contexto Identity: a pessoa autorizada a usar o sistema.
@@ -299,23 +300,6 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
     }
 
     /**
-     * Edita com o perfil ja escolhido, para quem nao recebe texto digitado.
-     *
-     * @throws io.github.ovyx.shared.domain.DomainException nos mesmos casos da edicao por texto
-     */
-    public void update(
-        String rawFullName,
-        String rawCpf,
-        String rawEmail,
-        String rawMobilePhone,
-        Role newRole,
-        CaretakerRoster roster,
-        Clock clock
-    ) {
-        update(rawFullName, rawCpf, rawEmail, rawMobilePhone, newRole == null ? null : newRole.name(), roster, clock);
-    }
-
-    /**
      * Inativa o responsavel. Nao remove nada: o historico permanece consultavel (FR-018).
      *
      * <p>Inativar quem ja esta inativo nao muda nada, nem o instante da ultima alteracao.
@@ -382,8 +366,24 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
         touch(clock);
     }
 
+    /**
+     * Se o responsavel e, agora, o unico administrador ativo.
+     *
+     * <p>Pergunta pelo proprio identificador no conjunto dos ativos, e nao so pela quantidade: a copia
+     * em maos pode estar vencida. Se outra operacao ja o inativou ou rebaixou, ele nao esta no
+     * conjunto e nao e "o ultimo"; a gravacao segue, a versao da linha a recusa, e a nova tentativa
+     * decide sobre o estado atual. Contando so os ativos, a recusa vinha sobre um estado que ja nao
+     * existia, e recusa nao grava nada, entao a versao nunca era conferida.
+     *
+     * <p>A copia que diz que ele nao e administrador ativo nem pergunta: assim a edicao de um usuario
+     * comum nao trava as linhas dos administradores.
+     */
     private boolean isTheLastActiveAdministrator(CaretakerRoster roster) {
-        return isActive() && role == Role.ADMINISTRATOR && roster.countActiveAdministrators() <= 1;
+        if (!isActive() || role != Role.ADMINISTRATOR) {
+            return false;
+        }
+        Set<CaretakerId> active = roster.activeAdministrators();
+        return active.contains(id()) && active.size() <= 1;
     }
 
     /**
