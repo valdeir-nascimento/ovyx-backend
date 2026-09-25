@@ -186,7 +186,7 @@ class CaretakerConcurrencyIT extends IntegrationTestSupport {
         return result == null ? 0 : result;
     }
 
-    @RepeatedTest(value = 10, name = "rodada {currentRepetition} de {totalRepetitions}")
+    @RepeatedTest(value = 10, name = "round {currentRepetition} of {totalRepetitions}")
     @DisplayName("of two simultaneous deactivations of the last two administrators, only one goes through (FR-019)")
     void givenTheLastTwoActiveAdministrators_whenDeactivatingBothAtOnce_thenKeepOneActive() throws Exception {
         // given
@@ -208,7 +208,7 @@ class CaretakerConcurrencyIT extends IntegrationTestSupport {
         assertThat(count(ACTIVE_ADMINISTRATORS)).isEqualTo(1);
     }
 
-    @RepeatedTest(value = 10, name = "rodada {currentRepetition} de {totalRepetitions}")
+    @RepeatedTest(value = 10, name = "round {currentRepetition} of {totalRepetitions}")
     @DisplayName("of two simultaneous demotions of the last two administrators, only one goes through (FR-019)")
     void givenTheLastTwoActiveAdministrators_whenDemotingBothAtOnce_thenKeepOneAdministrator() throws Exception {
         // given
@@ -231,7 +231,7 @@ class CaretakerConcurrencyIT extends IntegrationTestSupport {
         assertThat(count(ACTIVE_ADMINISTRATORS)).isEqualTo(1);
     }
 
-    @RepeatedTest(value = 10, name = "rodada {currentRepetition} de {totalRepetitions}")
+    @RepeatedTest(value = 10, name = "round {currentRepetition} of {totalRepetitions}")
     @DisplayName("an edition that loaded the caretaker before a simultaneous deactivation does not reactivate it (FR-014)")
     void givenActiveCaretaker_whenEditingAndDeactivatingAtOnce_thenEndInactive() throws Exception {
         // given
@@ -250,7 +250,7 @@ class CaretakerConcurrencyIT extends IntegrationTestSupport {
         assertThat(statusOf(caretaker)).isEqualTo("INACTIVE");
     }
 
-    @RepeatedTest(value = 10, name = "rodada {currentRepetition} de {totalRepetitions}")
+    @RepeatedTest(value = 10, name = "round {currentRepetition} of {totalRepetitions}")
     @DisplayName("a password change that loaded the caretaker before a simultaneous deactivation does not reactivate it (FR-005)")
     void givenActiveCaretaker_whenChangingThePasswordAndBeingDeactivatedAtOnce_thenEndInactive() throws Exception {
         // given
@@ -269,7 +269,7 @@ class CaretakerConcurrencyIT extends IntegrationTestSupport {
         assertThat(statusOf(caretaker)).isEqualTo("INACTIVE");
     }
 
-    @RepeatedTest(value = 10, name = "rodada {currentRepetition} de {totalRepetitions}")
+    @RepeatedTest(value = 10, name = "round {currentRepetition} of {totalRepetitions}")
     @DisplayName("of two simultaneous registrations with the same email, the second is a conflict, not an error (T271)")
     void givenTwoRegistrationsWithTheSameEmail_whenSubmittedAtOnce_thenRegisterOneAndRefuseTheOther() throws Exception {
         // given
@@ -290,7 +290,7 @@ class CaretakerConcurrencyIT extends IntegrationTestSupport {
         assertThat(count(CARETAKERS_WITH_EMAIL, email)).isEqualTo(1);
     }
 
-    @RepeatedTest(value = 3, name = "rodada {currentRepetition} de {totalRepetitions}")
+    @RepeatedTest(value = 3, name = "round {currentRepetition} of {totalRepetitions}")
     @DisplayName("keeps the refused email out of the log when the unique index refuses the second registration")
     void givenTwoRegistrationsWithTheSameEmail_whenTheIndexRefusesOne_thenLeaveTheEmailOutOfTheLog(CapturedOutput output)
             throws Exception {
