@@ -85,8 +85,18 @@ springdoc:
   use-management-port: true
   swagger-ui:
     display-request-duration: true
+    # A interface chama a API de outra origem (FR-028): manda o cookie da sessao junto e devolve
+    # o token do cookie XSRF-TOKEN no cabecalho X-XSRF-TOKEN, como o cliente Angular.
+    with-credentials: true
+    csrf:
+      enabled: true
 
 ovyx:
+  api-docs:
+    # O servidor que a interface de documentacao chama no "Try it out". Declarado, e nao calculado
+    # pelo Host de quem le o documento; fora do dev, cada ambiente informa o seu.
+    server-url: ${OVYX_API_DOCS_SERVER_URL:http://localhost:8080}
+    server-description: ${OVYX_API_DOCS_SERVER_DESCRIPTION:Ambiente local}
   security:
     # Parametros do Argon2id. Calibrados em T122 para ficar entre 200ms e 500ms
     # na maquina alvo.
@@ -127,6 +137,12 @@ server:
       cookie:
         # Em desenvolvimento o acesso e por http, entao o cookie nao pode exigir TLS.
         secure: false
+
+ovyx:
+  api-docs:
+    # A interface de documentacao (porta 9090) chama a API nesta porta: sem CORS, o
+    # "Try it out" nao dispara. Fora do dev, liberar e decisao de cada ambiente.
+    allowed-origins: ${OVYX_API_DOCS_ORIGINS:http://localhost:9090}
 
 logging:
   level:

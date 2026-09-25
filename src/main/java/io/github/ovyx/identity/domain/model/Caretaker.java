@@ -231,10 +231,20 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
      * <p>A senha atual ausente e verificada aqui, junto com a politica da nova, e nao na borda HTTP:
      * assim as violacoes dos dois campos voltam de uma vez so.
      *
-     * @throws io.github.ovyx.shared.domain.DomainException quando a senha atual nao confere ou a
-     *                                                      nova viola a politica
+     * <p>O inativo e recusado antes de tudo, com {@code CARETAKER_UNAVAILABLE}: a sessao pode
+     * sobreviver a inativacao, e trocar a senha por ela seria continuar agindo sobre a conta
+     * (invariante 4). A recusa mora aqui, e nao em quem chama, para nenhum chamador precisar lembrar
+     * dela (T179).
+     *
+     * @throws io.github.ovyx.shared.domain.DomainException quando o responsavel esta inativo, quando a
+     *                                                      senha atual nao confere ou quando a nova
+     *                                                      viola a politica
      */
     public void changeOwnPassword(String currentPassword, String newPassword, PasswordHasher hasher, Clock clock) {
+        if (!isActive()) {
+            throw new DomainException(
+                    IdentityErrorCode.CARETAKER_UNAVAILABLE, IdentityErrorCode.CARETAKER_UNAVAILABLE_MESSAGE);
+        }
 
         Notification notification = new Notification();
 

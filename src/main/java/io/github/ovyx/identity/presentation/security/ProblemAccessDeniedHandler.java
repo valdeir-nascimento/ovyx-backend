@@ -21,6 +21,12 @@ import java.io.IOException;
 @Component
 public class ProblemAccessDeniedHandler implements AccessDeniedHandler {
 
+    /** Título do 403 genérico, o mesmo em toda recusa de permissão (FR-010). */
+    static final String FORBIDDEN_TITLE = "Acesso negado";
+
+    /** Frase do 403 genérico: não diz qual recurso foi negado, nem que ele existe (FR-010). */
+    static final String FORBIDDEN_DETAIL = "Você não tem permissão para executar esta operação.";
+
     private final ObjectMapper objectMapper;
 
     public ProblemAccessDeniedHandler(ObjectMapper objectMapper) {
@@ -44,8 +50,8 @@ public class ProblemAccessDeniedHandler implements AccessDeniedHandler {
             : ProblemResponses.of(
                 HttpStatus.FORBIDDEN,
                 EdgeErrorCode.FORBIDDEN,
-                "Acesso negado",
-                "Você não tem permissão para executar esta operação.",
+                FORBIDDEN_TITLE,
+                FORBIDDEN_DETAIL,
                 URI.create(request.getRequestURI()));
 
         response.setStatus(HttpServletResponse.SC_FORBIDDEN);

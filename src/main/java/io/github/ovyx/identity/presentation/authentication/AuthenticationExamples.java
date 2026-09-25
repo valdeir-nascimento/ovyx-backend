@@ -17,6 +17,51 @@ public final class AuthenticationExamples {
               }
             }""";
 
+    public static final String SIGN_IN_BY_EMAIL =
+        """
+            {
+              "identifier": "maria.silva@ovyx.com.br",
+              "password": "GranjaNorte2026"
+            }""";
+
+    public static final String SIGN_IN_BY_MOBILE_PHONE =
+        """
+            {
+              "identifier": "91988887777",
+              "password": "GranjaNorte2026"
+            }""";
+
+    public static final String SIGN_IN_COMMON_USER =
+        """
+            {
+              "id": "7c1f0b2e-3d4a-4f5b-8c9d-0e1f2a3b4c5d",
+              "fullName": "Maria Silva",
+              "role": "USER",
+              "mustChangePassword": false
+            }""";
+
+    public static final String SIGN_IN_SEEDED_ADMINISTRATOR =
+        """
+            {
+              "id": "1a2b3c4d-5e6f-4071-8293-a4b5c6d7e8f9",
+              "fullName": "Administrador do Sistema",
+              "role": "ADMINISTRATOR",
+              "mustChangePassword": true
+            }""";
+
+    public static final String SIGN_IN_IDENTIFIER_TOO_LONG =
+        """
+            {
+              "code": "VALIDATION_FAILED",
+              "title": "Dados inválidos",
+              "status": 400,
+              "detail": "A requisição contém campos inválidos.",
+              "instance": "/api/v1/auth/sign-in",
+              "details": {
+                "identifier": "O identificador deve ter no máximo 254 caracteres."
+              }
+            }""";
+
     public static final String SIGN_IN_UNREADABLE_BODY =
         """
             {

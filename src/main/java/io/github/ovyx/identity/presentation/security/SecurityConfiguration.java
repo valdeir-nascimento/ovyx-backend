@@ -1,7 +1,10 @@
 package io.github.ovyx.identity.presentation.security;
 
 import io.github.ovyx.identity.domain.model.Role;
+import io.github.ovyx.shared.presentation.ApiDocsProperties;
 import jakarta.servlet.DispatcherType;
+import java.time.Duration;
+import java.util.List;
 import org.springframework.boot.security.autoconfigure.actuate.web.servlet.EndpointRequest;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
@@ -18,6 +21,11 @@ import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
 import org.springframework.security.web.savedrequest.NullRequestCache;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.filter.CorsFilter;
+import tools.jackson.databind.ObjectMapper;
 
 @Configuration
 @EnableWebSecurity
@@ -29,15 +37,42 @@ public class SecurityConfiguration {
     private final ProblemAuthenticationEntryPoint authenticationEntryPoint;
     private final ProblemAccessDeniedHandler accessDeniedHandler;
     private final PasswordChangeRequiredFilter passwordChangeRequiredFilter;
+    private final ApiDocsProperties apiDocs;
+    private final ObjectMapper objectMapper;
 
     public SecurityConfiguration(
         ProblemAuthenticationEntryPoint authenticationEntryPoint,
         ProblemAccessDeniedHandler accessDeniedHandler,
-        PasswordChangeRequiredFilter passwordChangeRequiredFilter
+        PasswordChangeRequiredFilter passwordChangeRequiredFilter,
+        ApiDocsProperties apiDocs,
+        ObjectMapper objectMapper
     ) {
         this.authenticationEntryPoint = authenticationEntryPoint;
         this.accessDeniedHandler = accessDeniedHandler;
         this.passwordChangeRequiredFilter = passwordChangeRequiredFilter;
+        this.apiDocs = apiDocs;
+        this.objectMapper = objectMapper;
+    }
+
+    /**
+     * CORS so para a interface de documentacao, que chama a API de outra origem (FR-026, FR-028).
+     *
+     * <p>Com credenciais — o cookie da sessao precisa ir junto —, e por isso com as origens exatas
+     * da configuracao, nunca curinga: uma origem qualquer liberada seria um site alheio agindo com a
+     * sessao de quem o visita. So os metodos e os cabecalhos que a API usa, e o {@code Location} do
+     * cadastro exposto, para a interface mostra-lo.
+     */
+    private CorsConfigurationSource apiDocsCors() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(apiDocs.allowedOrigins());
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT"));
+        configuration.setAllowedHeaders(List.of("Content-Type", "Accept", "X-XSRF-TOKEN"));
+        configuration.setExposedHeaders(List.of("Location"));
+        configuration.setAllowCredentials(true);
+        configuration.setMaxAge(Duration.ofMinutes(30));
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/api/**", configuration);
+        return source;
     }
 
     /**
@@ -78,7 +113,7 @@ public class SecurityConfiguration {
     @Order(2)
     SecurityFilterChain apiSecurityFilterChain(HttpSecurity http, SessionRevalidationFilter sessionRevalidationFilter)
         throws Exception {
-        return http.authorizeHttpRequests(requests -> requests
+        http.authorizeHttpRequests(requests -> requests
                 // Despacho interno de erro: sem esta liberacao, todo 500 era reenviado a /error,
                 // barrado por falta de autenticacao e entregue ao cliente como 401.
                 .dispatcherTypeMatchers(DispatcherType.ERROR)
@@ -109,6 +144,9 @@ public class SecurityConfiguration {
                 // qualquer usuario comum.
                 .anyRequest()
                 .denyAll())
+            // O CORS da documentacao entra como filtro proprio, abaixo, para recusar no formato de erro
+            // do contrato; o configurador do Spring Security nao aceita outro processador.
+            .cors(AbstractHttpConfigurer::disable)
             // Padrao do Spring Security para SPA: cookie XSRF-TOKEN legivel pelo cliente,
             // emitido ja na primeira resposta, e devolvido no cabecalho X-XSRF-TOKEN. Somado a
             // SameSite=Lax, fecha o vetor de CSRF sem travar o primeiro login.
@@ -138,8 +176,15 @@ public class SecurityConfiguration {
             .addFilterBefore(sessionRevalidationFilter, AuthorizationFilter.class)
             // Depois da autorizacao: so faz sentido cobrar a troca de senha de quem ja passou por
             // ela. Antes, o filtro nem teria identidade para inspecionar.
-            .addFilterAfter(passwordChangeRequiredFilter, AuthorizationFilter.class)
-            .build();
+            .addFilterAfter(passwordChangeRequiredFilter, AuthorizationFilter.class);
+        // Sem origem configurada, nenhum CORS: a API so fala com a propria origem. Com ela, o filtro
+        // fica onde o Spring Security o poria, antes do CSRF.
+        if (!apiDocs.allowedOrigins().isEmpty()) {
+            CorsFilter cors = new CorsFilter(apiDocsCors());
+            cors.setCorsProcessor(new ProblemCorsProcessor(objectMapper));
+            http.addFilterBefore(cors, CsrfFilter.class);
+        }
+        return http.build();
     }
 
     /** Pelo mesmo motivo do filtro de troca de senha: ele ja entra na cadeia de seguranca. */

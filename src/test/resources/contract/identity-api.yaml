@@ -1,0 +1,1132 @@
+openapi: 3.1.0
+info:
+  title: Ovyx — API de Identidade
+  version: 1.0.0
+  description: |
+    Acesso ao sistema e gestão de responsáveis (`Caretaker`).
+
+    **Sessão**: a autenticação devolve um cookie de sessão `HttpOnly`. Não há token no corpo da
+    resposta. A sessão expira após 30 minutos de inatividade e é invalidada imediatamente no
+    encerramento.
+
+    **Erros**: todas as respostas de erro seguem RFC 9457 (`application/problem+json`) e trazem a
+    extensão `code`, identificador estável da regra violada. Falhas de validação trazem também
+    `details`, com uma mensagem por campo e **todas** as violações de uma só vez — nunca apenas a
+    primeira.
+
+    **Mensagem genérica**: qualquer falha de autenticação — identificador inexistente, senha
+    incorreta, responsável inativo ou tentativas em excesso — devolve exatamente a mesma resposta,
+    para não revelar qual das condições ocorreu.
+
+    **CSRF**: a API segue o padrão do Spring Security para SPA. Toda resposta emite o cookie `XSRF-TOKEN`, legível pelo cliente, e toda requisição que altera estado (POST, PUT) precisa devolver o valor dele no cabeçalho `X-XSRF-TOKEN`. O cliente obtém o cookie com qualquer requisição anterior — por exemplo `GET /api/v1/auth/me`, que responde 401 sem sessão mas já entrega o cookie. Sem o cabeçalho, a resposta é 403 com `code` `CSRF_TOKEN_INVALID`, distinto de `FORBIDDEN`: o primeiro se resolve repetindo a requisição com o token; o segundo é falta de permissão. No login, o token é trocado: a resposta traz um `XSRF-TOKEN` novo, que substitui o anterior.
+
+    **Troca de senha pendente**: enquanto `mustChangePassword` for `true`, só são aceitas a troca da própria senha, a saída, a consulta da própria identidade e uma nova entrada. As demais operações respondem 403 com `code` `PASSWORD_CHANGE_REQUIRED`.
+
+    **Requisição não suportada**: corpo em formato diferente de JSON (415) ou formato de resposta indisponível (406) respondem com `code` `REQUEST_NOT_ACCEPTABLE`, mantendo o status real. Corpo que o parser não consegue ler responde 400 com o mesmo código, sem repetir o conteúdo enviado. Nas operações que devolvem corpo de sucesso — a entrada, `/auth/me` e as de responsáveis —, um `Accept` que aceita só `application/problem+json` também recebe 406: esse é o formato dos erros, e não serve a uma resposta de sucesso. A saída e a troca de senha respondem 204, sem corpo.
+
+    **Método ou rota não declarados**: não produzem 405, com uma exceção: `TRACE`, que o próprio servidor recusa com 405 antes de a requisição chegar à aplicação, num corpo fora do formato de erro deste documento. A autorização é declarada por endpoint e método, e o que não está declarado é negado antes de o roteamento avaliar o método (FR-012): sem sessão, a resposta é 401 `UNAUTHENTICATED`; com sessão, 403 `FORBIDDEN`. Uma requisição que altera estado sem o cabeçalho `X-XSRF-TOKEN` é recusada antes disso, com 403 `CSRF_TOKEN_INVALID`.
+
+    **Outra origem**: a API só atende chamadas de outra origem vindas da interface de
+    documentação configurada, com credenciais. Qualquer outra origem, ou um método ou cabeçalho fora
+    dos que a API usa, recebe 403 `FORBIDDEN` antes de qualquer outra verificação, inclusive a do
+    token de proteção.
+
+    **Falha inesperada**: defeito técnico responde 500 com `code` `INTERNAL_ERROR`, sem nenhum detalhe da causa, que vai apenas para o log do servidor.
+servers:
+- url: http://localhost:8080
+  description: Ambiente local
+tags:
+- name: Acesso
+  description: Entrada, saída e identificação do responsável autenticado
+- name: Responsáveis
+  description: Gestão de responsáveis — exclusiva do perfil Administrador
+- name: Minha conta
+  description: Operações do responsável autenticado sobre a própria conta
+paths:
+  /api/v1/auth/sign-in:
+    post:
+      tags:
+      - Acesso
+      summary: Entrar no sistema
+      description: |
+        Autentica por **e-mail ou celular**, indistintamente, no campo `identifier`.
+        Em caso de sucesso, devolve o cookie de sessão e os dados do responsável autenticado.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignInRequest'
+            examples:
+              porEmail:
+                summary: Entrada por e-mail
+                value:
+                  identifier: maria.silva@ovyx.com.br
+                  password: GranjaNorte2026
+              porCelular:
+                summary: Entrada por celular
+                value:
+                  identifier: '91988887777'
+                  password: GranjaNorte2026
+      responses:
+        '200':
+          description: Autenticado
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              example: SESSION=ZjQ2YmQxNzAtNGQ4Ni00; Path=/; HttpOnly; Secure; SameSite=Lax
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticatedCaretaker'
+              examples:
+                usuarioComum:
+                  summary: Usuário comum
+                  value:
+                    id: 7c1f0b2e-3d4a-4f5b-8c9d-0e1f2a3b4c5d
+                    fullName: Maria Silva
+                    role: USER
+                    mustChangePassword: false
+                administradorSemeado:
+                  summary: Administrador inicial, ainda com senha provisória
+                  value:
+                    id: 1a2b3c4d-5e6f-4071-8293-a4b5c6d7e8f9
+                    fullName: Administrador do Sistema
+                    role: ADMINISTRATOR
+                    mustChangePassword: true
+        '401':
+          description: |
+            Credencial inválida. Resposta **idêntica** para identificador inexistente, senha
+            incorreta, responsável inativo e tentativas em excesso.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                code: INVALID_CREDENTIALS
+                title: Não autenticado
+                status: 401
+                detail: E-mail, celular ou senha inválidos.
+        '400':
+          description: Campo ausente, identificador longo demais ou corpo que não é JSON válido
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                campoAusente:
+                  summary: Campo obrigatório ausente
+                  value:
+                    code: VALIDATION_FAILED
+                    title: Dados inválidos
+                    status: 400
+                    detail: A requisição contém campos inválidos.
+                    details:
+                      identifier: Informe o e-mail ou o celular.
+                identificadorLongo:
+                  summary: Identificador acima de 254 caracteres
+                  value:
+                    code: VALIDATION_FAILED
+                    title: Dados inválidos
+                    status: 400
+                    detail: A requisição contém campos inválidos.
+                    details:
+                      identifier: O identificador deve ter no máximo 254 caracteres.
+                corpoMalformado:
+                  summary: Corpo que não é JSON válido
+                  value:
+                    code: REQUEST_NOT_ACCEPTABLE
+                    title: Requisição inválida
+                    status: 400
+                    # A mensagem é genérica de propósito: o texto do parser carrega o trecho lido,
+                    # e num corpo de login isso é a senha (FR-021).
+                    detail: O corpo da requisição não pôde ser lido.
+        '403':
+          $ref: '#/components/responses/TokenCsrfAusente'
+        '406':
+          description: |
+            Formato de resposta indisponível. A negociação recusa antes de a credencial ser
+            conferida: nenhuma sessão é aberta e nenhum acesso é registrado.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                code: REQUEST_NOT_ACCEPTABLE
+                title: Requisição não suportada
+                status: 406
+                detail: A requisição não é suportada por este endereço.
+        '415':
+          $ref: '#/components/responses/RequisicaoNaoSuportada'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+  /api/v1/auth/sign-out:
+    post:
+      tags:
+      - Acesso
+      summary: Sair do sistema
+      description: Encerra a sessão. O cookie anterior deixa de ser aceito imediatamente.
+      responses:
+        '204':
+          description: Sessão encerrada
+        '401':
+          $ref: '#/components/responses/NaoAutenticado'
+        '403':
+          $ref: '#/components/responses/TokenCsrfAusente'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+  /api/v1/auth/me:
+    get:
+      tags:
+      - Acesso
+      summary: Consultar o responsável autenticado
+      responses:
+        '200':
+          description: Responsável autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticatedCaretaker'
+              example:
+                id: 7c1f0b2e-3d4a-4f5b-8c9d-0e1f2a3b4c5d
+                fullName: Maria Silva
+                role: USER
+                mustChangePassword: false
+        '401':
+          description: |
+            Sem sessão válida (`UNAUTHENTICATED`), ou responsável inativado com a sessão aberta
+            (`CARETAKER_UNAVAILABLE`) — neste caso a sessão é encerrada na mesma resposta.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                semSessao:
+                  summary: Sem sessão válida
+                  value:
+                    code: UNAUTHENTICATED
+                    title: Não autenticado
+                    status: 401
+                    detail: Sua sessão expirou. Entre novamente para continuar.
+                responsavelIndisponivel:
+                  summary: Responsável inativado com a sessão aberta
+                  value:
+                    code: CARETAKER_UNAVAILABLE
+                    title: Não autenticado
+                    status: 401
+                    detail: Responsável não encontrado ou inativo.
+        '406':
+          description: |
+            Formato de resposta indisponível. A negociação recusa antes de a consulta rodar: a sessão
+            de um responsável inativado só é encerrada na próxima requisição em JSON.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                code: REQUEST_NOT_ACCEPTABLE
+                title: Requisição não suportada
+                status: 406
+                detail: A requisição não é suportada por este endereço.
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+  /api/v1/caretakers:
+    post:
+      tags:
+      - Responsáveis
+      summary: Cadastrar responsável
+      description: Exclusivo do perfil Administrador.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterCaretakerRequest'
+            example:
+              fullName: João Pereira de Souza
+              cpf: '35392919707'
+              email: joao.pereira@ovyx.com.br
+              mobilePhone: '91991234567'
+              password: AviarioSul2026
+              role: USER
+      responses:
+        '201':
+          description: Responsável cadastrado
+          headers:
+            Location:
+              schema:
+                type: string
+              example: /api/v1/caretakers/9f8e7d6c-5b4a-4938-2716-0f1e2d3c4b5a
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaretakerDetail'
+              example:
+                id: 9f8e7d6c-5b4a-4938-2716-0f1e2d3c4b5a
+                fullName: João Pereira de Souza
+                cpf: '35392919707'
+                email: joao.pereira@ovyx.com.br
+                mobilePhone: '91991234567'
+                role: USER
+                status: ACTIVE
+                createdAt: '2026-09-18T13:45:10Z'
+                updatedAt: '2026-09-18T13:45:10Z'
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '409':
+          description: |
+            CPF já cadastrado (`CPF_ALREADY_IN_USE`, ativo ou não), ou e-mail ou celular já em uso por
+            responsável ativo (`EMAIL_ALREADY_IN_USE`, `MOBILE_PHONE_ALREADY_IN_USE`). Todos os
+            conflitos vêm em `details`; o `code` é o do primeiro, na ordem do formulário.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                code: EMAIL_ALREADY_IN_USE
+                title: Operação recusada
+                status: 409
+                detail: Já existe um responsável ativo com este e-mail.
+                details:
+                  email: Já existe um responsável ativo com este e-mail.
+        '400':
+          description: |
+            Falhas de validação. Observe que **todas** as violações vêm na mesma resposta —
+            é o Notification Pattern chegando ao cliente.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                code: VALIDATION_FAILED
+                title: Dados inválidos
+                status: 400
+                detail: Dados inválidos.
+                details:
+                  fullName: Informe o nome completo.
+                  cpf: CPF inválido.
+                  email: Informe um e-mail em formato válido.
+                  password: A senha deve ter ao menos 12 caracteres.
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '415':
+          $ref: '#/components/responses/RequisicaoNaoSuportada'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+    get:
+      tags:
+      - Responsáveis
+      summary: Listar e pesquisar responsáveis
+      description: Exclusivo do perfil Administrador. Pesquisa por trecho do nome, sem distinção entre maiúsculas
+        e minúsculas.
+      parameters:
+      - name: name
+        in: query
+        description: Trecho do nome a pesquisar
+        required: false
+        schema:
+          type: string
+        example: pereira
+      - name: status
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/CaretakerStatus'
+        example: ACTIVE
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+        example: 0
+      - name: size
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
+      responses:
+        '200':
+          description: Página de responsáveis
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaretakerPage'
+              example:
+                content:
+                - id: 9f8e7d6c-5b4a-4938-2716-0f1e2d3c4b5a
+                  fullName: João Pereira de Souza
+                  email: joao.pereira@ovyx.com.br
+                  mobilePhone: '91991234567'
+                  role: USER
+                  status: ACTIVE
+                - id: 7c1f0b2e-3d4a-4f5b-8c9d-0e1f2a3b4c5d
+                  fullName: Maria Silva
+                  email: maria.silva@ovyx.com.br
+                  mobilePhone: '91988887777'
+                  role: USER
+                  status: ACTIVE
+                page: 0
+                size: 20
+                totalElements: 2
+                totalPages: 1
+        '400':
+          description: Página ou tamanho fora do contrato, ou situação desconhecida (`VALIDATION_FAILED`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                code: VALIDATION_FAILED
+                title: Dados inválidos
+                status: 400
+                detail: A requisição contém campos inválidos.
+                details:
+                  size: O tamanho da página deve estar entre 1 e 100.
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/SemPermissaoConsulta'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+  /api/v1/caretakers/{caretakerId}:
+    parameters:
+    - name: caretakerId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      example: 9f8e7d6c-5b4a-4938-2716-0f1e2d3c4b5a
+    get:
+      tags:
+      - Responsáveis
+      summary: Consultar responsável
+      responses:
+        '200':
+          description: Responsável encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaretakerDetail'
+              example:
+                id: 9f8e7d6c-5b4a-4938-2716-0f1e2d3c4b5a
+                fullName: João Pereira de Souza
+                cpf: '35392919707'
+                email: joao.pereira@ovyx.com.br
+                mobilePhone: '91991234567'
+                role: USER
+                status: ACTIVE
+                createdAt: '2026-09-18T13:45:10Z'
+                updatedAt: '2026-09-18T13:45:10Z'
+        '400':
+          description: Identificador em formato inválido (`VALIDATION_FAILED`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                code: VALIDATION_FAILED
+                title: Dados inválidos
+                status: 400
+                detail: Valor inválido para o parâmetro 'caretakerId'.
+                details:
+                  parameter: caretakerId
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/SemPermissaoConsulta'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+    put:
+      tags:
+      - Responsáveis
+      summary: Editar responsável
+      description: |
+        Altera dados cadastrais e perfil. Não altera a senha: cada responsável troca a própria em
+        `PUT /api/v1/me/password`, e esta fatia não tem redefinição de senha pelo administrador.
+        Rebaixar o perfil do último administrador ativo é recusado.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCaretakerRequest'
+            example:
+              fullName: João Pereira de Souza
+              cpf: '35392919707'
+              email: joao.souza@ovyx.com.br
+              mobilePhone: '91991234567'
+              role: ADMINISTRATOR
+      responses:
+        '200':
+          description: Responsável atualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaretakerDetail'
+              example:
+                id: 9f8e7d6c-5b4a-4938-2716-0f1e2d3c4b5a
+                fullName: João Pereira de Souza
+                cpf: '35392919707'
+                email: joao.souza@ovyx.com.br
+                mobilePhone: '91991234567'
+                role: ADMINISTRATOR
+                status: ACTIVE
+                createdAt: '2026-09-18T13:45:10Z'
+                updatedAt: '2026-09-18T16:02:44Z'
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+        '409':
+          description: |
+            Identificador já em uso (`CPF_ALREADY_IN_USE`, `EMAIL_ALREADY_IN_USE`,
+            `MOBILE_PHONE_ALREADY_IN_USE`), ou rebaixamento do último administrador ativo
+            (`LAST_ADMINISTRATOR`, com `role` em `details`). Todos os conflitos vêm em `details`; o
+            `code` é o do primeiro.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                code: LAST_ADMINISTRATOR
+                title: Operação recusada
+                status: 409
+                detail: Este é o último administrador ativo do sistema.
+                details:
+                  role: O sistema precisa de ao menos um administrador ativo.
+                  # O campo em details diz o que foi recusado: rebaixar o perfil ou inativar.
+        '400':
+          description: |
+            Campos inválidos, todos na mesma resposta (`VALIDATION_FAILED`); identificador em formato
+            inválido (`VALIDATION_FAILED`, com `parameter` em `details`); ou corpo que não pôde ser
+            lido (`REQUEST_NOT_ACCEPTABLE`). Nos três casos nada é alterado.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                camposInvalidos:
+                  summary: Campos inválidos, todos de uma vez
+                  value:
+                    code: VALIDATION_FAILED
+                    title: Dados inválidos
+                    status: 400
+                    detail: Dados inválidos.
+                    details:
+                      cpf: CPF inválido.
+                      mobilePhone: Informe um celular com DDD, contendo 10 ou 11 dígitos.
+                identificadorInvalido:
+                  summary: Identificador em formato inválido
+                  value:
+                    code: VALIDATION_FAILED
+                    title: Dados inválidos
+                    status: 400
+                    detail: Valor inválido para o parâmetro 'caretakerId'.
+                    details:
+                      parameter: caretakerId
+                corpoIlegivel:
+                  summary: Corpo que não pôde ser lido
+                  value:
+                    code: REQUEST_NOT_ACCEPTABLE
+                    title: Requisição inválida
+                    status: 400
+                    detail: O corpo da requisição não pôde ser lido.
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '415':
+          $ref: '#/components/responses/RequisicaoNaoSuportada'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+  /api/v1/caretakers/{caretakerId}/deactivation:
+    parameters:
+    - name: caretakerId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      example: 9f8e7d6c-5b4a-4938-2716-0f1e2d3c4b5a
+    post:
+      tags:
+      - Responsáveis
+      summary: Inativar responsável
+      description: |
+        Inativa o responsável, que deixa de conseguir entrar no sistema. O histórico é preservado —
+        **não há exclusão física**, porque registros de outras áreas o referenciam. Inativar o
+        último administrador ativo é recusado. Inativar quem já está inativo responde 200 com o
+        responsável como está, sem alterar nada — nem o instante da última alteração.
+      responses:
+        '200':
+          description: Responsável inativado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaretakerDetail'
+              example:
+                id: 9f8e7d6c-5b4a-4938-2716-0f1e2d3c4b5a
+                fullName: João Pereira de Souza
+                cpf: '35392919707'
+                email: joao.souza@ovyx.com.br
+                mobilePhone: '91991234567'
+                role: USER
+                status: INACTIVE
+                createdAt: '2026-09-18T13:45:10Z'
+                updatedAt: '2026-09-18T17:20:03Z'
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '404':
+          $ref: '#/components/responses/NaoEncontrado'
+        '409':
+          description: Último administrador ativo (`LAST_ADMINISTRATOR`, com `status` em `details`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                code: LAST_ADMINISTRATOR
+                title: Operação recusada
+                status: 409
+                detail: Este é o último administrador ativo do sistema.
+                details:
+                  status: O sistema precisa de ao menos um administrador ativo.
+        '400':
+          description: Identificador em formato inválido (`VALIDATION_FAILED`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                code: VALIDATION_FAILED
+                title: Dados inválidos
+                status: 400
+                detail: Valor inválido para o parâmetro 'caretakerId'.
+                details:
+                  parameter: caretakerId
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+  /api/v1/me/password:
+    put:
+      tags:
+      - Minha conta
+      summary: Trocar a própria senha
+      description: |
+        Disponível a qualquer perfil. Exige a senha atual. Quando `mustChangePassword` é `true`,
+        esta operação, a saída, a consulta da própria identidade e uma nova entrada são as únicas
+        aceitas até que a troca seja concluída; as demais respondem 403 `PASSWORD_CHANGE_REQUIRED`.
+
+        Se o responsável tiver sido inativado com a sessão aberta, a resposta é 401 e a sessão é
+        encerrada, como na consulta da própria identidade.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+            example:
+              currentPassword: GranjaNorte2026
+              newPassword: PosturaAviario2027
+      responses:
+        '204':
+          description: Senha alterada. A senha anterior deixa de funcionar.
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '400':
+          description: |
+            Senha atual ausente ou incorreta, ou nova senha fora da política. As violações dos dois
+            campos vêm todas na mesma resposta.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                senhaAtualIncorreta:
+                  summary: Senha atual incorreta
+                  value:
+                    code: VALIDATION_FAILED
+                    title: Dados inválidos
+                    status: 400
+                    detail: Dados inválidos.
+                    details:
+                      currentPassword: A senha atual está incorreta.
+                politicaNaoAtendida:
+                  summary: Nova senha fora da política, com várias violações de uma vez
+                  value:
+                    code: VALIDATION_FAILED
+                    title: Dados inválidos
+                    status: 400
+                    detail: Dados inválidos.
+                    details:
+                      # Duas regras do mesmo campo somam as mensagens: uma entrada, tudo de uma vez.
+                      newPassword: A senha deve ter ao menos 12 caracteres. A senha deve conter ao menos um dígito.
+                senhaAtualAusente:
+                  summary: Senha atual ausente, junto com as violações da nova — tudo de uma vez
+                  value:
+                    code: VALIDATION_FAILED
+                    title: Dados inválidos
+                    status: 400
+                    detail: Dados inválidos.
+                    details:
+                      currentPassword: Informe a senha atual.
+                      newPassword: A senha deve ter ao menos 12 caracteres.
+        '403':
+          $ref: '#/components/responses/TokenCsrfAusente'
+        '415':
+          $ref: '#/components/responses/RequisicaoNaoSuportada'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: SESSION
+      description: Cookie de sessão emitido no login. `HttpOnly` e `SameSite=Lax`; `Secure` fora do perfil de desenvolvimento, que usa http.
+  responses:
+    SessaoInvalida:
+      description: |
+        Sem sessão válida, ou sessão expirada por inatividade (`UNAUTHENTICATED`); ou responsável
+        inativado ou removido com a sessão aberta (`CARETAKER_UNAVAILABLE`). A sessão é reconferida
+        a cada requisição, e no segundo caso ela é encerrada na mesma resposta.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            semSessao:
+              summary: Sem sessão válida
+              value:
+                code: UNAUTHENTICATED
+                title: Não autenticado
+                status: 401
+                detail: Sua sessão expirou. Entre novamente para continuar.
+            responsavelIndisponivel:
+              summary: Responsável inativado com a sessão aberta
+              value:
+                code: CARETAKER_UNAVAILABLE
+                title: Não autenticado
+                status: 401
+                detail: Responsável não encontrado ou inativo.
+    NaoAutenticado:
+      description: Sem sessão válida, ou sessão expirada por inatividade
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            code: UNAUTHENTICATED
+            title: Não autenticado
+            status: 401
+            detail: Sua sessão expirou. Entre novamente para continuar.
+    SemPermissao:
+      description: Autenticado sem permissão (`FORBIDDEN`), sem revelar existência, conteúdo ou estrutura do recurso;
+        token CSRF ausente (`CSRF_TOKEN_INVALID`); ou troca de senha pendente (`PASSWORD_CHANGE_REQUIRED`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            semPermissao:
+              summary: Autenticado, mas sem permissão
+              value:
+                code: FORBIDDEN
+                title: Acesso negado
+                status: 403
+                detail: Você não tem permissão para executar esta operação.
+            tokenCsrfAusente:
+              summary: Token CSRF ausente (não é falta de permissão)
+              value:
+                code: CSRF_TOKEN_INVALID
+                title: Proteção da requisição ausente
+                status: 403
+                detail: O token de proteção da requisição está ausente ou expirou. Recarregue a página e tente novamente.
+            trocaDeSenhaPendente:
+              summary: Senha provisória ainda não trocada
+              value:
+                code: PASSWORD_CHANGE_REQUIRED
+                title: Troca de senha obrigatória
+                status: 403
+                detail: É necessário trocar a senha antes de executar qualquer outra operação.
+    SemPermissaoConsulta:
+      description: |
+        Autenticado sem permissão (`FORBIDDEN`), sem revelar existência, conteúdo ou estrutura do
+        recurso; ou troca de senha pendente (`PASSWORD_CHANGE_REQUIRED`). Consulta não altera estado
+        e por isso não exige o token CSRF.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            semPermissao:
+              summary: Autenticado, mas sem permissão
+              value:
+                code: FORBIDDEN
+                title: Acesso negado
+                status: 403
+                detail: Você não tem permissão para executar esta operação.
+            trocaDeSenhaPendente:
+              summary: Senha provisória ainda não trocada
+              value:
+                code: PASSWORD_CHANGE_REQUIRED
+                title: Troca de senha obrigatória
+                status: 403
+                detail: É necessário trocar a senha antes de executar qualquer outra operação.
+    TrocaDeSenhaPendente:
+      description: |
+        Responsável com `mustChangePassword` verdadeiro tentando qualquer operação além da troca da
+        própria senha, da saída, da consulta da própria identidade e de uma nova entrada.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            code: PASSWORD_CHANGE_REQUIRED
+            title: Troca de senha obrigatória
+            status: 403
+            detail: É necessário trocar a senha antes de executar qualquer outra operação.
+    RequisicaoNaoSuportada:
+      description: |
+        Corpo em formato diferente de JSON (415). O 406, de formato de resposta indisponível, tem
+        exemplo próprio em cada operação que o produz, porque o corpo anuncia o status real.
+
+        Método ou rota não declarados não chegam aqui: são recusados pela negação por omissão, antes
+        do roteamento, como descreve a introdução deste documento — 401 sem sessão, 403 `FORBIDDEN`
+        com sessão, e 403 `CSRF_TOKEN_INVALID` antes de tudo para quem altera estado sem o
+        cabeçalho `X-XSRF-TOKEN`.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            code: REQUEST_NOT_ACCEPTABLE
+            title: Requisição não suportada
+            status: 415
+            detail: A requisição não é suportada por este endereço.
+    ErroInesperado:
+      description: Defeito técnico. A resposta nunca traz a causa, que vai apenas para o log do servidor.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            code: INTERNAL_ERROR
+            title: Erro inesperado
+            status: 500
+            detail: Não foi possível concluir a operação. Tente novamente em instantes.
+    FormatoIndisponivel:
+      description: |
+        Formato de resposta indisponível (406). A negociação recusa antes de a operação rodar: nada é
+        gravado. Inclui o `Accept` que aceita só `application/problem+json`, que é o formato dos erros.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            code: REQUEST_NOT_ACCEPTABLE
+            title: Requisição não suportada
+            status: 406
+            detail: A requisição não é suportada por este endereço.
+    NaoEncontrado:
+      description: Responsável inexistente (`CARETAKER_NOT_FOUND`)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            code: CARETAKER_NOT_FOUND
+            title: Não encontrado
+            status: 404
+            detail: Responsável não encontrado.
+    TokenCsrfAusente:
+      description: Cabeçalho `X-XSRF-TOKEN` ausente ou diferente do cookie `XSRF-TOKEN`
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            code: CSRF_TOKEN_INVALID
+            title: Proteção da requisição ausente
+            status: 403
+            detail: O token de proteção da requisição está ausente ou expirou. Recarregue a página e tente novamente.
+  schemas:
+    Role:
+      type: string
+      enum:
+      - ADMINISTRATOR
+      - USER
+      description: Perfil do responsável. `ADMINISTRATOR` corresponde ao valor `A` do legado, `USER` ao valor `U`.
+      example: USER
+    CaretakerStatus:
+      type: string
+      enum:
+      - ACTIVE
+      - INACTIVE
+      description: Situação do responsável. Inativação substitui a exclusão física do legado.
+      example: ACTIVE
+    SignInRequest:
+      type: object
+      required:
+      - identifier
+      - password
+      properties:
+        identifier:
+          type: string
+          description: E-mail **ou** celular, indistintamente.
+          example: maria.silva@ovyx.com.br
+          maxLength: 254
+        password:
+          type: string
+          format: password
+          description: |
+            Sem limite de tamanho na entrada: uma senha acima do limite da política não corresponde
+            a conta nenhuma e é tratada como credencial inválida (401).
+          example: GranjaNorte2026
+    AuthenticatedCaretaker:
+      type: object
+      required:
+      - id
+      - fullName
+      - role
+      - mustChangePassword
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 7c1f0b2e-3d4a-4f5b-8c9d-0e1f2a3b4c5d
+        fullName:
+          type: string
+          example: Maria Silva
+        role:
+          $ref: '#/components/schemas/Role'
+        mustChangePassword:
+          type: boolean
+          description: |
+            Quando `true`, só a troca de senha, a saída, a consulta da própria identidade e uma nova
+            entrada são aceitas até que a troca seja concluída.
+          example: false
+    RegisterCaretakerRequest:
+      type: object
+      required:
+      - fullName
+      - cpf
+      - email
+      - mobilePhone
+      - password
+      - role
+      properties:
+        fullName:
+          type: string
+          minLength: 3
+          maxLength: 120
+          example: João Pereira de Souza
+        cpf:
+          type: string
+          description: Apenas dígitos. Dígitos verificadores são conferidos.
+          pattern: ^\d{11}$
+          example: '35392919707'
+        email:
+          type: string
+          format: email
+          example: joao.pereira@ovyx.com.br
+        mobilePhone:
+          type: string
+          description: Apenas dígitos, com DDD.
+          pattern: ^\d{10,11}$
+          example: '91991234567'
+        password:
+          type: string
+          format: password
+          minLength: 12
+          example: AviarioSul2026
+        role:
+          allOf:
+          - $ref: '#/components/schemas/Role'
+          description: |
+            Um valor fora da lista não torna o corpo ilegível: volta em `details`, junto com as
+            demais violações (FR-017).
+    UpdateCaretakerRequest:
+      type: object
+      required:
+      - fullName
+      - cpf
+      - email
+      - mobilePhone
+      - role
+      properties:
+        fullName:
+          type: string
+          example: João Pereira de Souza
+        cpf:
+          type: string
+          pattern: ^\d{11}$
+          example: '35392919707'
+        email:
+          type: string
+          format: email
+          example: joao.souza@ovyx.com.br
+        mobilePhone:
+          type: string
+          pattern: ^\d{10,11}$
+          example: '91991234567'
+        role:
+          allOf:
+          - $ref: '#/components/schemas/Role'
+          description: |
+            Um valor fora da lista não torna o corpo ilegível: volta em `details`, junto com as
+            demais violações (FR-017).
+    ChangePasswordRequest:
+      type: object
+      required:
+      - currentPassword
+      - newPassword
+      properties:
+        currentPassword:
+          type: string
+          format: password
+          example: GranjaNorte2026
+        newPassword:
+          type: string
+          format: password
+          description: De 12 a 128 caracteres, com ao menos uma letra e um dígito, diferente do e-mail e do CPF.
+          minLength: 12
+          maxLength: 128
+          example: PosturaAviario2027
+    CaretakerSummary:
+      type: object
+      required:
+      - id
+      - fullName
+      - email
+      - mobilePhone
+      - role
+      - status
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 9f8e7d6c-5b4a-4938-2716-0f1e2d3c4b5a
+        fullName:
+          type: string
+          example: João Pereira de Souza
+        email:
+          type: string
+          format: email
+          example: joao.pereira@ovyx.com.br
+        mobilePhone:
+          type: string
+          example: '91991234567'
+        role:
+          $ref: '#/components/schemas/Role'
+        status:
+          $ref: '#/components/schemas/CaretakerStatus'
+    CaretakerDetail:
+      allOf:
+      - $ref: '#/components/schemas/CaretakerSummary'
+      - type: object
+        required:
+        - cpf
+        - createdAt
+        - updatedAt
+        properties:
+          cpf:
+            type: string
+            example: '35392919707'
+          createdAt:
+            type: string
+            format: date-time
+            example: '2026-09-18T13:45:10Z'
+          updatedAt:
+            type: string
+            format: date-time
+            example: '2026-09-18T13:45:10Z'
+      description: Nunca inclui o hash da senha, em nenhuma hipótese.
+    CaretakerPage:
+      type: object
+      required:
+      - content
+      - page
+      - size
+      - totalElements
+      - totalPages
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/CaretakerSummary'
+        page:
+          type: integer
+          example: 0
+        size:
+          type: integer
+          example: 20
+        totalElements:
+          type: integer
+          example: 2
+        totalPages:
+          type: integer
+          example: 1
+    Problem:
+      type: object
+      description: |
+        RFC 9457 Problem Details, com a extensão `code` do erro de aplicação.
+
+        O `code` é o contrato programático: causas diferentes têm códigos diferentes, e o cliente
+        reage a ele, nunca ao texto da mensagem. O `title` e o `detail` são texto para o usuário
+        final, em português.
+      required:
+      - code
+      - title
+      - status
+      properties:
+        code:
+          type: string
+          description: Identificador estável da regra violada, em SCREAMING_SNAKE_CASE.
+          example: VALIDATION_FAILED
+        title:
+          type: string
+          description: Natureza da falha, em português.
+          example: Dados inválidos
+        status:
+          type: integer
+          example: 400
+        detail:
+          type: string
+          example: A requisição contém campos inválidos.
+        instance:
+          type: string
+          description: Caminho da requisição que produziu a recusa.
+          example: /api/v1/auth/sign-in
+        details:
+          type: object
+          description: |
+            Uma mensagem por campo recusado, com **todas** as violações de uma vez (FR-017).
+            Ausente quando a recusa não é de validação.
+          additionalProperties:
+            type: string
+          example:
+            cpf: CPF inválido.
+            email: Informe um e-mail em formato válido.
+security:
+- sessionCookie: []

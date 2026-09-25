@@ -11,7 +11,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 @Schema(description = "Edição de responsável")
 public record UpdateCaretakerRequest(
     @Schema(example = "João Pereira de Souza") String fullName,
-    @Schema(description = "Apenas dígitos", example = "52998224725") String cpf,
+    @Schema(description = "Apenas dígitos", example = "35392919707") String cpf,
     @Schema(example = "joao.souza@ovyx.com.br") String email,
     @Schema(description = "Apenas dígitos, com DDD", example = "91991234567") String mobilePhone,
     @Schema(

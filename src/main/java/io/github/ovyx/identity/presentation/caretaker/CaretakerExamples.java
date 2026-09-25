@@ -16,6 +16,8 @@ public final class CaretakerExamples {
     private static final String COLLECTION = "/api/v1/caretakers";
     private static final String ITEM = "/api/v1/caretakers/9f8e7d6c-5b4a-4938-2716-0f1e2d3c4b5a";
     private static final String DEACTIVATION = ITEM + "/deactivation";
+    /** O identificador inválido aparece no {@code instance} como a pessoa o mandou. */
+    private static final String INVALID_ITEM = "/api/v1/caretakers/lote-12-galpao-3";
     private static final String END = "\"\n}";
 
     // ------------------------------------------------------------------------ sucesso
@@ -25,7 +27,7 @@ public final class CaretakerExamples {
             {
               "id": "9f8e7d6c-5b4a-4938-2716-0f1e2d3c4b5a",
               "fullName": "João Pereira de Souza",
-              "cpf": "52998224725",
+              "cpf": "35392919707",
               "email": "joao.pereira@ovyx.com.br",
               "mobilePhone": "91991234567",
               "role": "USER",
@@ -39,7 +41,7 @@ public final class CaretakerExamples {
             {
               "id": "9f8e7d6c-5b4a-4938-2716-0f1e2d3c4b5a",
               "fullName": "João Pereira de Souza",
-              "cpf": "52998224725",
+              "cpf": "35392919707",
               "email": "joao.souza@ovyx.com.br",
               "mobilePhone": "91991234567",
               "role": "ADMINISTRATOR",
@@ -53,7 +55,7 @@ public final class CaretakerExamples {
             {
               "id": "9f8e7d6c-5b4a-4938-2716-0f1e2d3c4b5a",
               "fullName": "João Pereira de Souza",
-              "cpf": "52998224725",
+              "cpf": "35392919707",
               "email": "joao.souza@ovyx.com.br",
               "mobilePhone": "91991234567",
               "role": "USER",
@@ -321,7 +323,7 @@ public final class CaretakerExamples {
 
     // ------------------------------------------ GET /api/v1/caretakers/{caretakerId}
 
-    public static final String FIND_INVALID_ID = ID_INVALID + ITEM + END;
+    public static final String FIND_INVALID_ID = ID_INVALID + INVALID_ITEM + END;
     public static final String FIND_UNAUTHENTICATED = UNAUTHENTICATED + ITEM + END;
     public static final String FIND_CARETAKER_UNAVAILABLE = CARETAKER_UNAVAILABLE + ITEM + END;
     public static final String FIND_FORBIDDEN = FORBIDDEN + ITEM + END;
@@ -333,7 +335,7 @@ public final class CaretakerExamples {
     // ------------------------------------------ PUT /api/v1/caretakers/{caretakerId}
 
     public static final String UPDATE_VALIDATION_FAILED = UPDATE_INVALID + ITEM + END;
-    public static final String UPDATE_INVALID_ID = ID_INVALID + ITEM + END;
+    public static final String UPDATE_INVALID_ID = ID_INVALID + INVALID_ITEM + END;
     public static final String UPDATE_UNREADABLE_BODY = UNREADABLE_BODY + ITEM + END;
     public static final String UPDATE_UNAUTHENTICATED = UNAUTHENTICATED + ITEM + END;
     public static final String UPDATE_CARETAKER_UNAVAILABLE = CARETAKER_UNAVAILABLE + ITEM + END;
@@ -349,7 +351,7 @@ public final class CaretakerExamples {
 
     // ------------------------ POST /api/v1/caretakers/{caretakerId}/deactivation
 
-    public static final String DEACTIVATE_INVALID_ID = ID_INVALID + DEACTIVATION + END;
+    public static final String DEACTIVATE_INVALID_ID = ID_INVALID + INVALID_ITEM + "/deactivation" + END;
     public static final String DEACTIVATE_UNAUTHENTICATED = UNAUTHENTICATED + DEACTIVATION + END;
     public static final String DEACTIVATE_CARETAKER_UNAVAILABLE = CARETAKER_UNAVAILABLE + DEACTIVATION + END;
     public static final String DEACTIVATE_FORBIDDEN = FORBIDDEN + DEACTIVATION + END;
