@@ -326,6 +326,24 @@ class CaretakerContractIT extends IntegrationTestSupport {
     }
 
     @Test
+    @DisplayName("asks for the role when it comes blank, instead of calling it outside the list")
+    void givenBlankRole_whenRegistering_thenAnswer400AskingForTheRole() throws Exception {
+        // given
+        // Com o perfil como texto, o branco virou uma entrada possivel; ele e ausencia, e a mensagem
+        // pede o perfil, em vez de dizer que ele e invalido.
+        String body = """
+                {"fullName": "João Pereira de Souza", "cpf": "%s", "email": "%s", "mobilePhone": "%s",
+                 "password": "%s", "role": ""}
+                """.formatted(randomValidCpf(), uniqueEmail(), uniqueMobilePhone(), PASSWORD);
+
+        // when
+        ResultActions response = mockMvc.perform(register(body));
+
+        // then
+        response.andExpect(status().isBadRequest()).andExpect(jsonPath("$.details.role").value("Informe o perfil."));
+    }
+
+    @Test
     @DisplayName("refuses an unavailable response format before registering anyone")
     void givenValidRegistrationAskingForXml_whenRegistering_thenAnswer406AndRegisterNobody() throws Exception {
         // given

@@ -94,10 +94,15 @@ class SpringBeanDispatcherTest {
         }
     }
 
-    /** O indice unico recusando a segunda de duas escritas simultaneas, como o PostgreSQL recusa. */
+    /**
+     * O indice unico recusando a segunda de duas escritas simultaneas, como chega de verdade: o SQLState
+     * do PostgreSQL fica embaixo da excecao do Hibernate, e nao na causa direta.
+     */
     private static DataIntegrityViolationException uniqueViolation() {
         return new DataIntegrityViolationException(
-                "could not execute statement", new SQLException("duplicate key value", "23505"));
+                "could not execute statement",
+                new IllegalStateException(
+                        "could not execute statement", new SQLException("duplicate key value", "23505")));
     }
 
     /** Uma restricao que recusaria de novo a cada tentativa: a regra de verificacao da coluna. */
