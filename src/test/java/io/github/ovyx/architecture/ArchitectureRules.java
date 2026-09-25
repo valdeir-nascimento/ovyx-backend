@@ -124,6 +124,95 @@ public final class ArchitectureRules {
             .resideInAPackage("..infrastructure..")
             .because("a apresentacao usa os casos de uso, nunca os adaptadores diretamente (principio I)");
 
+    /** Pacote raiz da aplicacao: cada pacote logo abaixo dele e um contexto delimitado. */
+    private static final String APPLICATION_ROOT = "io.github.ovyx";
+
+    /** O nucleo compartilhado, que todo contexto pode usar e que nao e contexto de ninguem. */
+    private static final String SHARED_KERNEL = "shared";
+
+    /**
+     * Principio I e R-008 da feature 002: um contexto delimitado nao depende de outro; os dois so se
+     * encontram pelo {@code shared}.
+     *
+     * <p>Generica de proposito: o contexto e o pacote logo abaixo da raiz, e nao uma lista de nomes. Com
+     * {@code farm} e {@code identity} escritos na regra, um terceiro contexto nasceria fora dela; e sem
+     * classes num dos dois, a regra nao casaria com nada e reprovaria a build inteira.
+     */
+    public static final ArchRule BOUNDED_CONTEXTS_MUST_BE_INDEPENDENT =
+            boundedContextsMustBeIndependent(APPLICATION_ROOT);
+
+    /**
+     * A mesma regra, sobre outra raiz: o autoteste a aplica as amostras de
+     * {@code architecture.violation.crosscontext}, onde cada pacote abaixo da raiz faz o papel de um
+     * contexto. A condicao e a mesma; so muda onde os contextos comecam.
+     */
+    static ArchRule boundedContextsMustBeIndependent(String root) {
+        return classes()
+                .that()
+                .resideInAPackage(root + "..")
+                .should(notDependOnAnotherBoundedContext(root))
+                .because("um contexto delimitado so encontra outro pelo shared (principio I, R-008)");
+    }
+
+    /**
+     * Principio I e R-008 da feature 002: o nucleo compartilhado nao depende de contexto nenhum.
+     *
+     * <p>E o outro lado da regra entre contextos: ela nao avalia as classes do {@code shared}, que nao
+     * sao de contexto nenhum, e por esse furo {@code farm -> shared -> identity} passaria.
+     */
+    public static final ArchRule SHARED_KERNEL_MUST_NOT_DEPEND_ON_BOUNDED_CONTEXTS =
+            sharedKernelMustNotDependOnBoundedContexts(APPLICATION_ROOT);
+
+    /** A mesma regra, sobre outra raiz, para o autoteste, como {@link #boundedContextsMustBeIndependent}. */
+    static ArchRule sharedKernelMustNotDependOnBoundedContexts(String root) {
+        return classes()
+                .that()
+                .resideInAPackage(root + "." + SHARED_KERNEL + "..")
+                .should(notDependOnAnyBoundedContext(root))
+                .because("o shared e de todos os contextos, e nao pode depender de nenhum (principio I, R-008)");
+    }
+
+    private static ArchCondition<JavaClass> notDependOnAnyBoundedContext(String root) {
+        return new ArchCondition<>("not depend on any bounded context") {
+            @Override
+            public void check(JavaClass origin, ConditionEvents events) {
+                origin.getDirectDependenciesFromSelf().stream()
+                        .filter(dependency -> boundedContextOf(dependency.getTargetClass().getBaseComponentType(), root)
+                                .isPresent())
+                        .forEach(dependency -> events.add(
+                                SimpleConditionEvent.violated(origin, dependency.getDescription())));
+            }
+        };
+    }
+
+    private static ArchCondition<JavaClass> notDependOnAnotherBoundedContext(String root) {
+        return new ArchCondition<>("not depend on another bounded context") {
+            @Override
+            public void check(JavaClass origin, ConditionEvents events) {
+                boundedContextOf(origin, root).ifPresent(context -> origin.getDirectDependenciesFromSelf().stream()
+                        .filter(dependency -> boundedContextOf(
+                                        dependency.getTargetClass().getBaseComponentType(), root)
+                                .filter(target -> !target.equals(context))
+                                .isPresent())
+                        .forEach(dependency -> events.add(
+                                SimpleConditionEvent.violated(origin, dependency.getDescription()))));
+            }
+        };
+    }
+
+    /**
+     * O contexto da classe: o primeiro pacote abaixo da raiz, fora o {@code shared}. A classe na propria
+     * raiz, como a de inicializacao, compoe a aplicacao e nao pertence a contexto nenhum.
+     */
+    private static Optional<String> boundedContextOf(JavaClass javaClass, String root) {
+        String packageName = javaClass.getPackageName();
+        if (!packageName.startsWith(root + ".")) {
+            return Optional.empty();
+        }
+        String context = packageName.substring(root.length() + 1).split("\\.")[0];
+        return context.equals(SHARED_KERNEL) ? Optional.empty() : Optional.of(context);
+    }
+
     /**
      * Estereotipo de controller do Spring. Referido pelo nome para nao amarrar a suite ao Spring.
      *

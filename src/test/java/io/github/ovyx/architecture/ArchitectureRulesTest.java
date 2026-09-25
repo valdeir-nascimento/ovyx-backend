@@ -52,6 +52,12 @@ class ArchitectureRulesTest {
                         "presentation does not depend on infrastructure",
                         ArchitectureRules.PRESENTATION_MUST_NOT_DEPEND_ON_INFRASTRUCTURE),
                 Arguments.of(
+                        "no bounded context depends on another one",
+                        ArchitectureRules.BOUNDED_CONTEXTS_MUST_BE_INDEPENDENT),
+                Arguments.of(
+                        "the shared kernel depends on no bounded context",
+                        ArchitectureRules.SHARED_KERNEL_MUST_NOT_DEPEND_ON_BOUNDED_CONTEXTS),
+                Arguments.of(
                         "controllers carry no API documentation",
                         ArchitectureRules.CONTROLLERS_MUST_NOT_CARRY_API_DOCUMENTATION),
                 Arguments.of(
