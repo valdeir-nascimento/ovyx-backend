@@ -1,8 +1,8 @@
 package io.github.ovyx.identity.domain.model;
 
-import static io.github.ovyx.identity.domain.DomainViolations.refusalCodeOf;
-import static io.github.ovyx.identity.domain.DomainViolations.refusalMessageOf;
-import static io.github.ovyx.identity.domain.DomainViolations.violationsOf;
+import static io.github.ovyx.shared.domain.DomainViolations.refusalCodeOf;
+import static io.github.ovyx.shared.domain.DomainViolations.refusalMessageOf;
+import static io.github.ovyx.shared.domain.DomainViolations.violationsOf;
 import static io.github.ovyx.identity.domain.model.CaretakerTestDataBuilder.aCaretaker;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
