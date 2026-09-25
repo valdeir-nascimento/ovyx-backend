@@ -125,7 +125,7 @@ class SessionRevalidationIT extends IntegrationTestSupport {
                 caretaker.cpf().value(),
                 caretaker.email().value(),
                 caretaker.mobilePhone().value(),
-                role));
+                role.name()));
     }
 
     private double unavailableRefusalsCounted() {

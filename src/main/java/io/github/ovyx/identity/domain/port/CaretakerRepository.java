@@ -18,7 +18,14 @@ import java.util.Optional;
  */
 public interface CaretakerRepository extends CaretakerRoster {
 
-    /** Grava o agregado, criando ou atualizando conforme a identidade ja exista. */
+    /**
+     * Grava o agregado, criando ou atualizando conforme a identidade ja exista.
+     *
+     * <p>A escrita concorrente so e detectada porque o agregado foi carregado por este repositorio na
+     * mesma transacao em que e gravado: o adaptador aplica o resultado sobre a linha carregada, e o
+     * banco confere a versao dela. Quem gravar uma copia carregada em outra transacao perde essa
+     * verificacao sem aviso — a copia vencida grava por cima.
+     */
     void save(Caretaker caretaker);
 
     Optional<Caretaker> findById(CaretakerId id);

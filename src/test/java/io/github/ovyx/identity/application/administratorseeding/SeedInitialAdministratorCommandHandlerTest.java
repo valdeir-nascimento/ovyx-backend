@@ -74,7 +74,7 @@ class SeedInitialAdministratorCommandHandlerTest {
 
         // then
         assertThat(result.value().outcome()).isEqualTo(SeedingOutcome.NOT_NEEDED);
-        assertThat(repository.countActiveAdministrators()).isEqualTo(1);
+        assertThat(repository.activeAdministrators()).hasSize(1);
         assertThat(repository.findByEmailOrMobilePhone("admin@ovyx.com.br")).isEmpty();
     }
 
@@ -91,7 +91,7 @@ class SeedInitialAdministratorCommandHandlerTest {
         // then
         assertThat(result.isFailure()).isTrue();
         assertThat(result.error().code()).isEqualTo(SeedInitialAdministratorCommandHandler.PASSWORD_REQUIRED);
-        assertThat(repository.countActiveAdministrators()).isZero();
+        assertThat(repository.activeAdministrators()).isEmpty();
     }
 
     @Test
@@ -108,7 +108,7 @@ class SeedInitialAdministratorCommandHandlerTest {
         assertThat(result.error().details()).containsEntry("cpf", "CPF inválido.");
         assertThat(result.error().details().toString()).doesNotContain(PASSWORD);
         assertThat(result.error().message()).doesNotContain(PASSWORD);
-        assertThat(repository.countActiveAdministrators()).isZero();
+        assertThat(repository.activeAdministrators()).isEmpty();
     }
 
     /** Quem ja tem o CPF configurado: outra pessoa nao pode te-lo, porque o CPF nao se repete. */
@@ -200,7 +200,7 @@ class SeedInitialAdministratorCommandHandlerTest {
         // then
         assertThat(result.error().type()).isEqualTo(ErrorType.CONFLICT);
         assertThat(result.error().code()).isEqualTo("EMAIL_ALREADY_IN_USE");
-        assertThat(repository.countActiveAdministrators()).isZero();
+        assertThat(repository.activeAdministrators()).isEmpty();
     }
 
     @Test

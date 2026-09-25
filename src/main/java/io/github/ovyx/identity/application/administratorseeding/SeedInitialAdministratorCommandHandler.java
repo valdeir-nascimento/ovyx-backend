@@ -44,7 +44,7 @@ public class SeedInitialAdministratorCommandHandler implements CommandHandler<Se
 
     @Override
     public Result<SeedingReport> handle(SeedInitialAdministratorCommand command) {
-        if (caretakerRepository.countActiveAdministrators() > 0) {
+        if (!caretakerRepository.activeAdministrators().isEmpty()) {
             return Result.success(SeedingReport.notNeeded());
         }
 

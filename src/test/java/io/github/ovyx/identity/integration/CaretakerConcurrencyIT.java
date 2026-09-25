@@ -158,7 +158,7 @@ class CaretakerConcurrencyIT extends IntegrationTestSupport {
     private static RegisterCaretakerCommand registration(String email) {
         String mobilePhone = "919" + String.format("%08d", Math.floorMod(UUID.randomUUID().hashCode(), 100_000_000));
         return new RegisterCaretakerCommand(
-                "Cadastro Simultaneo", randomValidCpf(), email, mobilePhone, "AviarioSul2026", Role.USER);
+                "Cadastro Simultaneo", randomValidCpf(), email, mobilePhone, "AviarioSul2026", Role.USER.name());
     }
 
     private static UpdateCaretakerCommand demotion(Caretaker administrator) {
@@ -168,7 +168,7 @@ class CaretakerConcurrencyIT extends IntegrationTestSupport {
                 administrator.cpf().value(),
                 administrator.email().value(),
                 administrator.mobilePhone().value(),
-                Role.USER);
+                Role.USER.name());
     }
 
     private static UpdateCaretakerCommand rename(Caretaker caretaker) {
@@ -178,7 +178,7 @@ class CaretakerConcurrencyIT extends IntegrationTestSupport {
                 caretaker.cpf().value(),
                 caretaker.email().value(),
                 caretaker.mobilePhone().value(),
-                caretaker.role());
+                caretaker.role().name());
     }
 
     private long count(String sql, Object... args) {

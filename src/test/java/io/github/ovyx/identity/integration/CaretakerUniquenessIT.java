@@ -64,7 +64,7 @@ class CaretakerUniquenessIT extends IntegrationTestSupport {
 
     private Result<CaretakerId> register(String cpf, String email, String mobilePhone) {
         return dispatcher.dispatch(
-                new RegisterCaretakerCommand("Responsável Novo", cpf, email, mobilePhone, PASSWORD, Role.USER));
+                new RegisterCaretakerCommand("Responsável Novo", cpf, email, mobilePhone, PASSWORD, Role.USER.name()));
     }
 
     @Test
@@ -135,7 +135,7 @@ class CaretakerUniquenessIT extends IntegrationTestSupport {
                 caretaker.cpf().value(),
                 caretaker.email().value(),
                 caretaker.mobilePhone().value(),
-                Role.USER);
+                Role.USER.name());
 
         // when
         Result<CaretakerId> result = dispatcher.dispatch(rename);

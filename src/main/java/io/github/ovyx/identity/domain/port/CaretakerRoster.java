@@ -4,6 +4,7 @@ import io.github.ovyx.identity.domain.model.CaretakerId;
 import io.github.ovyx.identity.domain.valueobject.Cpf;
 import io.github.ovyx.identity.domain.valueobject.Email;
 import io.github.ovyx.identity.domain.valueobject.MobilePhone;
+import java.util.Set;
 
 /**
  * O que um responsavel consulta sobre os demais para guardar as regras que valem entre eles.
@@ -27,6 +28,12 @@ public interface CaretakerRoster {
     /** Se outro responsavel ativo ja usa este celular como identificador de acesso. */
     boolean isMobilePhoneTakenByAnotherActive(MobilePhone mobilePhone, CaretakerId self);
 
-    /** Quantos administradores ativos existem, incluindo quem pergunta. */
-    long countActiveAdministrators();
+    /**
+     * Os administradores ativos agora, incluindo quem pergunta, se for um deles.
+     *
+     * <p>O conjunto, e nao so a quantidade: a copia do responsavel que pergunta pode estar vencida,
+     * e so pelo identificador ele descobre se ainda esta entre os ativos. No adaptador, as linhas
+     * ficam travadas ate o fim da transacao (FR-019).
+     */
+    Set<CaretakerId> activeAdministrators();
 }

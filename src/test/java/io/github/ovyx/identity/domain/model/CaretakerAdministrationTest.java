@@ -69,6 +69,22 @@ class CaretakerAdministrationTest {
         return caretaker;
     }
 
+    /** Uma copia do responsavel como estava agora, para quando outra operacao o mudar depois. */
+    private static Caretaker copyOf(Caretaker caretaker) {
+        return Caretaker.restore(
+                caretaker.id(),
+                caretaker.fullName(),
+                caretaker.cpf(),
+                caretaker.email(),
+                caretaker.mobilePhone(),
+                caretaker.passwordHash(),
+                caretaker.role(),
+                caretaker.status(),
+                caretaker.mustChangePassword(),
+                caretaker.createdAt(),
+                caretaker.updatedAt());
+    }
+
     private Caretaker deactivated(Caretaker caretaker) {
         caretaker.deactivate(roster, clock);
         roster.save(caretaker);
@@ -214,7 +230,7 @@ class CaretakerAdministrationTest {
         clock.advance(Duration.ofHours(2));
 
         // when
-        maria.update("Maria Silva Souza", "11144477735", "maria.souza@ovyx.com.br", "91977776666", Role.ADMINISTRATOR, roster, clock);
+        maria.update("Maria Silva Souza", "11144477735", "maria.souza@ovyx.com.br", "91977776666", Role.ADMINISTRATOR.name(), roster, clock);
 
         // then
         assertThat(maria.fullName().value()).isEqualTo("Maria Silva Souza");
@@ -232,7 +248,7 @@ class CaretakerAdministrationTest {
         Caretaker maria = registered(maria());
 
         // when
-        List<Violation> violations = violationsOf(() -> maria.update("", "123", "sem-arroba", "12", (String) null, roster, clock));
+        List<Violation> violations = violationsOf(() -> maria.update("", "123", "sem-arroba", "12", null, roster, clock));
 
         // then
         assertThat(violations)
@@ -267,7 +283,7 @@ class CaretakerAdministrationTest {
         Caretaker maria = registered(maria());
 
         // when
-        maria.update("Maria Silva Souza", MARIA_CPF, MARIA_EMAIL, MARIA_MOBILE_PHONE, Role.USER, roster, clock);
+        maria.update("Maria Silva Souza", MARIA_CPF, MARIA_EMAIL, MARIA_MOBILE_PHONE, Role.USER.name(), roster, clock);
 
         // then
         assertThat(maria.fullName().value()).isEqualTo("Maria Silva Souza");
@@ -282,7 +298,7 @@ class CaretakerAdministrationTest {
 
         // when
         List<Violation> violations = violationsOf(() -> maria.update(
-                "Maria Silva", MARIA_CPF, joao.email().value(), MARIA_MOBILE_PHONE, Role.USER, roster, clock));
+                "Maria Silva", MARIA_CPF, joao.email().value(), MARIA_MOBILE_PHONE, Role.USER.name(), roster, clock));
 
         // then
         assertThat(violations).extracting(Violation::code).containsExactly(IdentityErrorCode.EMAIL_ALREADY_IN_USE);
@@ -298,7 +314,7 @@ class CaretakerAdministrationTest {
         Caretaker joao = registered(joao());
 
         // when
-        maria.update("Maria Silva", MARIA_CPF, joao.email().value(), MARIA_MOBILE_PHONE, Role.USER, roster, clock);
+        maria.update("Maria Silva", MARIA_CPF, joao.email().value(), MARIA_MOBILE_PHONE, Role.USER.name(), roster, clock);
 
         // then
         assertThat(maria.email()).isEqualTo(joao.email());
@@ -312,7 +328,7 @@ class CaretakerAdministrationTest {
 
         // when
         List<Violation> violations = violationsOf(() ->
-                administrator.update("Maria Silva", MARIA_CPF, MARIA_EMAIL, MARIA_MOBILE_PHONE, Role.USER, roster, clock));
+                administrator.update("Maria Silva", MARIA_CPF, MARIA_EMAIL, MARIA_MOBILE_PHONE, Role.USER.name(), roster, clock));
 
         // then
         assertThat(violations)
@@ -329,7 +345,7 @@ class CaretakerAdministrationTest {
         registered(joao().withRole(Role.ADMINISTRATOR));
 
         // when
-        maria.update("Maria Silva", MARIA_CPF, MARIA_EMAIL, MARIA_MOBILE_PHONE, Role.USER, roster, clock);
+        maria.update("Maria Silva", MARIA_CPF, MARIA_EMAIL, MARIA_MOBILE_PHONE, Role.USER.name(), roster, clock);
 
         // then
         assertThat(maria.role()).isEqualTo(Role.USER);
@@ -473,10 +489,30 @@ class CaretakerAdministrationTest {
         registered(joao().withRole(Role.ADMINISTRATOR));
 
         // when
-        inactive.update("Maria Silva", MARIA_CPF, MARIA_EMAIL, MARIA_MOBILE_PHONE, Role.USER, roster, clock);
+        inactive.update("Maria Silva", MARIA_CPF, MARIA_EMAIL, MARIA_MOBILE_PHONE, Role.USER.name(), roster, clock);
 
         // then
         assertThat(inactive.role()).isEqualTo(Role.USER);
+    }
+
+    @Test
+    @DisplayName("does not refuse, as the last administrator, a stale copy of an administrator already deactivated")
+    void givenStaleCopyOfAnAdministratorAlreadyDeactivated_whenDemotingIt_thenDoNotRefuseAsTheLastAdministrator() {
+        // given
+        // A edicao carregou Maria como administradora ativa, e uma inativacao simultanea confirmou antes
+        // de ela decidir. Contando so os ativos, Joao era "o ultimo", e a edicao era recusada com 409
+        // sobre um estado que ja nao existia (revisao da T290). Quem esta fora do conjunto nao e o
+        // ultimo: a gravacao segue, e a versao da linha manda decidir de novo sobre o estado atual.
+        Caretaker maria = registered(maria().withRole(Role.ADMINISTRATOR));
+        registered(joao().withRole(Role.ADMINISTRATOR));
+        Caretaker staleMaria = copyOf(maria);
+        deactivated(maria);
+
+        // when
+        staleMaria.update("Maria Silva", MARIA_CPF, MARIA_EMAIL, MARIA_MOBILE_PHONE, "USER", roster, clock);
+
+        // then
+        assertThat(staleMaria.role()).isEqualTo(Role.USER);
     }
 
     @Test

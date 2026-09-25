@@ -46,7 +46,7 @@ class RegisterCaretakerCommandHandlerTest {
             new RegisterCaretakerCommandHandler(repository, hasher, clock);
 
     private static RegisterCaretakerCommand joao() {
-        return new RegisterCaretakerCommand(FULL_NAME, CPF, EMAIL, MOBILE_PHONE, PASSWORD, Role.USER);
+        return new RegisterCaretakerCommand(FULL_NAME, CPF, EMAIL, MOBILE_PHONE, PASSWORD, Role.USER.name());
     }
 
     private void registerMaria() {
@@ -84,12 +84,12 @@ class RegisterCaretakerCommandHandlerTest {
 
     private static Stream<Arguments> oneInvalidField() {
         return Stream.of(
-                Arguments.of("fullName", new RegisterCaretakerCommand("", CPF, EMAIL, MOBILE_PHONE, PASSWORD, Role.USER)),
-                Arguments.of("cpf", new RegisterCaretakerCommand(FULL_NAME, "12345678900", EMAIL, MOBILE_PHONE, PASSWORD, Role.USER)),
-                Arguments.of("email", new RegisterCaretakerCommand(FULL_NAME, CPF, "sem-arroba", MOBILE_PHONE, PASSWORD, Role.USER)),
-                Arguments.of("mobilePhone", new RegisterCaretakerCommand(FULL_NAME, CPF, EMAIL, "123", PASSWORD, Role.USER)),
-                Arguments.of("password", new RegisterCaretakerCommand(FULL_NAME, CPF, EMAIL, MOBILE_PHONE, "curta1", Role.USER)),
-                Arguments.of("role", new RegisterCaretakerCommand(FULL_NAME, CPF, EMAIL, MOBILE_PHONE, PASSWORD, (String) null)));
+                Arguments.of("fullName", new RegisterCaretakerCommand("", CPF, EMAIL, MOBILE_PHONE, PASSWORD, Role.USER.name())),
+                Arguments.of("cpf", new RegisterCaretakerCommand(FULL_NAME, "12345678900", EMAIL, MOBILE_PHONE, PASSWORD, Role.USER.name())),
+                Arguments.of("email", new RegisterCaretakerCommand(FULL_NAME, CPF, "sem-arroba", MOBILE_PHONE, PASSWORD, Role.USER.name())),
+                Arguments.of("mobilePhone", new RegisterCaretakerCommand(FULL_NAME, CPF, EMAIL, "123", PASSWORD, Role.USER.name())),
+                Arguments.of("password", new RegisterCaretakerCommand(FULL_NAME, CPF, EMAIL, MOBILE_PHONE, "curta1", Role.USER.name())),
+                Arguments.of("role", new RegisterCaretakerCommand(FULL_NAME, CPF, EMAIL, MOBILE_PHONE, PASSWORD, null)));
     }
 
     @ParameterizedTest(name = "invalid {0}")
@@ -114,15 +114,15 @@ class RegisterCaretakerCommandHandlerTest {
                 Arguments.of(
                         "cpf",
                         IdentityErrorCode.CPF_ALREADY_IN_USE,
-                        new RegisterCaretakerCommand(FULL_NAME, MARIA_CPF, EMAIL, MOBILE_PHONE, PASSWORD, Role.USER)),
+                        new RegisterCaretakerCommand(FULL_NAME, MARIA_CPF, EMAIL, MOBILE_PHONE, PASSWORD, Role.USER.name())),
                 Arguments.of(
                         "email",
                         IdentityErrorCode.EMAIL_ALREADY_IN_USE,
-                        new RegisterCaretakerCommand(FULL_NAME, CPF, MARIA_EMAIL, MOBILE_PHONE, PASSWORD, Role.USER)),
+                        new RegisterCaretakerCommand(FULL_NAME, CPF, MARIA_EMAIL, MOBILE_PHONE, PASSWORD, Role.USER.name())),
                 Arguments.of(
                         "mobilePhone",
                         IdentityErrorCode.MOBILE_PHONE_ALREADY_IN_USE,
-                        new RegisterCaretakerCommand(FULL_NAME, CPF, EMAIL, MARIA_MOBILE_PHONE, PASSWORD, Role.USER)));
+                        new RegisterCaretakerCommand(FULL_NAME, CPF, EMAIL, MARIA_MOBILE_PHONE, PASSWORD, Role.USER.name())));
     }
 
     @ParameterizedTest(name = "{0} held by Maria -> {1}")

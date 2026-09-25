@@ -8,6 +8,8 @@ import io.github.ovyx.identity.domain.valueobject.Cpf;
 import io.github.ovyx.identity.domain.valueobject.Email;
 import io.github.ovyx.identity.domain.valueobject.MobilePhone;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -78,7 +80,7 @@ public class JpaCaretakerRepository implements CaretakerRepository {
     }
 
     /**
-     * Conta travando as linhas contadas (FR-019).
+     * Os administradores ativos, travando as linhas lidas (FR-019).
      *
      * <p>Contar sem travar deixava duas inativacoes simultaneas dos dois ultimos administradores
      * verem dois e gravarem as duas. Nao e somente leitura, de proposito: o PostgreSQL recusa
@@ -86,7 +88,9 @@ public class JpaCaretakerRepository implements CaretakerRepository {
      */
     @Override
     @Transactional
-    public long countActiveAdministrators() {
-        return jpaRepository.lockActiveAdministrators().size();
+    public Set<CaretakerId> activeAdministrators() {
+        return jpaRepository.lockActiveAdministrators().stream()
+                .map(CaretakerId::of)
+                .collect(Collectors.toUnmodifiableSet());
     }
 }
