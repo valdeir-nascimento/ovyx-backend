@@ -29,6 +29,6 @@ public class GetAuthenticatedCaretakerQueryHandler implements QueryHandler<GetAu
             .orElseGet(() -> Result.failure(ApplicationError.of(
                 ErrorType.UNAUTHENTICATED,
                 IdentityErrorCode.CARETAKER_UNAVAILABLE.code(),
-                "Responsável não encontrado ou inativo.")));
+                IdentityErrorCode.CARETAKER_UNAVAILABLE_MESSAGE)));
     }
 }

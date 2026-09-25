@@ -835,6 +835,9 @@ class AuthenticationContractIT extends IntegrationTestSupport {
 
         // then
         response.andExpect(status().isBadRequest()).andExpect(jsonPath("$.details.currentPassword").exists());
+        assertThat(signInStatus(caretaker.email().value(), PASSWORD))
+                .as("a senha continua a mesma no banco (cenario 2 da US4)")
+                .isEqualTo(200);
     }
 
     @Test

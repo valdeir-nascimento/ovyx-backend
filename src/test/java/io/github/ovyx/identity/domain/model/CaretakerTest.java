@@ -1,6 +1,7 @@
 package io.github.ovyx.identity.domain.model;
 
 import static io.github.ovyx.identity.domain.DomainViolations.detailsOf;
+import static io.github.ovyx.identity.domain.DomainViolations.refusalCodeOf;
 import static io.github.ovyx.identity.domain.DomainViolations.violationsOf;
 import static io.github.ovyx.identity.domain.model.CaretakerTestDataBuilder.DEFAULT_PASSWORD;
 import static io.github.ovyx.identity.domain.model.CaretakerTestDataBuilder.aCaretaker;
@@ -172,6 +173,42 @@ class CaretakerTest {
         // then
         assertThat(caretaker.authenticate(DEFAULT_PASSWORD, hasher)).isFalse();
         assertThat(caretaker.authenticate(NEW_PASSWORD, hasher)).isTrue();
+    }
+
+    @Test
+    @DisplayName("refuses the change of an inactive caretaker as unavailable and keeps the password")
+    void givenInactiveCaretaker_whenChangingOwnPassword_thenRefuseAsUnavailableAndKeepThePassword() {
+        // given
+        // A sessao pode sobreviver a inativacao. A recusa mora no agregado (principio II, T179):
+        // nenhum outro chamador precisa lembrar de conferir a situacao antes.
+        Caretaker caretaker = aValidCaretaker().build();
+        caretaker.deactivate(new InMemoryCaretakerRepository(), clock);
+
+        // when
+        var refusal = refusalCodeOf(() -> caretaker.changeOwnPassword(DEFAULT_PASSWORD, NEW_PASSWORD, hasher, clock));
+
+        // then
+        assertThat(refusal).isEqualTo(IdentityErrorCode.CARETAKER_UNAVAILABLE);
+        caretaker.reactivate(new InMemoryCaretakerRepository(), clock);
+        assertThat(caretaker.authenticate(DEFAULT_PASSWORD, hasher))
+                .as("a senha anterior continua valendo")
+                .isTrue();
+    }
+
+    @Test
+    @DisplayName("refuses an inactive caretaker before looking at what was typed")
+    void givenInactiveCaretakerWithInvalidPasswords_whenChangingOwnPassword_thenRefuseAsUnavailableFirst() {
+        // given
+        // A recusa por situacao vem antes da de preenchimento: o inativo nao fica sabendo nem se a
+        // senha atual confere, nem o que falta na nova.
+        Caretaker caretaker = aValidCaretaker().build();
+        caretaker.deactivate(new InMemoryCaretakerRepository(), clock);
+
+        // when
+        var refusal = refusalCodeOf(() -> caretaker.changeOwnPassword("SenhaErrada2026", "abc", hasher, clock));
+
+        // then
+        assertThat(refusal).isEqualTo(IdentityErrorCode.CARETAKER_UNAVAILABLE);
     }
 
     @Test

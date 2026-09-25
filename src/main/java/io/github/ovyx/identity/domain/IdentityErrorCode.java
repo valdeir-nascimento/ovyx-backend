@@ -88,6 +88,13 @@ public enum IdentityErrorCode implements ErrorCode {
     /** A operacao deixaria o sistema sem administrador ativo (FR-019). */
     LAST_ADMINISTRATOR;
 
+    /**
+     * A mensagem de {@link #CARETAKER_UNAVAILABLE}. E a mesma frase para quem nao existe mais e para
+     * quem foi inativado, em todo chamador, de proposito: a diferenca diria a quem sonda quais contas
+     * existem.
+     */
+    public static final String CARETAKER_UNAVAILABLE_MESSAGE = "Responsável não encontrado ou inativo.";
+
     @Override
     public String code() {
         return name();
