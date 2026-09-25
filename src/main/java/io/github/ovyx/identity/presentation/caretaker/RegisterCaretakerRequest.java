@@ -12,7 +12,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 @Schema(description = "Cadastro de responsável")
 public record RegisterCaretakerRequest(
     @Schema(description = "Nome completo, de 3 a 120 caracteres", example = "João Pereira de Souza") String fullName,
-    @Schema(description = "Apenas dígitos; os dígitos verificadores são conferidos", example = "52998224725")
+    @Schema(description = "Apenas dígitos; os dígitos verificadores são conferidos", example = "35392919707")
     String cpf,
     @Schema(description = "Identificador de acesso", example = "joao.pereira@ovyx.com.br") String email,
     @Schema(description = "Apenas dígitos, com DDD; identificador de acesso", example = "91991234567")

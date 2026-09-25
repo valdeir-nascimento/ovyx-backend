@@ -16,6 +16,32 @@ public final class OwnAccountExamples {
               }
             }""";
 
+    public static final String PASSWORD_CURRENT_INCORRECT =
+        """
+            {
+              "code": "VALIDATION_FAILED",
+              "title": "Dados inválidos",
+              "status": 400,
+              "detail": "Dados inválidos.",
+              "instance": "/api/v1/me/password",
+              "details": {
+                "currentPassword": "A senha atual está incorreta."
+              }
+            }""";
+
+    public static final String PASSWORD_POLICY_NOT_MET =
+        """
+            {
+              "code": "VALIDATION_FAILED",
+              "title": "Dados inválidos",
+              "status": 400,
+              "detail": "Dados inválidos.",
+              "instance": "/api/v1/me/password",
+              "details": {
+                "newPassword": "A senha deve ter ao menos 12 caracteres. A senha deve conter ao menos um dígito."
+              }
+            }""";
+
     public static final String PASSWORD_CURRENT_MISSING =
         """
             {

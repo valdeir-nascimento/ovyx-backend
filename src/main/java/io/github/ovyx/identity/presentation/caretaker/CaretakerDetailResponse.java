@@ -12,7 +12,7 @@ import java.util.UUID;
 public record CaretakerDetailResponse(
     @Schema(example = "9f8e7d6c-5b4a-4938-2716-0f1e2d3c4b5a") UUID id,
     @Schema(example = "João Pereira de Souza") String fullName,
-    @Schema(example = "52998224725") String cpf,
+    @Schema(example = "35392919707") String cpf,
     @Schema(example = "joao.pereira@ovyx.com.br") String email,
     @Schema(example = "91991234567") String mobilePhone,
     @Schema(example = "USER") Role role,

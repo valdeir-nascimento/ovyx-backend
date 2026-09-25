@@ -39,6 +39,14 @@ public interface OwnAccountApi {
             schema = @Schema(implementation = ProblemResponse.class),
             examples = {
                 @ExampleObject(
+                    name = "senhaAtualIncorreta",
+                    summary = "Senha atual incorreta",
+                    value = OwnAccountExamples.PASSWORD_CURRENT_INCORRECT),
+                @ExampleObject(
+                    name = "politicaNaoAtendida",
+                    summary = "Nova senha fora da política, com várias violações de uma vez",
+                    value = OwnAccountExamples.PASSWORD_POLICY_NOT_MET),
+                @ExampleObject(
                     name = "senhaAtualIncorretaEPoliticaNaoAtendida",
                     value = OwnAccountExamples.PASSWORD_VALIDATION_FAILED),
                 @ExampleObject(
