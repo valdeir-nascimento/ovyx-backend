@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -20,11 +21,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalManagementPort;
 import org.yaml.snakeyaml.Yaml;
@@ -32,13 +36,14 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * O documento da API ensina a usá-la sem ler o código (US5; FR-027 a FR-029, SC-007, SC-008): o
- * mesmo contrato de {@code contracts/identity-api.yaml}, com exemplo real em toda requisição e em toda
- * resposta, nada que a interface precise inventar, e uma interface que consegue chamar a API.
+ * O documento da API ensina a usá-la sem ler o código (US5 da 001; FR-027 a FR-029, SC-007, SC-008;
+ * FR-021 e R-012 da 002): um documento só, com a união dos contratos {@code identity-api.yaml} e
+ * {@code farm-api.yaml}, exemplo real em toda requisição e em toda resposta, nada que a interface
+ * precise inventar, e uma interface que consegue chamar a API.
  *
- * <p>O contrato de referência é a cópia em {@code src/test/resources/contract/identity-api.yaml}: a
- * pasta {@code specs/} fica fora do repositório. Onde ela existe, um teste exige que a cópia seja
- * igual à original, para as duas não se separarem em silêncio.
+ * <p>Os contratos de referência são as cópias em {@code src/test/resources/contract/}: a pasta
+ * {@code specs/} fica fora do repositório. Onde ela existe, um teste exige que cada cópia seja igual à
+ * original, para as duas não se separarem em silêncio.
  *
  * <p>Mesma configuração do {@link ManagementPortIT}, para reaproveitar o contexto: um servidor de
  * verdade, com a documentação na porta de gerenciamento.
@@ -59,13 +64,32 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
 
     /**
      * Os únicos campos em que zero ou booleano é exemplo de verdade, e não valor genérico: a primeira
-     * página é a 0, e o responsável tem {@code mustChangePassword} verdadeiro ou falso. Um campo novo
-     * com zero ou booleano reprova até alguém decidir que o valor é legítimo e acrescentá-lo aqui.
+     * página é a 0; o responsável tem {@code mustChangePassword} verdadeiro ou falso; e o setor
+     * recém-cadastrado, ou inativado, tem zero gaiolas ativas e zero aves. Um campo novo com zero ou
+     * booleano reprova até alguém decidir que o valor é legítimo e acrescentá-lo aqui.
+     *
+     * <p>Os campos das operações de gaiola levam o prefixo {@code cage.}: as aves zeradas do setor não
+     * liberam um exemplo genérico de gaiola com zero aves.
      */
-    private static final Set<String> FIELDS_WITH_ZERO_OR_BOOLEAN_EXAMPLE = Set.of("page", "mustChangePassword");
+    private static final Set<String> FIELDS_WITH_ZERO_OR_BOOLEAN_EXAMPLE =
+            Set.of("page", "mustChangePassword", "activeCageCount", "birdCount", "cage.page");
 
-    /** O contrato original, fora do repositório; existe na máquina de quem mantém a spec. */
-    private static final Path SPEC_CONTRACT = Path.of("../specs/001-auth-foundation/contracts/identity-api.yaml");
+    private static final String IDENTITY_CONTRACT = "identity-api.yaml";
+    private static final String FARM_CONTRACT = "farm-api.yaml";
+
+    /** Os contratos originais, fora do repositório; existem na máquina de quem mantém as specs. */
+    private static final Map<String, Path> SPEC_CONTRACTS = Map.of(
+            IDENTITY_CONTRACT, Path.of("../specs/001-auth-foundation/contracts/identity-api.yaml"),
+            FARM_CONTRACT, Path.of("../specs/002-sectors-cages/contracts/farm-api.yaml"));
+
+    /** O título do documento único (R-012 da 002): nenhum dos dois contratos é o documento inteiro. */
+    private static final String PUBLISHED_TITLE = "Ovyx — API";
+
+    /**
+     * O parágrafo do contrato do farm que o documento único dispensa: ele remete à API de Identidade,
+     * que no documento único é o próprio texto acima dele.
+     */
+    private static final String FARM_PARAGRAPH_ABOUT_THE_IDENTITY_API = "**Sessão, erros, CSRF e acesso negado**";
 
     @LocalManagementPort
     private int managementPort;
@@ -150,10 +174,24 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
         }
     }
 
-    /** Os nomes de campo cujo exemplo é zero ou booleano, em qualquer exemplo do documento. */
+    /**
+     * Os nomes de campo cujo exemplo é zero ou booleano, em qualquer exemplo do documento; nas operações
+     * de gaiola, com o prefixo {@code cage.}.
+     */
     private static List<String> fieldsWithZeroOrBoolean(JsonNode node) {
         List<String> fields = new ArrayList<>();
-        collectZeroOrBoolean(node, "", false, fields);
+        node.properties().forEach(entry -> {
+            if (entry.getKey().equals("paths")) {
+                entry.getValue().properties().forEach(path -> {
+                    List<String> found = new ArrayList<>();
+                    collectZeroOrBoolean(path.getValue(), "", false, found);
+                    String prefix = path.getKey().contains("/cages") ? "cage." : "";
+                    found.forEach(field -> fields.add(prefix + field));
+                });
+            } else {
+                collectZeroOrBoolean(entry.getValue(), entry.getKey(), false, fields);
+            }
+        });
         return fields;
     }
 
@@ -174,10 +212,25 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> contract() throws Exception {
-        try (InputStream contract = OpenApiDocumentIT.class.getResourceAsStream("/contract/identity-api.yaml")) {
+    private static Map<String, Object> contract(String file) throws Exception {
+        try (InputStream contract = OpenApiDocumentIT.class.getResourceAsStream("/contract/" + file)) {
             return new Yaml().load(contract);
         }
+    }
+
+    /** O que o documento publicado precisa conter: os dois contratos, inteiros (T097). */
+    private static List<Map<String, Object>> expectedContracts() throws Exception {
+        return List.of(contract(IDENTITY_CONTRACT), contract(FARM_CONTRACT));
+    }
+
+    /** As operações de um contrato, como mapas, na ordem dos caminhos. */
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> operationsOf(Map<String, Object> document) {
+        return ((Map<String, Map<String, Object>>) document.get("paths")).values().stream()
+                .flatMap(entries -> entries.entrySet().stream()
+                        .filter(entry -> HTTP_METHODS.contains(entry.getKey()))
+                        .map(entry -> (Map<String, Object>) entry.getValue()))
+                .toList();
     }
 
     @SuppressWarnings("unchecked")
@@ -257,15 +310,20 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
     @DisplayName("publishes the same operations and response codes as the contract")
     void givenContract_whenComparingThePublishedOperations_thenMatchPathsMethodsAndResponseCodes() throws Exception {
         // given
-        // T112: as nove operações, com os mesmos caminhos, métodos e códigos de resposta. Uma resposta
-        // a mais ou a menos no código, sem o contrato saber, é o desvio que isto pega.
-        Map<String, List<String>> contract = operationsWithResponses(contract());
+        // T112: as operações dos contratos, com os mesmos caminhos, métodos e códigos de resposta. Uma
+        // resposta a mais ou a menos no código, sem o contrato saber, é o desvio que isto pega: as 9
+        // da identidade e as 12 do farm.
+        Map<String, List<String>> contract = new TreeMap<>();
+        for (Map<String, Object> expected : expectedContracts()) {
+            contract.putAll(operationsWithResponses(expected));
+        }
 
         // when
         Map<String, List<String>> published = operationsWithResponses(published());
 
         // then
-        assertThat(published).hasSize(9).isEqualTo(contract);
+        assertThat(contract).hasSize(21);
+        assertThat(published).isEqualTo(contract);
     }
 
     @Test
@@ -274,7 +332,10 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
         // given
         // A T112 comparava só os códigos: a entrada por celular e o administrador semeado, pedidos na
         // T113, faltavam no documento sem nenhum teste reprovar. O documento pode ter exemplos a mais.
-        Map<String, Set<String>> contract = namedExamplesOf(contract());
+        Map<String, Set<String>> contract = new TreeMap<>();
+        for (Map<String, Object> expected : expectedContracts()) {
+            contract.putAll(namedExamplesOf(expected));
+        }
 
         // when
         Map<String, Set<String>> published = namedExamplesOf(published());
@@ -286,18 +347,20 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
                 .containsAll(names));
     }
 
-    @Test
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {IDENTITY_CONTRACT, FARM_CONTRACT})
     @DisplayName("keeps the copy of the contract equal to the specification it copies")
-    void givenSpecificationAtHand_whenComparingTheCopy_thenFindTheSameContract() throws Exception {
+    void givenSpecificationAtHand_whenComparingTheCopy_thenFindTheSameContract(String file) throws Exception {
         // given
         // A cópia em src/test/resources é a referência da T112; separada da spec, a comparação passaria
         // a proteger um contrato velho. Onde a spec não existe (fora da máquina de quem a mantém), pula.
-        assumeTrue(Files.exists(SPEC_CONTRACT), "a spec não está ao lado do repositório");
+        Path specContract = SPEC_CONTRACTS.get(file);
+        assumeTrue(Files.exists(specContract), "a spec não está ao lado do repositório");
 
         // when
-        String specification = Files.readString(SPEC_CONTRACT, StandardCharsets.UTF_8).replace("\r\n", "\n");
+        String specification = Files.readString(specContract, StandardCharsets.UTF_8).replace("\r\n", "\n");
         String copy;
-        try (InputStream stream = OpenApiDocumentIT.class.getResourceAsStream("/contract/identity-api.yaml")) {
+        try (InputStream stream = OpenApiDocumentIT.class.getResourceAsStream("/contract/" + file)) {
             copy = new String(stream.readAllBytes(), StandardCharsets.UTF_8).replace("\r\n", "\n");
         }
 
@@ -310,24 +373,39 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
         return text.replaceAll("\\s+", " ").strip();
     }
 
+    /** A introdução do contrato do farm sem o parágrafo que remete à API de Identidade. */
+    private static String farmIntroductionForTheSingleDocument(String farmIntroduction) {
+        return Arrays.stream(farmIntroduction.split("\n\\s*\n"))
+                .filter(paragraph -> !paragraph.strip().startsWith(FARM_PARAGRAPH_ABOUT_THE_IDENTITY_API))
+                .collect(Collectors.joining("\n\n"));
+    }
+
     @Test
-    @DisplayName("publishes the introduction, the tags and the server the contract describes")
+    @DisplayName("publishes the title, the introduction, the tags and the server the contracts describe")
     @SuppressWarnings("unchecked")
-    void givenContract_whenReadingThePublishedTexts_thenFindTheSameIntroductionTagsAndServer() throws Exception {
+    void givenContracts_whenReadingThePublishedTexts_thenFindTheSameIntroductionTagsAndServer() throws Exception {
         // given
-        // FR-029: textos em português, e os mesmos do contrato. O servidor era o "Generated server url"
+        // FR-029: textos em português, e os mesmos dos contratos. O servidor era o "Generated server url"
         // do springdoc, e quatro parágrafos da introdução tinham ficado mais curtos que os do contrato.
-        Map<String, Object> contract = contract();
+        // R-012 da 002: um documento só, com a introdução da identidade seguida da do farm, e as tags
+        // dos dois contratos, na ordem deles.
+        Map<String, Object> identity = contract(IDENTITY_CONTRACT);
+        Map<String, Object> farm = contract(FARM_CONTRACT);
         Map<String, Object> published = published();
+        List<Object> tags = new ArrayList<>((List<Object>) identity.get("tags"));
+        tags.addAll((List<Object>) farm.get("tags"));
 
         // when
-        String contractIntroduction = normalized(((Map<String, String>) contract.get("info")).get("description"));
-        String publishedIntroduction = normalized(((Map<String, String>) published.get("info")).get("description"));
+        String contractIntroduction = normalized(((Map<String, String>) identity.get("info")).get("description")
+                + "\n\n"
+                + farmIntroductionForTheSingleDocument(((Map<String, String>) farm.get("info")).get("description")));
+        Map<String, String> info = (Map<String, String>) published.get("info");
 
         // then
-        assertThat(publishedIntroduction).isEqualTo(contractIntroduction);
-        assertThat(published.get("tags")).isEqualTo(contract.get("tags"));
-        assertThat(published.get("servers")).isEqualTo(contract.get("servers"));
+        assertThat(info.get("title")).isEqualTo(PUBLISHED_TITLE);
+        assertThat(normalized(info.get("description"))).isEqualTo(contractIntroduction);
+        assertThat(published.get("tags")).isEqualTo(tags);
+        assertThat(published.get("servers")).isEqualTo(identity.get("servers")).isEqualTo(farm.get("servers"));
     }
 
     @Test
@@ -361,7 +439,13 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
                 .toList();
 
         // then
-        assertThat(withBody).as("operações com corpo de requisição").hasSize(4);
+        long expected = 0;
+        for (Map<String, Object> contract : expectedContracts()) {
+            expected += operationsOf(contract).stream()
+                    .filter(operation -> operation.containsKey("requestBody"))
+                    .count();
+        }
+        assertThat(withBody).as("operações com corpo de requisição").hasSize((int) expected);
         return withBody.stream().map(operation -> DynamicTest.dynamicTest(operation.label(), () -> {
             JsonNode schema = operation.node().at("/requestBody/content/application~1json/schema");
             assertThat(fieldsWithoutExample(document, schema, "body")).isEmpty();
@@ -386,10 +470,27 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
                         response.getValue().at("/content/application~1json/schema")))));
 
         // then
-        assertThat(successes).as("respostas de sucesso com corpo").hasSize(7);
+        assertThat(successes).as("respostas de sucesso com corpo").hasSize(successesWithBodyInTheContracts());
         return successes.stream().map(success -> DynamicTest.dynamicTest(
                 success.getKey(),
                 () -> assertThat(fieldsWithoutExample(document, success.getValue(), "body")).isEmpty()));
+    }
+
+    /** As respostas 2xx com corpo, nas operações que o documento publicado precisa conter hoje. */
+    @SuppressWarnings("unchecked")
+    private static int successesWithBodyInTheContracts() throws Exception {
+        int count = 0;
+        for (Map<String, Object> contract : expectedContracts()) {
+            for (Map<String, Object> operation : operationsOf(contract)) {
+                for (Map.Entry<Object, Object> response : ((Map<Object, Object>) operation.get("responses")).entrySet()) {
+                    Map<String, Object> resolved = resolved(contract, (Map<String, Object>) response.getValue());
+                    if (String.valueOf(response.getKey()).startsWith("2") && resolved.containsKey("content")) {
+                        count++;
+                    }
+                }
+            }
+        }
+        return count;
     }
 
     @Test
@@ -443,6 +544,11 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
         assertThat(fields).isNotEmpty().allMatch(FIELDS_WITH_ZERO_OR_BOOLEAN_EXAMPLE::contains);
     }
 
+    @SuppressWarnings("unchecked")
+    private static List<String> tagsOf(Map<String, Object> operation) {
+        return (List<String>) operation.getOrDefault("tags", List.of());
+    }
+
     @Test
     @DisplayName("describes every tag an operation uses")
     void givenPublishedDocument_whenReadingTheTagsInUse_thenFindEachDescribed() throws Exception {
@@ -460,7 +566,11 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
                 .toList();
 
         // then
-        assertThat(used).containsExactlyInAnyOrder("Acesso", "Minha conta", "Responsáveis");
+        Set<String> contractTags = new TreeSet<>();
+        for (Map<String, Object> contract : expectedContracts()) {
+            operationsOf(contract).forEach(operation -> contractTags.addAll(tagsOf(operation)));
+        }
+        assertThat(used).containsExactlyInAnyOrderElementsOf(contractTags);
         assertThat(used).allSatisfy(tag -> assertThat(declared.get(tag)).as(tag).isNotBlank());
     }
 
