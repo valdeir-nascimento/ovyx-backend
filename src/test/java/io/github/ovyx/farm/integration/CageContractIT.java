@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
+import io.github.ovyx.IntegrationSessions;
 import io.github.ovyx.IntegrationTestSupport;
 import io.github.ovyx.identity.domain.port.CaretakerRepository;
 import io.github.ovyx.identity.domain.port.PasswordHasher;
@@ -52,15 +53,15 @@ class CageContractIT extends IntegrationTestSupport {
     @Autowired
     private Clock clock;
 
-    private FarmSessions sessions;
+    private IntegrationSessions sessions;
     private Cookie[] administrator;
     private String sectorPath;
     private String cagesPath;
 
     @BeforeEach
     void registerASectorAsAnAdministrator() throws Exception {
-        sessions = new FarmSessions(mockMvc, caretakerRepository, passwordHasher, clock);
-        administrator = sessions.administrator();
+        sessions = new IntegrationSessions(mockMvc, caretakerRepository, passwordHasher, clock);
+        administrator = sessions.administrator().cookies();
         sectorPath = "/api/v1/sectors/" + idOf(send(post("/api/v1/sectors"), """
                 {"name": "Gaiolas %s"}
                 """.formatted(UUID.randomUUID()))

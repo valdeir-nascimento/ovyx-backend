@@ -37,9 +37,10 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * O documento da API ensina a usá-la sem ler o código (US5 da 001; FR-027 a FR-029, SC-007, SC-008;
- * FR-021 e R-012 da 002): um documento só, com a união dos contratos {@code identity-api.yaml} e
- * {@code farm-api.yaml}, exemplo real em toda requisição e em toda resposta, nada que a interface
- * precise inventar, e uma interface que consegue chamar a API.
+ * FR-021 e R-012 da 002; FR-023 e R-013 da 003): um documento só, com a união dos contratos
+ * {@code identity-api.yaml}, {@code farm-api.yaml} e {@code production-api.yaml}, exemplo real em toda
+ * requisição e em toda resposta, nada que a interface precise inventar, e uma interface que consegue
+ * chamar a API.
  *
  * <p>Os contratos de referência são as cópias em {@code src/test/resources/contract/}: a pasta
  * {@code specs/} fica fora do repositório. Onde ela existe, um teste exige que cada cópia seja igual à
@@ -69,27 +70,53 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
      * booleano reprova até alguém decidir que o valor é legítimo e acrescentá-lo aqui.
      *
      * <p>Os campos das operações de gaiola levam o prefixo {@code cage.}: as aves zeradas do setor não
-     * liberam um exemplo genérico de gaiola com zero aves.
+     * liberam um exemplo genérico de gaiola com zero aves. Os das operações de relatório diário levam o
+     * prefixo {@code daily-report.} (R-013 da 003): as classificações, as mortes e os descartes valem
+     * zero de verdade, e os totais do relatório recém-aberto também.
      */
-    private static final Set<String> FIELDS_WITH_ZERO_OR_BOOLEAN_EXAMPLE =
-            Set.of("page", "mustChangePassword", "activeCageCount", "birdCount", "cage.page");
+    private static final Set<String> FIELDS_WITH_ZERO_OR_BOOLEAN_EXAMPLE = Set.of(
+            "page",
+            "mustChangePassword",
+            "activeCageCount",
+            "birdCount",
+            "cage.page",
+            "noMortalityConfirmed",
+            "daily-report.page",
+            "daily-report.small",
+            "daily-report.jumbo",
+            "daily-report.dirty",
+            "daily-report.cracked",
+            "daily-report.bloodSpot",
+            "daily-report.abnormal",
+            "daily-report.deaths",
+            "daily-report.culls",
+            "daily-report.removedBirds",
+            "daily-report.pendingCages",
+            "daily-report.collectedEggs",
+            "daily-report.standardEggs",
+            "daily-report.unsellableEggs",
+            "daily-report.layingRate",
+            "daily-report.removalRate",
+            "daily-report.noMortalityConfirmed");
 
     private static final String IDENTITY_CONTRACT = "identity-api.yaml";
     private static final String FARM_CONTRACT = "farm-api.yaml";
+    private static final String PRODUCTION_CONTRACT = "production-api.yaml";
 
     /** Os contratos originais, fora do repositório; existem na máquina de quem mantém as specs. */
     private static final Map<String, Path> SPEC_CONTRACTS = Map.of(
             IDENTITY_CONTRACT, Path.of("../specs/001-auth-foundation/contracts/identity-api.yaml"),
-            FARM_CONTRACT, Path.of("../specs/002-sectors-cages/contracts/farm-api.yaml"));
+            FARM_CONTRACT, Path.of("../specs/002-sectors-cages/contracts/farm-api.yaml"),
+            PRODUCTION_CONTRACT, Path.of("../specs/003-daily-reports/contracts/production-api.yaml"));
 
     /** O título do documento único (R-012 da 002): nenhum dos dois contratos é o documento inteiro. */
     private static final String PUBLISHED_TITLE = "Ovyx — API";
 
     /**
-     * O parágrafo do contrato do farm que o documento único dispensa: ele remete à API de Identidade,
-     * que no documento único é o próprio texto acima dele.
+     * O parágrafo dos contratos do farm e da produção que o documento único dispensa: ele remete à API de
+     * Identidade, que no documento único é o próprio texto acima dele.
      */
-    private static final String FARM_PARAGRAPH_ABOUT_THE_IDENTITY_API = "**Sessão, erros, CSRF e acesso negado**";
+    private static final String PARAGRAPH_ABOUT_THE_IDENTITY_API = "**Sessão, erros";
 
     @LocalManagementPort
     private int managementPort;
@@ -185,7 +212,9 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
                 entry.getValue().properties().forEach(path -> {
                     List<String> found = new ArrayList<>();
                     collectZeroOrBoolean(path.getValue(), "", false, found);
-                    String prefix = path.getKey().contains("/cages") ? "cage." : "";
+                    String prefix = path.getKey().contains("/daily-reports")
+                            ? "daily-report."
+                            : path.getKey().contains("/cages") ? "cage." : "";
                     found.forEach(field -> fields.add(prefix + field));
                 });
             } else {
@@ -218,9 +247,12 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
         }
     }
 
-    /** O que o documento publicado precisa conter: os dois contratos, inteiros (T097). */
+    /**
+     * O que o documento publicado precisa conter: os três contratos, inteiros — o da identidade, o do farm
+     * (T097 da 002) e o da produção (T104 da 003).
+     */
     private static List<Map<String, Object>> expectedContracts() throws Exception {
-        return List.of(contract(IDENTITY_CONTRACT), contract(FARM_CONTRACT));
+        return List.of(contract(IDENTITY_CONTRACT), contract(FARM_CONTRACT), contract(PRODUCTION_CONTRACT));
     }
 
     /** As operações de um contrato, como mapas, na ordem dos caminhos. */
@@ -312,7 +344,7 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
         // given
         // T112: as operações dos contratos, com os mesmos caminhos, métodos e códigos de resposta. Uma
         // resposta a mais ou a menos no código, sem o contrato saber, é o desvio que isto pega: as 9
-        // da identidade e as 12 do farm.
+        // da identidade, as 12 do farm e as 9 da produção.
         Map<String, List<String>> contract = new TreeMap<>();
         for (Map<String, Object> expected : expectedContracts()) {
             contract.putAll(operationsWithResponses(expected));
@@ -322,7 +354,7 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
         Map<String, List<String>> published = operationsWithResponses(published());
 
         // then
-        assertThat(contract).hasSize(21);
+        assertThat(contract).hasSize(21 + 9);
         assertThat(published).isEqualTo(contract);
     }
 
@@ -348,7 +380,7 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
     }
 
     @ParameterizedTest(name = "{0}")
-    @ValueSource(strings = {IDENTITY_CONTRACT, FARM_CONTRACT})
+    @ValueSource(strings = {IDENTITY_CONTRACT, FARM_CONTRACT, PRODUCTION_CONTRACT})
     @DisplayName("keeps the copy of the contract equal to the specification it copies")
     void givenSpecificationAtHand_whenComparingTheCopy_thenFindTheSameContract(String file) throws Exception {
         // given
@@ -373,10 +405,10 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
         return text.replaceAll("\\s+", " ").strip();
     }
 
-    /** A introdução do contrato do farm sem o parágrafo que remete à API de Identidade. */
-    private static String farmIntroductionForTheSingleDocument(String farmIntroduction) {
-        return Arrays.stream(farmIntroduction.split("\n\\s*\n"))
-                .filter(paragraph -> !paragraph.strip().startsWith(FARM_PARAGRAPH_ABOUT_THE_IDENTITY_API))
+    /** A introdução de um contrato sem o parágrafo que remete à API de Identidade. */
+    private static String introductionForTheSingleDocument(String introduction) {
+        return Arrays.stream(introduction.split("\n\\s*\n"))
+                .filter(paragraph -> !paragraph.strip().startsWith(PARAGRAPH_ABOUT_THE_IDENTITY_API))
                 .collect(Collectors.joining("\n\n"));
     }
 
@@ -387,25 +419,32 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
         // given
         // FR-029: textos em português, e os mesmos dos contratos. O servidor era o "Generated server url"
         // do springdoc, e quatro parágrafos da introdução tinham ficado mais curtos que os do contrato.
-        // R-012 da 002: um documento só, com a introdução da identidade seguida da do farm, e as tags
-        // dos dois contratos, na ordem deles.
+        // R-012 da 002 e R-013 da 003: um documento só, com a introdução da identidade seguida da do farm
+        // e da produção, e as tags dos três contratos, na ordem deles.
         Map<String, Object> identity = contract(IDENTITY_CONTRACT);
         Map<String, Object> farm = contract(FARM_CONTRACT);
+        Map<String, Object> production = contract(PRODUCTION_CONTRACT);
         Map<String, Object> published = published();
         List<Object> tags = new ArrayList<>((List<Object>) identity.get("tags"));
         tags.addAll((List<Object>) farm.get("tags"));
+        tags.addAll((List<Object>) production.get("tags"));
 
         // when
         String contractIntroduction = normalized(((Map<String, String>) identity.get("info")).get("description")
                 + "\n\n"
-                + farmIntroductionForTheSingleDocument(((Map<String, String>) farm.get("info")).get("description")));
+                + introductionForTheSingleDocument(((Map<String, String>) farm.get("info")).get("description"))
+                + "\n\n"
+                + introductionForTheSingleDocument(((Map<String, String>) production.get("info")).get("description")));
         Map<String, String> info = (Map<String, String>) published.get("info");
 
         // then
         assertThat(info.get("title")).isEqualTo(PUBLISHED_TITLE);
         assertThat(normalized(info.get("description"))).isEqualTo(contractIntroduction);
         assertThat(published.get("tags")).isEqualTo(tags);
-        assertThat(published.get("servers")).isEqualTo(identity.get("servers")).isEqualTo(farm.get("servers"));
+        assertThat(published.get("servers"))
+                .isEqualTo(identity.get("servers"))
+                .isEqualTo(farm.get("servers"))
+                .isEqualTo(production.get("servers"));
     }
 
     @Test

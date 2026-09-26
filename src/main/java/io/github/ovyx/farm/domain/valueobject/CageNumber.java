@@ -2,6 +2,7 @@ package io.github.ovyx.farm.domain.valueobject;
 
 import io.github.ovyx.farm.domain.FarmErrorCode;
 import io.github.ovyx.shared.domain.Notification;
+import io.github.ovyx.shared.domain.WholeNumber;
 
 /**
  * Numero da gaiola na bateria: inteiro de 1 a 999 (FR-006). "07" e "7" sao o mesmo numero, e o codigo

@@ -1,5 +1,6 @@
 package io.github.ovyx.farm.presentation.cage;
 
+import io.github.ovyx.shared.presentation.RawJsonValue;
 import io.swagger.v3.oas.annotations.media.Schema;
 import tools.jackson.databind.JsonNode;
 
@@ -24,31 +25,11 @@ public record CageRequest(
 
     /** O numero como texto, do jeito que veio. */
     public String rawNumber() {
-        return raw(number);
+        return RawJsonValue.of(number);
     }
 
     /** As aves como texto, do jeito que vieram. */
     public String rawBirdCount() {
-        return raw(birdCount);
-    }
-
-    /**
-     * O valor como texto: ausente ou nulo vira {@code null}; numero inteiro, os digitos; numero com
-     * casas, o decimal; texto, o proprio texto; qualquer outra coisa, o JSON dela, que o dominio recusa.
-     */
-    private static String raw(JsonNode node) {
-        if (node == null || node.isNull() || node.isMissingNode()) {
-            return null;
-        }
-        if (node.isString()) {
-            return node.asString();
-        }
-        if (node.isIntegralNumber()) {
-            return node.bigIntegerValue().toString();
-        }
-        if (node.isNumber()) {
-            return node.decimalValue().toPlainString();
-        }
-        return node.toString();
+        return RawJsonValue.of(birdCount);
     }
 }
