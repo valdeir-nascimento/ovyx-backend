@@ -66,15 +66,15 @@ class DatabaseMigrationIT extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("records the six migrations as successfully applied")
-    void givenMigratedDatabase_whenReadingTheHistory_thenFindTheSixMigrationsApplied() {
+    @DisplayName("records the seven migrations as successfully applied")
+    void givenMigratedDatabase_whenReadingTheHistory_thenFindTheSevenMigrationsApplied() {
         // given — o contentor compartilhado, migrado na subida
 
         // when
         List<String> versions = jdbc().queryForList(APPLIED_VERSIONS, String.class);
 
         // then
-        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6");
+        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7");
     }
 
     @ParameterizedTest
@@ -126,6 +126,8 @@ class DatabaseMigrationIT extends IntegrationTestSupport {
                         "spring_session_attributes",
                         "sector",
                         "cage",
+                        "daily_report",
+                        "report_cage",
                         "flyway_schema_history");
     }
 }

@@ -29,9 +29,10 @@ import org.springframework.context.annotation.Configuration;
  * <p>Descricoes em portugues por exigencia de FR-029 e do principio VII: quem le a documentacao e
  * pessoa, nao compilador.
  *
- * <p>Um documento so para os dois contratos, {@code identity-api.yaml} e {@code farm-api.yaml} (R-012 da
- * feature 002): quem integra entra e cadastra um setor na mesma pagina. O texto geral e o da identidade,
- * seguido do da granja sem o paragrafo que remete a identidade; o esquema de seguranca e o dos dois: o
+ * <p>Um documento so para os contratos {@code identity-api.yaml}, {@code farm-api.yaml} e
+ * {@code production-api.yaml} (R-012 da feature 002, R-013 da 003): quem integra entra, cadastra um setor
+ * e lanca o relatorio do dia na mesma pagina. O texto geral e o da identidade, seguido do da granja e do
+ * da producao, cada um sem o paragrafo que remete a identidade; o esquema de seguranca e o de todos: o
  * cookie de sessao vale para todas as operacoes, e a entrada, que e publica, o dispensa por anotacao
  * propria.
  *
@@ -114,6 +115,20 @@ public class OpenApiConfiguration {
 
                         **Nada é apagado**: setores e gaiolas são inativados, e continuam consultáveis. Inativar um \
                         setor inativa junto as gaiolas ativas dele; reativá-lo traz de volta exatamente essas gaiolas.
+
+                        Relatórios diários dos setores (`DailyReport`): a produção e a mortalidade lançadas por \
+                        gaiola, um relatório por setor e por dia de coleta.
+
+                        **Perfis**: qualquer responsável autenticado — usuário comum ou administrador — abre, corrige, \
+                        lança e consulta relatórios. Quem abriu e quem fez a última correção ficam registrados pela \
+                        sessão.
+
+                        **Setor inativo**: os relatórios dele continuam consultáveis, e toda escrita é recusada com \
+                        `SECTOR_INACTIVE`. **Nada é apagado**: não há exclusão de relatório nem de lançamento.
+
+                        **Quantidades**: inteiras. Como na API da Granja, também são aceitas como texto — o que o \
+                        formulário digitou —, e o que não é inteiro é recusado no próprio campo, junto das demais \
+                        falhas. Nos lançamentos, a classificação e a mortalidade em branco valem zero.
                         """))
             .tags(List.of(
                 new Tag()
@@ -130,7 +145,12 @@ public class OpenApiConfiguration {
                     .description("Cadastro, consulta, inativação e reativação de setores"),
                 new Tag()
                     .name("Gaiolas")
-                    .description("Cadastro, consulta, inativação e reativação das gaiolas de um setor")))
+                    .description("Cadastro, consulta, inativação e reativação das gaiolas de um setor"),
+                new Tag()
+                    .name("Relatórios diários")
+                    .description(
+                        "Abertura, correção e consulta dos relatórios diários de um setor, com os lançamentos de"
+                            + " produção e de mortalidade de cada gaiola")))
             .addSecurityItem(new SecurityRequirement().addList(SESSION_COOKIE))
             .components(new Components()
                 .addSecuritySchemes(
