@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
+import io.github.ovyx.IntegrationSessions;
 import io.github.ovyx.IntegrationTestSupport;
 import io.github.ovyx.identity.domain.port.CaretakerRepository;
 import io.github.ovyx.identity.domain.port.PasswordHasher;
@@ -66,15 +67,15 @@ class FarmAuthorizationIT extends IntegrationTestSupport {
     @Autowired
     private ObjectMapper objectMapper;
 
-    private FarmSessions sessions;
+    private IntegrationSessions sessions;
     private Cookie[] commonUser;
     private String sectorPath;
     private String cagePath;
 
     @BeforeEach
     void registerASectorAndSignInAsACommonUser() throws Exception {
-        sessions = new FarmSessions(mockMvc, caretakerRepository, passwordHasher, clock);
-        Cookie[] administrator = sessions.administrator();
+        sessions = new IntegrationSessions(mockMvc, caretakerRepository, passwordHasher, clock);
+        Cookie[] administrator = sessions.administrator().cookies();
         String response = mockMvc.perform(post(SECTORS)
                         .with(sessions.csrf())
                         .cookie(administrator)
@@ -99,7 +100,7 @@ class FarmAuthorizationIT extends IntegrationTestSupport {
                 .getResponse()
                 .getContentAsString();
         cagePath = sectorPath + "/cages/" + JsonPath.read(cage, "$.id");
-        commonUser = sessions.commonUser();
+        commonUser = sessions.commonUser().cookies();
     }
 
     /** A rota com os identificadores do setor cadastrado para o teste no lugar dos marcadores. */
@@ -328,7 +329,7 @@ class FarmAuthorizationIT extends IntegrationTestSupport {
     @DisplayName("holds a common user who owes the provisional password before the sectors")
     void givenCommonUserOwingThePasswordChange_whenListingTheSectors_thenRequireThePasswordChange() throws Exception {
         // given
-        Cookie[] owing = sessions.commonUserOwingThePasswordChange();
+        Cookie[] owing = sessions.commonUserOwingThePasswordChange().cookies();
 
         // when
         ResultActions response = mockMvc.perform(get(SECTORS).cookie(owing));
@@ -341,7 +342,7 @@ class FarmAuthorizationIT extends IntegrationTestSupport {
     @DisplayName("refuses a write of an administrator without the protection token")
     void givenAdministratorWithoutTheCsrfToken_whenRegisteringASector_thenRefuseTheMissingToken() throws Exception {
         // given
-        Cookie[] administrator = sessions.administrator();
+        Cookie[] administrator = sessions.administrator().cookies();
 
         // when
         ResultActions response = mockMvc.perform(withBody(post(SECTORS)).cookie(administrator));
@@ -354,7 +355,7 @@ class FarmAuthorizationIT extends IntegrationTestSupport {
     @DisplayName("forbids even an administrator to delete a sector: nothing is deleted, and the route does not exist")
     void givenAdministrator_whenDeletingASector_thenForbid() throws Exception {
         // given
-        Cookie[] administrator = sessions.administrator();
+        Cookie[] administrator = sessions.administrator().cookies();
 
         // when
         ResultActions response = mockMvc.perform(delete(sectorPath).with(sessions.csrf()).cookie(administrator));

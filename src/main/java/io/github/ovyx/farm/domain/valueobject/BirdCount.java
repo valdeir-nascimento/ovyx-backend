@@ -2,6 +2,7 @@ package io.github.ovyx.farm.domain.valueobject;
 
 import io.github.ovyx.farm.domain.FarmErrorCode;
 import io.github.ovyx.shared.domain.Notification;
+import io.github.ovyx.shared.domain.WholeNumber;
 
 /**
  * Quantidade de aves da gaiola: inteiro de 0 a 1.000 (FR-006). Zero e gaiola vazia, uma situacao
