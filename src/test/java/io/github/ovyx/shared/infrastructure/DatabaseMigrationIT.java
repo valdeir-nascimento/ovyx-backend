@@ -66,15 +66,15 @@ class DatabaseMigrationIT extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("records the seven migrations as successfully applied")
-    void givenMigratedDatabase_whenReadingTheHistory_thenFindTheSevenMigrationsApplied() {
+    @DisplayName("records the eight migrations as successfully applied")
+    void givenMigratedDatabase_whenReadingTheHistory_thenFindTheEightMigrationsApplied() {
         // given — o contentor compartilhado, migrado na subida
 
         // when
         List<String> versions = jdbc().queryForList(APPLIED_VERSIONS, String.class);
 
         // then
-        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7");
+        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8");
     }
 
     @ParameterizedTest
@@ -128,6 +128,22 @@ class DatabaseMigrationIT extends IntegrationTestSupport {
                         "cage",
                         "daily_report",
                         "report_cage",
+                        "feed_formula",
                         "flyway_schema_history");
+    }
+
+    @Test
+    @DisplayName("adds the feed columns to the report cage")
+    void givenMigratedDatabase_whenListingReportCageColumns_thenFindTheFeedColumns() {
+        // given
+        String table = "report_cage";
+
+        // when
+        List<String> columns = jdbc().queryForList(
+                "select column_name from information_schema.columns where table_name = ?", String.class, table);
+
+        // then
+        assertThat(columns)
+                .contains("feed_formula_id", "feed_price_per_kg", "feed_expected_intake", "feed_consumption");
     }
 }

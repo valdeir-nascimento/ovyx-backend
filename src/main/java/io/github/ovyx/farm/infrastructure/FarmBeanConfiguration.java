@@ -7,6 +7,13 @@ import io.github.ovyx.farm.application.cage.ReactivateCageCommandHandler;
 import io.github.ovyx.farm.application.cage.RegisterCageCommandHandler;
 import io.github.ovyx.farm.application.cage.SearchCagesQueryHandler;
 import io.github.ovyx.farm.application.cage.UpdateCageCommandHandler;
+import io.github.ovyx.farm.application.formula.DeactivateFeedFormulaCommandHandler;
+import io.github.ovyx.farm.application.formula.FeedFormulaDirectory;
+import io.github.ovyx.farm.application.formula.FindFeedFormulaQueryHandler;
+import io.github.ovyx.farm.application.formula.ListFeedFormulasQueryHandler;
+import io.github.ovyx.farm.application.formula.ReactivateFeedFormulaCommandHandler;
+import io.github.ovyx.farm.application.formula.RegisterFeedFormulaCommandHandler;
+import io.github.ovyx.farm.application.formula.UpdateFeedFormulaCommandHandler;
 import io.github.ovyx.farm.application.sector.DeactivateSectorCommandHandler;
 import io.github.ovyx.farm.application.sector.FindSectorByIdQueryHandler;
 import io.github.ovyx.farm.application.sector.ListSectorsQueryHandler;
@@ -14,13 +21,14 @@ import io.github.ovyx.farm.application.sector.ReactivateSectorCommandHandler;
 import io.github.ovyx.farm.application.sector.RegisterSectorCommandHandler;
 import io.github.ovyx.farm.application.sector.SectorDirectory;
 import io.github.ovyx.farm.application.sector.UpdateSectorCommandHandler;
+import io.github.ovyx.farm.domain.port.FeedFormulaRepository;
 import io.github.ovyx.farm.domain.port.SectorRepository;
 import java.time.Clock;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Fiacao dos tratadores do contexto farm.
+ * Fiacao dos tratadores do contexto farm: setores, gaiolas e formulas de racao.
  *
  * <p>Os tratadores sao classes comuns, sem anotacao: a camada {@code application} e livre de framework
  * (principio I), e por isso quem os instancia e esta configuracao, que vive em {@code infrastructure}.
@@ -86,5 +94,39 @@ public class FarmBeanConfiguration {
     @Bean
     FindCageByIdQueryHandler findCageByIdQueryHandler(CageDirectory cageDirectory) {
         return new FindCageByIdQueryHandler(cageDirectory);
+    }
+
+    @Bean
+    RegisterFeedFormulaCommandHandler registerFeedFormulaCommandHandler(
+            FeedFormulaRepository formulaRepository, Clock clock) {
+        return new RegisterFeedFormulaCommandHandler(formulaRepository, clock);
+    }
+
+    @Bean
+    UpdateFeedFormulaCommandHandler updateFeedFormulaCommandHandler(
+            FeedFormulaRepository formulaRepository, Clock clock) {
+        return new UpdateFeedFormulaCommandHandler(formulaRepository, clock);
+    }
+
+    @Bean
+    DeactivateFeedFormulaCommandHandler deactivateFeedFormulaCommandHandler(
+            FeedFormulaRepository formulaRepository, Clock clock) {
+        return new DeactivateFeedFormulaCommandHandler(formulaRepository, clock);
+    }
+
+    @Bean
+    ReactivateFeedFormulaCommandHandler reactivateFeedFormulaCommandHandler(
+            FeedFormulaRepository formulaRepository, Clock clock) {
+        return new ReactivateFeedFormulaCommandHandler(formulaRepository, clock);
+    }
+
+    @Bean
+    ListFeedFormulasQueryHandler listFeedFormulasQueryHandler(FeedFormulaDirectory formulaDirectory) {
+        return new ListFeedFormulasQueryHandler(formulaDirectory);
+    }
+
+    @Bean
+    FindFeedFormulaQueryHandler findFeedFormulaQueryHandler(FeedFormulaDirectory formulaDirectory) {
+        return new FindFeedFormulaQueryHandler(formulaDirectory);
     }
 }
