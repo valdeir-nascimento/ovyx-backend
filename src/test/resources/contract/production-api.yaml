@@ -3,8 +3,8 @@ info:
   title: Ovyx — API da Produção
   version: 1.0.0
   description: |
-    Relatórios diários dos setores (`DailyReport`): a produção e a mortalidade lançadas por gaiola,
-    um relatório por setor e por dia de coleta.
+    Relatórios diários dos setores (`DailyReport`): a produção, a ração e a mortalidade lançadas por
+    gaiola, um relatório por setor e por dia de coleta.
 
     **Sessão, erros e CSRF**: iguais aos da API de Identidade
     (`specs/001-auth-foundation/contracts/identity-api.yaml`). Toda operação exige o cookie de
@@ -20,18 +20,23 @@ info:
     **Quantidades**: inteiras. Como na API da Granja, também são aceitas como texto — o que o
     formulário digitou —, e o que não é inteiro é recusado no próprio campo, junto das demais falhas.
     Nos lançamentos, a classificação e a mortalidade em branco valem zero.
+
+    **Ração**: cada lançamento guarda o preço por quilo e o consumo esperado da fórmula no momento em
+    que foi feito; mudar a fórmula depois não muda o custo dos lançamentos já feitos. A fórmula de um
+    lançamento novo precisa estar ativa (API das Fórmulas de Ração).
 servers:
 - url: http://localhost:8080
   description: Ambiente local
 tags:
 - name: Relatórios diários
-  description: Abertura, correção e consulta dos relatórios diários de um setor, com os lançamentos de produção e de mortalidade de cada gaiola
+  description: Abertura, correção e consulta dos relatórios diários de um setor, com os lançamentos de produção, de ração e de mortalidade de cada gaiola
 paths:
   /api/v1/sectors/{sectorId}/daily-reports:
     parameters:
     - $ref: '#/components/parameters/SectorId'
     get:
-      tags: [Relatórios diários]
+      tags:
+      - Relatórios diários
       summary: Listar relatórios do setor
       description: Relatórios do setor, do dia mais recente para o mais antigo, com o setor junto. O filtro por data traz o relatório daquele dia, se houver.
       operationId: listDailyReports
@@ -78,7 +83,7 @@ paths:
                     content:
                     - id: 8e2a4c6e-0a2c-4e6a-8c0e-2a4c6e8a0c99
                       collectionDate: '2026-09-25'
-                      collectionTime: '06:42'
+                      collectionTime: 06:42
                       openedByName: Marina Alves
                       flockAge: 20
                       collectedEggs: 44
@@ -87,9 +92,11 @@ paths:
                       productionStatus: PENDING
                       pendingCages: 1
                       mortalityStatus: PENDING
+                      feedStatus: PENDING
+                      feedPendingCages: 2
                     - id: 6b1d3f5a-7c9e-4a2b-8d4f-1e3a5c7b9d55
                       collectionDate: '2026-09-24'
-                      collectionTime: '06:30'
+                      collectionTime: 06:30
                       openedByName: Marina Alves
                       flockAge: 20
                       collectedEggs: 89
@@ -99,9 +106,11 @@ paths:
                       productionStatus: COMPLETE
                       pendingCages: 0
                       mortalityStatus: RECORDED
+                      feedStatus: COMPLETE
+                      feedPendingCages: 0
                     - id: 4f6b8d0f-2b4d-4f6b-9d1f-3b5d7f9b1d11
                       collectionDate: '2026-09-23'
-                      collectionTime: '06:35'
+                      collectionTime: 06:35
                       openedByName: João Pereira
                       flockAge: 20
                       collectedEggs: 91
@@ -110,6 +119,8 @@ paths:
                       productionStatus: COMPLETE
                       pendingCages: 0
                       mortalityStatus: RECORDED
+                      feedStatus: COMPLETE
+                      feedPendingCages: 0
                     page: 0
                     size: 20
                     totalElements: 3
@@ -127,7 +138,8 @@ paths:
         '500':
           $ref: '#/components/responses/ErroInesperado'
     post:
-      tags: [Relatórios diários]
+      tags:
+      - Relatórios diários
       summary: Abrir relatório do dia
       description: Abre o relatório de um dia de coleta do setor. As gaiolas ativas do setor entram no relatório como estão agora, sem lançamento.
       operationId: openDailyReport
@@ -142,7 +154,7 @@ paths:
                 summary: Coleta da manhã
                 value:
                   collectionDate: '2026-09-25'
-                  collectionTime: '06:42'
+                  collectionTime: 06:42
                   openingBirdCount: 96
                   flockAge: 20
                   note: Temperatura alta no fim da tarde de ontem.
@@ -168,7 +180,7 @@ paths:
                       name: Codornas — Galpão 4
                       status: ACTIVE
                     collectionDate: '2026-09-25'
-                    collectionTime: '06:42'
+                    collectionTime: 06:42
                     openingBirdCount: 96
                     flockAge: 20
                     note: Temperatura alta no fim da tarde de ontem.
@@ -183,13 +195,18 @@ paths:
                       collectedEggs: 0
                       standardEggs: 0
                       unsellableEggs: 0
-                      layingRate: 0.00
+                      layingRate: 0.0
                     mortality:
                       status: PENDING
                       deaths: 0
                       culls: 0
-                      removalRate: 0.00
+                      removalRate: 0.0
                       closingBirdCount: 96
+                    feed:
+                      status: PENDING
+                      pendingCages: 2
+                      consumption: 0
+                      cost: 0.0
                     cages:
                     - cageId: 2a4c6e8a-0b1d-4f3a-9c5e-7a9b1d3f5a66
                       code: A-01
@@ -269,7 +286,8 @@ paths:
     parameters:
     - $ref: '#/components/parameters/SectorId'
     get:
-      tags: [Relatórios diários]
+      tags:
+      - Relatórios diários
       summary: Sugerir a abertura do relatório
       description: |
         Valores para o formulário de relatório novo: a data e a hora de agora, no fuso da granja; as
@@ -289,14 +307,14 @@ paths:
                   summary: Saldo e idade do relatório de ontem
                   value:
                     collectionDate: '2026-09-25'
-                    collectionTime: '06:42'
+                    collectionTime: 06:42
                     openingBirdCount: 96
                     flockAge: 20
                 primeiroRelatorio:
                   summary: Primeiro relatório do setor, pelas aves das gaiolas
                   value:
                     collectionDate: '2026-09-25'
-                    collectionTime: '06:42'
+                    collectionTime: 06:42
                     openingBirdCount: 98
         '401':
           $ref: '#/components/responses/SessaoInvalida'
@@ -313,7 +331,8 @@ paths:
     - $ref: '#/components/parameters/SectorId'
     - $ref: '#/components/parameters/ReportId'
     get:
-      tags: [Relatórios diários]
+      tags:
+      - Relatórios diários
       summary: Consultar relatório
       description: O relatório com as gaiolas, os lançamentos de cada uma e os totais do dia.
       operationId: findDailyReport
@@ -334,7 +353,7 @@ paths:
                       name: Codornas — Galpão 4
                       status: ACTIVE
                     collectionDate: '2026-09-24'
-                    collectionTime: '06:30'
+                    collectionTime: 06:30
                     openingBirdCount: 98
                     flockAge: 20
                     note: Bebedouro da bateria B trocado.
@@ -360,6 +379,14 @@ paths:
                       culls: 1
                       removalRate: 2.04
                       closingBirdCount: 96
+                    feed:
+                      status: COMPLETE
+                      pendingCages: 0
+                      consumption: 2744
+                      cost: 7.82
+                      costPerEgg: 0.088
+                      intakePerBird: 28.0
+                      expectedIntakePerBird: 28.0
                     cages:
                     - cageId: 2a4c6e8a-0b1d-4f3a-9c5e-7a9b1d3f5a66
                       code: A-01
@@ -374,6 +401,15 @@ paths:
                         cracked: 1
                         bloodSpot: 0
                         abnormal: 0
+                      feed:
+                        formulaId: 4e6a8c0e-2a4c-4e6a-9c0e-2a4c6e8a0c11
+                        formulaName: Postura Plus
+                        pricePerKg: 2.85
+                        expectedIntake: 28
+                        consumption: 1344
+                        cost: 3.83
+                        intakePerBird: 28.0
+                        deviation: 0.0
                     - cageId: 9d2e4f6a-1b3c-4d5e-8f7a-2b4c6d8e0f44
                       code: B-07
                       battery: B
@@ -391,6 +427,15 @@ paths:
                         deaths: 1
                         culls: 1
                         note: Prostração e penas eriçadas; uma ave separada para necropsia.
+                      feed:
+                        formulaId: 4e6a8c0e-2a4c-4e6a-9c0e-2a4c6e8a0c11
+                        formulaName: Postura Plus
+                        pricePerKg: 2.85
+                        expectedIntake: 28
+                        consumption: 1400
+                        cost: 3.99
+                        intakePerBird: 28.0
+                        deviation: 0.0
         '401':
           $ref: '#/components/responses/SessaoInvalida'
         '403':
@@ -402,7 +447,8 @@ paths:
         '500':
           $ref: '#/components/responses/ErroInesperado'
     put:
-      tags: [Relatórios diários]
+      tags:
+      - Relatórios diários
       summary: Corrigir relatório
       description: Troca os dados gerais do relatório, com as mesmas regras da abertura. As gaiolas e os lançamentos não mudam.
       operationId: correctDailyReport
@@ -417,7 +463,7 @@ paths:
                 summary: Idade do lote corrigida para 21 semanas
                 value:
                   collectionDate: '2026-09-24'
-                  collectionTime: '06:30'
+                  collectionTime: 06:30
                   openingBirdCount: 98
                   flockAge: 21
                   note: Bebedouro da bateria B trocado.
@@ -438,7 +484,7 @@ paths:
                       name: Codornas — Galpão 4
                       status: ACTIVE
                     collectionDate: '2026-09-24'
-                    collectionTime: '06:30'
+                    collectionTime: 06:30
                     openingBirdCount: 98
                     flockAge: 21
                     note: Bebedouro da bateria B trocado.
@@ -464,6 +510,11 @@ paths:
                       culls: 1
                       removalRate: 2.04
                       closingBirdCount: 96
+                    feed:
+                      status: PENDING
+                      pendingCages: 2
+                      consumption: 0
+                      cost: 0.0
                     cages:
                     - cageId: 2a4c6e8a-0b1d-4f3a-9c5e-7a9b1d3f5a66
                       code: A-01
@@ -547,7 +598,8 @@ paths:
     - $ref: '#/components/parameters/ReportId'
     - $ref: '#/components/parameters/CageId'
     get:
-      tags: [Relatórios diários]
+      tags:
+      - Relatórios diários
       summary: Consultar gaiola do relatório
       description: Uma gaiola do relatório, como estava na abertura, com a produção e a mortalidade lançadas.
       operationId: findReportCage
@@ -595,7 +647,8 @@ paths:
     - $ref: '#/components/parameters/ReportId'
     - $ref: '#/components/parameters/CageId'
     put:
-      tags: [Relatórios diários]
+      tags:
+      - Relatórios diários
       summary: Lançar produção da gaiola
       description: Lança ou corrige os ovos coletados na gaiola e a classificação dos que saíram fora do padrão. Classificação em branco vale zero.
       operationId: recordProduction
@@ -686,7 +739,8 @@ paths:
     - $ref: '#/components/parameters/ReportId'
     - $ref: '#/components/parameters/CageId'
     put:
-      tags: [Relatórios diários]
+      tags:
+      - Relatórios diários
       summary: Lançar mortalidade da gaiola
       description: Lança ou corrige as mortes e os descartes da gaiola, com uma observação. Em branco vale zero. As aves da gaiola no cadastro não mudam.
       operationId: recordMortality
@@ -778,7 +832,8 @@ paths:
     - $ref: '#/components/parameters/SectorId'
     - $ref: '#/components/parameters/ReportId'
     post:
-      tags: [Relatórios diários]
+      tags:
+      - Relatórios diários
       summary: Confirmar dia sem ocorrência
       description: Registra que o dia não teve mortes nem descartes no setor, sem lançamento por gaiola. Só vale sem ocorrência lançada; confirmar de novo não muda nada.
       operationId: confirmNoMortality
@@ -799,7 +854,7 @@ paths:
                       name: Codornas — Galpão 4
                       status: ACTIVE
                     collectionDate: '2026-09-23'
-                    collectionTime: '06:35'
+                    collectionTime: 06:35
                     openingBirdCount: 98
                     flockAge: 20
                     noMortalityConfirmed: true
@@ -822,8 +877,13 @@ paths:
                       status: RECORDED
                       deaths: 0
                       culls: 0
-                      removalRate: 0.00
+                      removalRate: 0.0
                       closingBirdCount: 98
+                    feed:
+                      status: PENDING
+                      pendingCages: 2
+                      consumption: 0
+                      cost: 0.0
                     cages:
                     - cageId: 2a4c6e8a-0b1d-4f3a-9c5e-7a9b1d3f5a66
                       code: A-01
@@ -874,6 +934,319 @@ paths:
                     status: 409
                     detail: O relatório já tem mortes ou descartes lançados.
                     instance: /api/v1/sectors/5c8d2e4f-6a1b-4c3d-9e7f-0a2b4c6d8e33/daily-reports/6b1d3f5a-7c9e-4a2b-8d4f-1e3a5c7b9d55/mortality-confirmation
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+  /api/v1/sectors/{sectorId}/daily-reports/{reportId}/feed-suggestion:
+    parameters:
+    - $ref: '#/components/parameters/SectorId'
+    - $ref: '#/components/parameters/ReportId'
+    get:
+      tags:
+      - Relatórios diários
+      summary: Sugerir a ração do setor
+      description: 'O que o lançamento pela sugestão gravaria com a fórmula: para cada gaiola sem ração, as aves vezes o consumo esperado, e os totais do dia com a proposta. Não grava nada.'
+      operationId: suggestFeed
+      parameters:
+      - name: formulaId
+        in: query
+        required: true
+        description: Fórmula ativa.
+        schema:
+          type: string
+          format: uuid
+        example: 4e6a8c0e-2a4c-4e6a-9c0e-2a4c6e8a0c11
+      responses:
+        '200':
+          description: Proposta para as gaiolas sem ração
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedSuggestion'
+              examples:
+                propostaDoSetor:
+                  summary: Duas gaiolas sem ração, com a Postura Plus
+                  value:
+                    formula:
+                      id: 4e6a8c0e-2a4c-4e6a-9c0e-2a4c6e8a0c11
+                      name: Postura Plus
+                      pricePerKg: 2.85
+                      expectedIntake: 28
+                    cages:
+                    - cageId: 2a4c6e8a-0b1d-4f3a-9c5e-7a9b1d3f5a66
+                      code: A-01
+                      birdCount: 48
+                      consumption: 1344
+                      cost: 3.83
+                    - cageId: 9d2e4f6a-1b3c-4d5e-8f7a-2b4c6d8e0f44
+                      code: B-07
+                      birdCount: 50
+                      consumption: 1400
+                      cost: 3.99
+                    totals:
+                      status: COMPLETE
+                      pendingCages: 0
+                      consumption: 2744
+                      cost: 7.82
+                      costPerEgg: 0.088
+                      intakePerBird: 28.0
+                      expectedIntakePerBird: 28.0
+        '400':
+          description: Fórmula ausente, inexistente ou inativa (`VALIDATION_FAILED`, no campo `formulaId`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                formulaInativa:
+                  summary: Fórmula inativada
+                  value:
+                    code: VALIDATION_FAILED
+                    title: Dados inválidos
+                    status: 400
+                    detail: Dados inválidos.
+                    instance: /api/v1/sectors/5c8d2e4f-6a1b-4c3d-9e7f-0a2b4c6d8e33/daily-reports/6b1d3f5a-7c9e-4a2b-8d4f-1e3a5c7b9d55/feed-suggestion
+                    details:
+                      formulaId: A fórmula Recria está inativa. Escolha uma fórmula ativa.
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/TrocaDeSenhaPendente'
+        '404':
+          $ref: '#/components/responses/RelatorioNaoEncontrado'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+  /api/v1/sectors/{sectorId}/daily-reports/{reportId}/feed:
+    parameters:
+    - $ref: '#/components/parameters/SectorId'
+    - $ref: '#/components/parameters/ReportId'
+    post:
+      tags:
+      - Relatórios diários
+      summary: Lançar a ração do setor pela sugestão
+      description: Cada gaiola ainda sem ração recebe a fórmula e o consumo esperado (aves × consumo esperado), com o preço atual dela; as gaiolas já lançadas não mudam. Com todas lançadas, não muda nada.
+      operationId: recordFeedBySuggestion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeedSuggestionRequest'
+            examples:
+              formulaDoSetor:
+                summary: Postura Plus em todas as gaiolas pendentes
+                value:
+                  formulaId: 4e6a8c0e-2a4c-4e6a-9c0e-2a4c6e8a0c11
+      responses:
+        '200':
+          description: Ração lançada nas gaiolas pendentes; o relatório com os totais do dia
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DailyReportDetail'
+              examples:
+                racaoLancada:
+                  summary: Ração do setor completa
+                  value:
+                    id: 6b1d3f5a-7c9e-4a2b-8d4f-1e3a5c7b9d55
+                    sector:
+                      id: 5c8d2e4f-6a1b-4c3d-9e7f-0a2b4c6d8e33
+                      name: Codornas — Galpão 4
+                      status: ACTIVE
+                    collectionDate: '2026-09-24'
+                    collectionTime: 06:30
+                    openingBirdCount: 98
+                    flockAge: 20
+                    note: Bebedouro da bateria B trocado.
+                    noMortalityConfirmed: false
+                    openedBy:
+                      id: 1e3a5c7b-9d1f-4b3d-8e5a-7c9e1a3b5d77
+                      name: Marina Alves
+                    openedAt: '2026-09-24T09:31:40Z'
+                    lastCorrectedBy:
+                      id: 5d7f9b1d-3f5a-4c7e-9a1b-3d5f7a9c1e88
+                      name: João Pereira
+                    lastCorrectedAt: '2026-09-24T11:05:12Z'
+                    production:
+                      status: COMPLETE
+                      pendingCages: 0
+                      collectedEggs: 89
+                      standardEggs: 79
+                      unsellableEggs: 4
+                      layingRate: 90.82
+                    mortality:
+                      status: RECORDED
+                      deaths: 1
+                      culls: 1
+                      removalRate: 2.04
+                      closingBirdCount: 96
+                    feed:
+                      status: COMPLETE
+                      pendingCages: 0
+                      consumption: 2744
+                      cost: 7.82
+                      costPerEgg: 0.088
+                      intakePerBird: 28.0
+                      expectedIntakePerBird: 28.0
+                    cages:
+                    - cageId: 2a4c6e8a-0b1d-4f3a-9c5e-7a9b1d3f5a66
+                      code: A-01
+                      battery: A
+                      number: 1
+                      birdCount: 48
+                      production:
+                        eggs: 44
+                        small: 1
+                        jumbo: 2
+                        dirty: 1
+                        cracked: 1
+                        bloodSpot: 0
+                        abnormal: 0
+                      feed:
+                        formulaId: 4e6a8c0e-2a4c-4e6a-9c0e-2a4c6e8a0c11
+                        formulaName: Postura Plus
+                        pricePerKg: 2.85
+                        expectedIntake: 28
+                        consumption: 1344
+                        cost: 3.83
+                        intakePerBird: 28.0
+                        deviation: 0.0
+                    - cageId: 9d2e4f6a-1b3c-4d5e-8f7a-2b4c6d8e0f44
+                      code: B-07
+                      battery: B
+                      number: 7
+                      birdCount: 50
+                      production:
+                        eggs: 45
+                        small: 0
+                        jumbo: 1
+                        dirty: 1
+                        cracked: 2
+                        bloodSpot: 1
+                        abnormal: 0
+                      mortality:
+                        deaths: 1
+                        culls: 1
+                        note: Prostração e penas eriçadas; uma ave separada para necropsia.
+                      feed:
+                        formulaId: 4e6a8c0e-2a4c-4e6a-9c0e-2a4c6e8a0c11
+                        formulaName: Postura Plus
+                        pricePerKg: 2.85
+                        expectedIntake: 28
+                        consumption: 1400
+                        cost: 3.99
+                        intakePerBird: 28.0
+                        deviation: 0.0
+        '400':
+          description: Fórmula ausente, inexistente ou inativa (`VALIDATION_FAILED`, no campo `formulaId`), ou corpo ilegível.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                formulaInativa:
+                  summary: Fórmula inativada
+                  value:
+                    code: VALIDATION_FAILED
+                    title: Dados inválidos
+                    status: 400
+                    detail: Dados inválidos.
+                    instance: /api/v1/sectors/5c8d2e4f-6a1b-4c3d-9e7f-0a2b4c6d8e33/daily-reports/6b1d3f5a-7c9e-4a2b-8d4f-1e3a5c7b9d55/feed
+                    details:
+                      formulaId: A fórmula Recria está inativa. Escolha uma fórmula ativa.
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/EscritaSemProtecao'
+        '404':
+          $ref: '#/components/responses/RelatorioNaoEncontrado'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '409':
+          $ref: '#/components/responses/SetorInativo'
+        '415':
+          $ref: '#/components/responses/RequisicaoNaoSuportada'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+  /api/v1/sectors/{sectorId}/daily-reports/{reportId}/cages/{cageId}/feed:
+    parameters:
+    - $ref: '#/components/parameters/SectorId'
+    - $ref: '#/components/parameters/ReportId'
+    - $ref: '#/components/parameters/CageId'
+    put:
+      tags:
+      - Relatórios diários
+      summary: Lançar ração da gaiola
+      description: Lança ou corrige a fórmula e o consumo da gaiola. Mantida a fórmula, o preço e o esperado guardados continuam; trocada, a gaiola passa a usar os atuais da nova, que precisa estar ativa.
+      operationId: recordFeed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeedRequest'
+            examples:
+              racaoDaGaiola:
+                summary: Consumo pesado da B-07
+                value:
+                  formulaId: 4e6a8c0e-2a4c-4e6a-9c0e-2a4c6e8a0c11
+                  consumption: 1250
+      responses:
+        '200':
+          description: Ração gravada na gaiola do relatório
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportCageDetail'
+              examples:
+                racaoLancada:
+                  summary: B-07 abaixo do esperado
+                  value:
+                    cageId: 9d2e4f6a-1b3c-4d5e-8f7a-2b4c6d8e0f44
+                    code: B-07
+                    battery: B
+                    number: 7
+                    birdCount: 50
+                    feed:
+                      formulaId: 4e6a8c0e-2a4c-4e6a-9c0e-2a4c6e8a0c11
+                      formulaName: Postura Plus
+                      pricePerKg: 2.85
+                      expectedIntake: 28
+                      consumption: 1250
+                      cost: 3.56
+                      intakePerBird: 25.0
+                      deviation: -10.7
+        '400':
+          description: Campos inválidos, todos de uma vez (`VALIDATION_FAILED`), inclusive fórmula inexistente ou inativa, ou corpo ilegível.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                camposInvalidos:
+                  summary: Consumo decimal e fórmula inativa
+                  value:
+                    code: VALIDATION_FAILED
+                    title: Dados inválidos
+                    status: 400
+                    detail: Dados inválidos.
+                    instance: /api/v1/sectors/5c8d2e4f-6a1b-4c3d-9e7f-0a2b4c6d8e33/daily-reports/6b1d3f5a-7c9e-4a2b-8d4f-1e3a5c7b9d55/cages/9d2e4f6a-1b3c-4d5e-8f7a-2b4c6d8e0f44/feed
+                    details:
+                      formulaId: A fórmula Recria está inativa. Escolha uma fórmula ativa.
+                      consumption: O consumo deve ser um número inteiro de gramas.
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/EscritaSemProtecao'
+        '404':
+          $ref: '#/components/responses/GaiolaDoRelatorioNaoEncontrada'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '409':
+          $ref: '#/components/responses/SetorInativo'
+        '415':
+          $ref: '#/components/responses/RequisicaoNaoSuportada'
         '500':
           $ref: '#/components/responses/ErroInesperado'
 components:
@@ -1073,20 +1446,29 @@ components:
   schemas:
     SectorStatus:
       type: string
-      enum: [ACTIVE, INACTIVE]
+      enum:
+      - ACTIVE
+      - INACTIVE
       description: Situação do setor; num setor inativo, os relatórios são só de consulta.
     ProductionStatus:
       type: string
-      enum: [COMPLETE, PENDING]
+      enum:
+      - COMPLETE
+      - PENDING
       description: '`COMPLETE` quando toda gaiola do relatório tem a produção lançada.'
     MortalityStatus:
       type: string
-      enum: [RECORDED, PENDING]
+      enum:
+      - RECORDED
+      - PENDING
       description: '`RECORDED` quando há morte ou descarte lançado, ou a confirmação de dia sem ocorrência.'
     ReportingSector:
       type: object
       description: O setor do relatório, como a tela precisa dele
-      required: [id, name, status]
+      required:
+      - id
+      - name
+      - status
       properties:
         id:
           type: string
@@ -1100,7 +1482,9 @@ components:
     Actor:
       type: object
       description: Quem fez a operação, como estava na sessão naquele momento
-      required: [id, name]
+      required:
+      - id
+      - name
       properties:
         id:
           type: string
@@ -1112,7 +1496,11 @@ components:
     DailyReportRequest:
       type: object
       description: Abertura ou correção dos dados gerais do relatório. As quantidades podem vir como número ou como texto.
-      required: [collectionDate, collectionTime, openingBirdCount, flockAge]
+      required:
+      - collectionDate
+      - collectionTime
+      - openingBirdCount
+      - flockAge
       properties:
         collectionDate:
           type: string
@@ -1121,7 +1509,7 @@ components:
         collectionTime:
           type: string
           description: Hora da coleta, `HH:mm`
-          example: '06:42'
+          example: 06:42
         openingBirdCount:
           type: integer
           minimum: 1
@@ -1142,7 +1530,10 @@ components:
     DailyReportSuggestion:
       type: object
       description: Valores sugeridos para o formulário de relatório novo
-      required: [collectionDate, collectionTime, openingBirdCount]
+      required:
+      - collectionDate
+      - collectionTime
+      - openingBirdCount
       properties:
         collectionDate:
           type: string
@@ -1152,7 +1543,7 @@ components:
         collectionTime:
           type: string
           description: Agora, no fuso da granja, `HH:mm`
-          example: '06:42'
+          example: 06:42
         openingBirdCount:
           type: integer
           description: Saldo do relatório mais recente do setor ou, no primeiro, a soma das aves das gaiolas ativas
@@ -1164,7 +1555,20 @@ components:
     DailyReportSummary:
       type: object
       description: Relatório na lista do setor
-      required: [id, collectionDate, collectionTime, openedByName, flockAge, collectedEggs, removedBirds, closingBirdCount, productionStatus, pendingCages, mortalityStatus]
+      required:
+      - id
+      - collectionDate
+      - collectionTime
+      - openedByName
+      - flockAge
+      - collectedEggs
+      - removedBirds
+      - closingBirdCount
+      - productionStatus
+      - pendingCages
+      - mortalityStatus
+      - feedStatus
+      - feedPendingCages
       properties:
         id:
           type: string
@@ -1176,7 +1580,7 @@ components:
           example: '2026-09-24'
         collectionTime:
           type: string
-          example: '06:30'
+          example: 06:30
         openedByName:
           type: string
           description: Quem abriu o relatório
@@ -1208,10 +1612,22 @@ components:
           example: 1
         mortalityStatus:
           $ref: '#/components/schemas/MortalityStatus'
+        feedStatus:
+          $ref: '#/components/schemas/FeedStatus'
+        feedPendingCages:
+          type: integer
+          description: Gaiolas ainda sem ração
+          example: 0
     DailyReportPage:
       type: object
       description: Uma página dos relatórios do setor, com o setor junto
-      required: [sector, content, page, size, totalElements, totalPages]
+      required:
+      - sector
+      - content
+      - page
+      - size
+      - totalElements
+      - totalPages
       properties:
         sector:
           $ref: '#/components/schemas/ReportingSector'
@@ -1234,7 +1650,13 @@ components:
     ProductionTotals:
       type: object
       description: Totais de produção do dia e a situação do lançamento
-      required: [status, pendingCages, collectedEggs, standardEggs, unsellableEggs, layingRate]
+      required:
+      - status
+      - pendingCages
+      - collectedEggs
+      - standardEggs
+      - unsellableEggs
+      - layingRate
       properties:
         status:
           $ref: '#/components/schemas/ProductionStatus'
@@ -1259,7 +1681,12 @@ components:
     MortalityTotals:
       type: object
       description: Totais de mortalidade do dia e a situação do lançamento
-      required: [status, deaths, culls, removalRate, closingBirdCount]
+      required:
+      - status
+      - deaths
+      - culls
+      - removalRate
+      - closingBirdCount
       properties:
         status:
           $ref: '#/components/schemas/MortalityStatus'
@@ -1280,7 +1707,14 @@ components:
     Production:
       type: object
       description: Produção lançada numa gaiola
-      required: [eggs, small, jumbo, dirty, cracked, bloodSpot, abnormal]
+      required:
+      - eggs
+      - small
+      - jumbo
+      - dirty
+      - cracked
+      - bloodSpot
+      - abnormal
       properties:
         eggs:
           type: integer
@@ -1313,7 +1747,9 @@ components:
     Mortality:
       type: object
       description: Mortalidade lançada numa gaiola
-      required: [deaths, culls]
+      required:
+      - deaths
+      - culls
       properties:
         deaths:
           type: integer
@@ -1329,7 +1765,12 @@ components:
     ReportCageDetail:
       type: object
       description: Uma gaiola do relatório, como estava na abertura, com os lançamentos que tiver
-      required: [cageId, code, battery, number, birdCount]
+      required:
+      - cageId
+      - code
+      - battery
+      - number
+      - birdCount
       properties:
         cageId:
           type: string
@@ -1352,10 +1793,25 @@ components:
           $ref: '#/components/schemas/Production'
         mortality:
           $ref: '#/components/schemas/Mortality'
+        feed:
+          $ref: '#/components/schemas/CageFeed'
     DailyReportDetail:
       type: object
-      description: O relatório com as gaiolas, os lançamentos e os totais do dia
-      required: [id, sector, collectionDate, collectionTime, openingBirdCount, flockAge, noMortalityConfirmed, openedBy, openedAt, production, mortality, cages]
+      description: O relatório com as gaiolas, os lançamentos e os totais do dia, de produção, de ração e de mortalidade
+      required:
+      - id
+      - sector
+      - collectionDate
+      - collectionTime
+      - openingBirdCount
+      - flockAge
+      - noMortalityConfirmed
+      - openedBy
+      - openedAt
+      - production
+      - mortality
+      - feed
+      - cages
       properties:
         id:
           type: string
@@ -1369,7 +1825,7 @@ components:
           example: '2026-09-24'
         collectionTime:
           type: string
-          example: '06:30'
+          example: 06:30
         openingBirdCount:
           type: integer
           description: Aves no início do dia
@@ -1406,10 +1862,13 @@ components:
           description: As gaiolas do relatório, por bateria e número
           items:
             $ref: '#/components/schemas/ReportCageDetail'
+        feed:
+          $ref: '#/components/schemas/FeedTotals'
     ProductionRequest:
       type: object
       description: Lançamento ou correção da produção de uma gaiola. As quantidades podem vir como número ou como texto; classificação em branco vale zero.
-      required: [eggs]
+      required:
+      - eggs
       properties:
         eggs:
           type: integer
@@ -1477,7 +1936,10 @@ components:
     Problem:
       type: object
       description: RFC 9457 Problem Details, com a extensão `code` do erro de aplicação. Igual ao da API de Identidade.
-      required: [code, title, status]
+      required:
+      - code
+      - title
+      - status
       properties:
         code:
           type: string
@@ -1500,5 +1962,181 @@ components:
             type: string
           example:
             collectionDate: Já existe o relatório de 24/09/2026 neste setor.
+    FeedStatus:
+      type: string
+      enum:
+      - COMPLETE
+      - PENDING
+      description: '`COMPLETE` quando toda gaiola tem a ração lançada; `PENDING` enquanto falta alguma.'
+    CageFeed:
+      type: object
+      description: Ração lançada numa gaiola, com o preço e o esperado guardados no lançamento
+      required:
+      - formulaId
+      - formulaName
+      - pricePerKg
+      - expectedIntake
+      - consumption
+      - cost
+      properties:
+        formulaId:
+          type: string
+          format: uuid
+          example: 4e6a8c0e-2a4c-4e6a-9c0e-2a4c6e8a0c11
+        formulaName:
+          type: string
+          description: Nome atual da fórmula
+          example: Postura Plus
+        pricePerKg:
+          type: number
+          description: Preço por quilo guardado no lançamento, em reais
+          example: 2.85
+        expectedIntake:
+          type: integer
+          description: Consumo esperado por ave ao dia guardado no lançamento, em gramas
+          example: 28
+        consumption:
+          type: integer
+          description: Consumo da gaiola no dia, em gramas
+          example: 1400
+        cost:
+          type: number
+          description: Consumo ÷ 1.000 × preço, em reais, com duas casas
+          example: 3.99
+        intakePerBird:
+          type: number
+          description: Consumo ÷ aves da gaiola, em gramas, com uma casa; ausente com 0 aves
+          example: 28.0
+        deviation:
+          type: number
+          description: Desvio do consumo por ave em relação ao esperado, em porcentagem, com uma casa; ausente com 0 aves
+          example: 0.0
+    FeedTotals:
+      type: object
+      description: Totais de ração do dia, das gaiolas com ração lançada
+      required:
+      - status
+      - pendingCages
+      - consumption
+      - cost
+      properties:
+        status:
+          $ref: '#/components/schemas/FeedStatus'
+        pendingCages:
+          type: integer
+          description: Gaiolas ainda sem ração
+          example: 0
+        consumption:
+          type: integer
+          description: Consumo total, em gramas
+          example: 2744
+        cost:
+          type: number
+          description: Custo da ração, em reais, com duas casas
+          example: 7.82
+        costPerEgg:
+          type: number
+          description: Custo da ração ÷ ovos coletados, em reais, com três casas; ausente sem ovo ou sem ração lançada
+          example: 0.088
+        intakePerBird:
+          type: number
+          description: Consumo total ÷ aves das gaiolas lançadas, em gramas, com uma casa; ausente sem aves
+          example: 28.0
+        expectedIntakePerBird:
+          type: number
+          description: Esperado de cada fórmula pesado pelas aves das gaiolas lançadas, em gramas, com uma casa; ausente sem aves
+          example: 28.0
+    FeedRequest:
+      type: object
+      description: Lançamento ou correção da ração de uma gaiola. O consumo pode vir como número ou como texto.
+      required:
+      - formulaId
+      - consumption
+      properties:
+        formulaId:
+          type: string
+          format: uuid
+          description: Fórmula ativa, ou a que a gaiola já usa
+          example: 4e6a8c0e-2a4c-4e6a-9c0e-2a4c6e8a0c11
+        consumption:
+          type: integer
+          minimum: 0
+          maximum: 50000
+          description: Consumo da gaiola no dia, em gramas
+          example: 1250
+    FeedSuggestionRequest:
+      type: object
+      description: 'Lançamento da ração do setor pela sugestão: as gaiolas sem ração recebem o consumo esperado da fórmula'
+      required:
+      - formulaId
+      properties:
+        formulaId:
+          type: string
+          format: uuid
+          description: Fórmula ativa
+          example: 4e6a8c0e-2a4c-4e6a-9c0e-2a4c6e8a0c11
+    SuggestedCageFeed:
+      type: object
+      description: Proposta para uma gaiola sem ração
+      required:
+      - cageId
+      - code
+      - birdCount
+      - consumption
+      - cost
+      properties:
+        cageId:
+          type: string
+          format: uuid
+          example: 9d2e4f6a-1b3c-4d5e-8f7a-2b4c6d8e0f44
+        code:
+          type: string
+          example: B-07
+        birdCount:
+          type: integer
+          example: 50
+        consumption:
+          type: integer
+          description: Aves × consumo esperado, em gramas
+          example: 1400
+        cost:
+          type: number
+          description: Em reais, com duas casas
+          example: 3.99
+    FeedSuggestion:
+      type: object
+      description: 'O que o lançamento pela sugestão gravaria: a proposta de cada gaiola sem ração e os totais do dia com ela'
+      required:
+      - formula
+      - cages
+      - totals
+      properties:
+        formula:
+          type: object
+          required:
+          - id
+          - name
+          - pricePerKg
+          - expectedIntake
+          properties:
+            id:
+              type: string
+              format: uuid
+              example: 4e6a8c0e-2a4c-4e6a-9c0e-2a4c6e8a0c11
+            name:
+              type: string
+              example: Postura Plus
+            pricePerKg:
+              type: number
+              example: 2.85
+            expectedIntake:
+              type: integer
+              example: 28
+        cages:
+          type: array
+          items:
+            $ref: '#/components/schemas/SuggestedCageFeed'
+        totals:
+          $ref: '#/components/schemas/FeedTotals'
 security:
 - sessionCookie: []

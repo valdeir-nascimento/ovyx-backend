@@ -9,8 +9,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
-import io.github.ovyx.IntegrationSessions;
 import io.github.ovyx.IntegrationSessions.SignedIn;
+import io.github.ovyx.IntegrationSessions;
 import io.github.ovyx.IntegrationTestSupport;
 import io.github.ovyx.identity.domain.port.CaretakerRepository;
 import io.github.ovyx.identity.domain.port.PasswordHasher;
@@ -870,5 +870,310 @@ class DailyReportContractIT extends IntegrationTestSupport {
         response.andExpect(status().isOk())
                 .andExpect(jsonPath("$.openingBirdCount").value(96))
                 .andExpect(jsonPath("$.flockAge").value(21));
+    }
+
+    // ---------------------------------------------------------------------- ração do setor (004, US2)
+
+    private ResultActions suggestFeed(String reportPath, String formulaId) throws Exception {
+        return mockMvc.perform(get(reportPath + "/feed-suggestion")
+                .queryParam("formulaId", formulaId)
+                .cookie(commonUser.cookies())
+                .accept(MediaType.APPLICATION_JSON));
+    }
+
+    private ResultActions recordFeedBySuggestion(String reportPath, String body) throws Exception {
+        return mockMvc.perform(post(reportPath + "/feed")
+                .with(sessions.csrf())
+                .cookie(commonUser.cookies())
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(body));
+    }
+
+    private static String formulaBody(UUID formulaId) {
+        return "{\"formulaId\": \"" + formulaId + "\"}";
+    }
+
+    /** O relatório de 24/09 com a produção das duas gaiolas: 44 e 45 ovos, 89 ao todo. */
+    private OpenedReport reportWithProduction() throws Exception {
+        OpenedReport report = openedReport(fixtures.sectorWithTwoCages());
+        recordProduction(report.cage(report.a01()), "{\"eggs\": 44}").andExpect(status().isOk());
+        recordProduction(report.cage(report.b07()), "{\"eggs\": 45}").andExpect(status().isOk());
+        return report;
+    }
+
+    @Test
+    @DisplayName("proposes the feed of the pending cages and the totals of the day with it, without recording (S-04)")
+    void givenReportWithoutFeed_whenAskingForTheSuggestion_thenAnswerTheProposalAndRecordNothing() throws Exception {
+        // given
+        OpenedReport report = reportWithProduction();
+        UUID posturaPlus = fixtures.posturaPlus();
+
+        // when
+        ResultActions response = suggestFeed(report.path(), posturaPlus.toString());
+
+        // then
+        response.andExpect(status().isOk())
+                .andExpect(jsonPath("$.formula.id").value(posturaPlus.toString()))
+                .andExpect(jsonPath("$.formula.name").value(fixtures.formulaNameOf(posturaPlus)))
+                .andExpect(jsonPath("$.formula.pricePerKg").value(2.85))
+                .andExpect(jsonPath("$.formula.expectedIntake").value(28))
+                .andExpect(jsonPath("$.cages[0].cageId").value(report.a01()))
+                .andExpect(jsonPath("$.cages[0].code").value("A-01"))
+                .andExpect(jsonPath("$.cages[0].birdCount").value(48))
+                .andExpect(jsonPath("$.cages[0].consumption").value(1344))
+                .andExpect(jsonPath("$.cages[0].cost").value(3.83))
+                .andExpect(jsonPath("$.cages[1].consumption").value(1400))
+                .andExpect(jsonPath("$.cages[1].cost").value(3.99))
+                .andExpect(jsonPath("$.totals.status").value("COMPLETE"))
+                .andExpect(jsonPath("$.totals.consumption").value(2744))
+                .andExpect(jsonPath("$.totals.cost").value(7.82))
+                .andExpect(jsonPath("$.totals.costPerEgg").value(0.088))
+                .andExpect(jsonPath("$.totals.intakePerBird").value(28.0));
+        read(report.path()).andExpect(jsonPath("$.feed.status").value("PENDING"));
+    }
+
+    @Test
+    @DisplayName("records the feed of the sector by the suggestion: 200 with the report, its feed and its totals (S-04)")
+    void givenActiveFormula_whenRecordingBySuggestion_thenAnswerTheReportWithTheFeed() throws Exception {
+        // given
+        OpenedReport report = reportWithProduction();
+        UUID posturaPlus = fixtures.posturaPlus();
+
+        // when
+        ResultActions response = recordFeedBySuggestion(report.path(), formulaBody(posturaPlus));
+
+        // then
+        response.andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(report.id()))
+                .andExpect(jsonPath("$.feed.status").value("COMPLETE"))
+                .andExpect(jsonPath("$.feed.pendingCages").value(0))
+                .andExpect(jsonPath("$.feed.consumption").value(2744))
+                .andExpect(jsonPath("$.feed.cost").value(7.82))
+                .andExpect(jsonPath("$.feed.costPerEgg").value(0.088))
+                .andExpect(jsonPath("$.feed.intakePerBird").value(28.0))
+                .andExpect(jsonPath("$.feed.expectedIntakePerBird").value(28.0))
+                .andExpect(jsonPath("$.cages[1].feed.formulaId").value(posturaPlus.toString()))
+                .andExpect(jsonPath("$.cages[1].feed.formulaName").value(fixtures.formulaNameOf(posturaPlus)))
+                .andExpect(jsonPath("$.cages[1].feed.pricePerKg").value(2.85))
+                .andExpect(jsonPath("$.cages[1].feed.expectedIntake").value(28))
+                .andExpect(jsonPath("$.cages[1].feed.consumption").value(1400))
+                .andExpect(jsonPath("$.cages[1].feed.cost").value(3.99))
+                .andExpect(jsonPath("$.cages[1].feed.intakePerBird").value(28.0))
+                .andExpect(jsonPath("$.cages[1].feed.deviation").value(0.0))
+                .andExpect(jsonPath("$.lastCorrectedBy.id").value(commonUser.id().toString()));
+        read(reportsOf(report.sectorId()))
+                .andExpect(jsonPath("$.content[0].feedStatus").value("COMPLETE"))
+                .andExpect(jsonPath("$.content[0].feedPendingCages").value(0));
+    }
+
+    @Test
+    @DisplayName("records the suggestion again without changing the cages already fed: 200")
+    void givenReportAlreadyFed_whenRecordingBySuggestionAgain_thenKeepTheFeedAsItWas() throws Exception {
+        // given
+        OpenedReport report = reportWithProduction();
+        recordFeedBySuggestion(report.path(), formulaBody(fixtures.posturaPlus())).andExpect(status().isOk());
+        UUID recria = fixtures.formula("3.10", 24, "ACTIVE");
+
+        // when
+        ResultActions response = recordFeedBySuggestion(report.path(), formulaBody(recria));
+
+        // then
+        response.andExpect(status().isOk()).andExpect(jsonPath("$.feed.cost").value(7.82));
+    }
+
+    @Test
+    @DisplayName("refuses an inactive formula and one that does not exist in the formula field: 400")
+    void givenInactiveAndUnknownFormulas_whenSuggestingAndRecording_thenAnswerBadRequestInTheFormulaField()
+            throws Exception {
+        // given
+        OpenedReport report = reportWithProduction();
+        UUID inactive = fixtures.formula("3.10", 24, "INACTIVE");
+        String inactiveName = fixtures.formulaNameOf(inactive);
+
+        // when
+        ResultActions suggestion = suggestFeed(report.path(), inactive.toString());
+        ResultActions recording = recordFeedBySuggestion(report.path(), formulaBody(UUID.randomUUID()));
+        ResultActions withoutFormula = recordFeedBySuggestion(report.path(), "{}");
+
+        // then
+        suggestion.andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.details.formulaId")
+                        .value("A fórmula " + inactiveName + " está inativa. Escolha uma fórmula ativa."));
+        recording.andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details.formulaId").value("Fórmula não encontrada."));
+        withoutFormula.andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details.formulaId").value("Escolha a fórmula."));
+        read(report.path()).andExpect(jsonPath("$.feed.status").value("PENDING"));
+    }
+
+    @Test
+    @DisplayName("answers 404 for the feed of a report that does not exist, and 409 in an inactive sector")
+    void givenMissingReportAndInactiveSector_whenFeeding_thenAnswerNotFoundAndConflict() throws Exception {
+        // given
+        OpenedReport report = reportWithProduction();
+        UUID posturaPlus = fixtures.posturaPlus();
+        String missing = reportsOf(report.sectorId()) + "/" + UUID.randomUUID();
+
+        // when
+        ResultActions notFound = recordFeedBySuggestion(missing, formulaBody(posturaPlus));
+        ResultActions suggestionNotFound = suggestFeed(missing, posturaPlus.toString());
+        fixtures.deactivate(report.sectorId());
+        ResultActions inactive = recordFeedBySuggestion(report.path(), formulaBody(posturaPlus));
+
+        // then
+        notFound.andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("DAILY_REPORT_NOT_FOUND"));
+        suggestionNotFound.andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("DAILY_REPORT_NOT_FOUND"));
+        inactive.andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("SECTOR_INACTIVE"));
+    }
+
+    @Test
+    @DisplayName("refuses a body that is not JSON for the feed of the sector: 415")
+    void givenBodyThatIsNotJson_whenRecordingBySuggestion_thenAnswerUnsupportedMediaType() throws Exception {
+        // given
+        OpenedReport report = reportWithProduction();
+
+        // when
+        ResultActions response = mockMvc.perform(post(report.path() + "/feed")
+                .with(sessions.csrf())
+                .cookie(commonUser.cookies())
+                .contentType(MediaType.TEXT_PLAIN)
+                .content("Postura Plus"));
+
+        // then
+        response.andExpect(status().isUnsupportedMediaType())
+                .andExpect(jsonPath("$.code").value("REQUEST_NOT_ACCEPTABLE"));
+    }
+
+    // ---------------------------------------------------------------------- ração de uma gaiola (004, US3)
+
+    private ResultActions recordFeed(String cagePath, String body) throws Exception {
+        return mockMvc.perform(put(cagePath + "/feed")
+                .with(sessions.csrf())
+                .cookie(commonUser.cookies())
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(body));
+    }
+
+    @Test
+    @DisplayName("corrects the feed of a cage: 200 with the cage, its cost and its deviation (S-05)")
+    void givenCageFedBySuggestion_whenCorrectingItsConsumption_thenAnswerTheCageWithTheNewCost() throws Exception {
+        // given
+        OpenedReport report = reportWithProduction();
+        UUID posturaPlus = fixtures.posturaPlus();
+        recordFeedBySuggestion(report.path(), formulaBody(posturaPlus)).andExpect(status().isOk());
+
+        // when
+        ResultActions response = recordFeed(report.cage(report.b07()), """
+                {"formulaId": "%s", "consumption": 1250}
+                """.formatted(posturaPlus));
+
+        // then
+        response.andExpect(status().isOk())
+                .andExpect(jsonPath("$.cageId").value(report.b07()))
+                .andExpect(jsonPath("$.code").value("B-07"))
+                .andExpect(jsonPath("$.feed.consumption").value(1250))
+                .andExpect(jsonPath("$.feed.cost").value(3.56))
+                .andExpect(jsonPath("$.feed.intakePerBird").value(25.0))
+                .andExpect(jsonPath("$.feed.deviation").value(-10.7));
+        read(report.path()).andExpect(jsonPath("$.feed.cost").value(7.39));
+    }
+
+    @Test
+    @DisplayName("accepts the consumption as the form typed it")
+    void givenConsumptionAsText_whenRecordingTheFeedOfACage_thenAcceptIt() throws Exception {
+        // given
+        OpenedReport report = reportWithProduction();
+
+        // when
+        ResultActions response = recordFeed(report.cage(report.a01()), """
+                {"formulaId": "%s", "consumption": "1344"}
+                """.formatted(fixtures.posturaPlus()));
+
+        // then
+        response.andExpect(status().isOk()).andExpect(jsonPath("$.feed.consumption").value(1344));
+    }
+
+    @Test
+    @DisplayName("refuses an inactive formula and a consumption that is not an integer at once: 400 (S-06)")
+    void givenInactiveFormulaAndBrokenConsumption_whenRecordingTheFeedOfACage_thenAnswerBothFields() throws Exception {
+        // given
+        OpenedReport report = reportWithProduction();
+        UUID inactive = fixtures.formula("3.10", 24, "INACTIVE");
+
+        // when
+        ResultActions response = recordFeed(report.cage(report.b07()), """
+                {"formulaId": "%s", "consumption": "12,5"}
+                """.formatted(inactive));
+
+        // then
+        response.andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.details.formulaId")
+                        .value("A fórmula " + fixtures.formulaNameOf(inactive) + " está inativa. Escolha uma fórmula ativa."))
+                .andExpect(jsonPath("$.details.consumption").value("O consumo deve ser um número inteiro de gramas."));
+    }
+
+    @Test
+    @DisplayName("accepts the correction of the consumption with the formula the cage already uses, now inactive (S-06)")
+    void givenFormulaInactivatedAfterTheFeed_whenCorrectingOnlyTheConsumption_thenAcceptIt() throws Exception {
+        // given
+        OpenedReport report = reportWithProduction();
+        UUID posturaPlus = fixtures.posturaPlus();
+        recordFeedBySuggestion(report.path(), formulaBody(posturaPlus)).andExpect(status().isOk());
+        fixtures.deactivateFormula(posturaPlus);
+
+        // when
+        ResultActions response = recordFeed(report.cage(report.b07()), """
+                {"formulaId": "%s", "consumption": 1300}
+                """.formatted(posturaPlus));
+
+        // then
+        response.andExpect(status().isOk()).andExpect(jsonPath("$.feed.pricePerKg").value(2.85));
+    }
+
+    @Test
+    @DisplayName("refuses 60,000 grams in the consumption field: 400")
+    void givenConsumptionAboveTheMaximum_whenRecordingTheFeedOfACage_thenAnswerBadRequest() throws Exception {
+        // given
+        OpenedReport report = reportWithProduction();
+
+        // when
+        ResultActions response = recordFeed(report.cage(report.b07()), """
+                {"formulaId": "%s", "consumption": 60000}
+                """.formatted(fixtures.posturaPlus()));
+
+        // then
+        response.andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details.consumption").value("O consumo deve ficar entre 0 e 50.000 gramas."));
+    }
+
+    @Test
+    @DisplayName("answers 404 for the feed of a cage out of the report, 409 in an inactive sector, and 415 without JSON")
+    void givenCageOutOfTheReportInactiveSectorAndTextBody_whenRecordingTheFeed_thenAnswerEachRefusal()
+            throws Exception {
+        // given
+        OpenedReport report = reportWithProduction();
+        String body = "{\"formulaId\": \"%s\", \"consumption\": 1250}".formatted(fixtures.posturaPlus());
+
+        // when
+        ResultActions outside = recordFeed(report.cage(UUID.randomUUID().toString()), body);
+        ResultActions notJson = mockMvc.perform(put(report.cage(report.b07()) + "/feed")
+                .with(sessions.csrf())
+                .cookie(commonUser.cookies())
+                .contentType(MediaType.TEXT_PLAIN)
+                .content("1250"));
+        fixtures.deactivate(report.sectorId());
+        ResultActions inactive = recordFeed(report.cage(report.b07()), body);
+
+        // then
+        outside.andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("CAGE_NOT_FOUND"));
+        notJson.andExpect(status().isUnsupportedMediaType());
+        inactive.andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("SECTOR_INACTIVE"));
     }
 }

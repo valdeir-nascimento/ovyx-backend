@@ -43,6 +43,14 @@ public class ProductionRouteAuthorization implements RouteAuthorization {
             .requestMatchers(HttpMethod.PUT, REPORTS + "/*/cages/*/mortality")
             .authenticated()
             .requestMatchers(HttpMethod.POST, REPORTS + "/*/mortality-confirmation")
+            .authenticated()
+            // Racao do setor pela sugestao (US2 da 004)
+            .requestMatchers(HttpMethod.GET, REPORTS + "/*/feed-suggestion")
+            .authenticated()
+            .requestMatchers(HttpMethod.POST, REPORTS + "/*/feed")
+            .authenticated()
+            // Racao de uma gaiola (US3 da 004)
+            .requestMatchers(HttpMethod.PUT, REPORTS + "/*/cages/*/feed")
             .authenticated();
     }
 }

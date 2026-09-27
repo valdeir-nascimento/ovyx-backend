@@ -8,11 +8,15 @@ import io.github.ovyx.production.application.dailyreport.FindDailyReportQueryHan
 import io.github.ovyx.production.application.dailyreport.FindReportCageQueryHandler;
 import io.github.ovyx.production.application.dailyreport.ListDailyReportsQueryHandler;
 import io.github.ovyx.production.application.dailyreport.OpenDailyReportCommandHandler;
+import io.github.ovyx.production.application.dailyreport.RecordFeedBySuggestionCommandHandler;
+import io.github.ovyx.production.application.dailyreport.RecordFeedCommandHandler;
 import io.github.ovyx.production.application.dailyreport.RecordMortalityCommandHandler;
 import io.github.ovyx.production.application.dailyreport.RecordProductionCommandHandler;
 import io.github.ovyx.production.application.dailyreport.SuggestDailyReportQueryHandler;
+import io.github.ovyx.production.application.dailyreport.SuggestFeedQueryHandler;
 import io.github.ovyx.production.domain.port.DailyReportRepository;
 import io.github.ovyx.production.domain.port.FarmStructure;
+import io.github.ovyx.production.domain.port.FeedCatalog;
 import java.time.Clock;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -59,6 +63,23 @@ public class ProductionBeanConfiguration {
     ConfirmNoMortalityCommandHandler confirmNoMortalityCommandHandler(
             DailyReportRepository repository, FarmStructure farmStructure, Clock clock) {
         return new ConfirmNoMortalityCommandHandler(repository, farmStructure, clock);
+    }
+
+    @Bean
+    RecordFeedBySuggestionCommandHandler recordFeedBySuggestionCommandHandler(
+            DailyReportRepository repository, FarmStructure farmStructure, FeedCatalog feedCatalog, Clock clock) {
+        return new RecordFeedBySuggestionCommandHandler(repository, farmStructure, feedCatalog, clock);
+    }
+
+    @Bean
+    RecordFeedCommandHandler recordFeedCommandHandler(
+            DailyReportRepository repository, FarmStructure farmStructure, FeedCatalog feedCatalog, Clock clock) {
+        return new RecordFeedCommandHandler(repository, farmStructure, feedCatalog, clock);
+    }
+
+    @Bean
+    SuggestFeedQueryHandler suggestFeedQueryHandler(DailyReportDirectory directory, FeedCatalog feedCatalog) {
+        return new SuggestFeedQueryHandler(directory, feedCatalog);
     }
 
     @Bean

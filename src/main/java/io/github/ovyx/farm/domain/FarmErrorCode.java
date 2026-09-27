@@ -34,6 +34,22 @@ public enum FarmErrorCode implements ErrorCode {
     BIRD_COUNT_NOT_INTEGER,
     BIRD_COUNT_OUT_OF_RANGE,
 
+    FEED_FORMULA_NAME_REQUIRED,
+    FEED_FORMULA_NAME_TOO_SHORT,
+    FEED_FORMULA_NAME_TOO_LONG,
+
+    /** Ausente no campo {@code pricePerKg}. */
+    PRICE_REQUIRED,
+    /** Nao e um valor em reais com ate duas casas decimais, como "2,855" ou "1.000,00". */
+    PRICE_INVALID,
+    PRICE_OUT_OF_RANGE,
+
+    EXPECTED_INTAKE_REQUIRED,
+    EXPECTED_INTAKE_NOT_INTEGER,
+    EXPECTED_INTAKE_OUT_OF_RANGE,
+
+    FEED_FORMULA_DESCRIPTION_TOO_LONG,
+
     // ---------------------------------------------------------------- recusas de operacao
 
     /** Uma ou mais regras de validacao foram violadas; cada uma vem, com o seu codigo, na recusa. */
@@ -45,6 +61,9 @@ public enum FarmErrorCode implements ErrorCode {
     /** Identificador de gaiola inexistente, malformado ou de outro setor. */
     CAGE_NOT_FOUND,
 
+    /** Identificador de formula de racao inexistente ou malformado (feature 004). */
+    FEED_FORMULA_NOT_FOUND,
+
     // ---------------------------------------------------------------- conflitos com outros setores
 
     /** Outro setor ativo ja tem o nome, comparado sem maiusculas (FR-002). */
@@ -52,6 +71,12 @@ public enum FarmErrorCode implements ErrorCode {
 
     /** Outra gaiola ativa do setor ja tem a bateria e o numero (FR-007). */
     CAGE_ALREADY_EXISTS,
+
+    /**
+     * Outra formula, ativa ou inativa, ja tem o nome, comparado sem maiusculas (R-011 da 004): a formula
+     * da nome aos custos do passado, e duas com o mesmo nome misturariam o historico.
+     */
+    FEED_FORMULA_NAME_IN_USE,
 
     /** Operacao de gaiola num setor inativo: ele nao recebe gaiola nova nem reativa gaiola sozinha (FR-014, FR-015). */
     SECTOR_INACTIVE;

@@ -2,6 +2,7 @@ package io.github.ovyx.production.presentation.dailyreport;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.github.ovyx.production.application.dailyreport.DailyReportSummary;
+import io.github.ovyx.production.domain.model.FeedStatus;
 import io.github.ovyx.production.domain.model.MortalityStatus;
 import io.github.ovyx.production.domain.model.ProductionStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -24,7 +25,9 @@ public record DailyReportSummaryResponse(
         String note,
         @Schema(example = "COMPLETE") ProductionStatus productionStatus,
         @Schema(description = "Gaiolas sem produção lançada", example = "1") int pendingCages,
-        @Schema(example = "RECORDED") MortalityStatus mortalityStatus) {
+        @Schema(example = "RECORDED") MortalityStatus mortalityStatus,
+        @Schema(example = "PENDING") FeedStatus feedStatus,
+        @Schema(description = "Gaiolas ainda sem ração", example = "1") int feedPendingCages) {
 
     public static DailyReportSummaryResponse from(DailyReportSummary summary) {
         return new DailyReportSummaryResponse(
@@ -39,6 +42,8 @@ public record DailyReportSummaryResponse(
                 summary.note(),
                 summary.productionStatus(),
                 summary.pendingCages(),
-                summary.mortalityStatus());
+                summary.mortalityStatus(),
+                summary.feedStatus(),
+                summary.feedPendingCages());
     }
 }

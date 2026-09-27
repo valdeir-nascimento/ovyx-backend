@@ -1,5 +1,6 @@
 package io.github.ovyx.production.domain.model;
 
+import io.github.ovyx.production.domain.valueobject.FeedEntry;
 import io.github.ovyx.production.domain.valueobject.MortalityEntry;
 import io.github.ovyx.production.domain.valueobject.ProductionEntry;
 import java.util.Objects;
@@ -10,9 +11,9 @@ import java.util.Optional;
  * administrador corrige a gaiola hoje. Entidade dentro do agregado {@link DailyReport}, identificada pela
  * gaiola do farm.
  *
- * <p>Os lancamentos do dia ficam nela: a producao e a mortalidade, cada uma ausente enquanto nao
- * lancada. Quem os grava e o relatorio, que checa as invariantes antes. A mortalidade nao muda as aves
- * da gaiola (FR-015).
+ * <p>Os lancamentos do dia ficam nela: a producao, a mortalidade e a racao (feature 004), cada um ausente
+ * enquanto nao lancado. Quem os grava e o relatorio, que checa as invariantes antes. A mortalidade nao
+ * muda as aves da gaiola (FR-015).
  */
 public final class ReportCage {
 
@@ -22,6 +23,7 @@ public final class ReportCage {
     private final int birdCount;
     private ProductionEntry production;
     private MortalityEntry mortality;
+    private FeedEntry feed;
 
     private ReportCage(
             CageId cageId,
@@ -29,18 +31,20 @@ public final class ReportCage {
             int number,
             int birdCount,
             ProductionEntry production,
-            MortalityEntry mortality) {
+            MortalityEntry mortality,
+            FeedEntry feed) {
         this.cageId = Objects.requireNonNull(cageId, "cageId");
         this.battery = Objects.requireNonNull(battery, "battery");
         this.number = number;
         this.birdCount = birdCount;
         this.production = production;
         this.mortality = mortality;
+        this.feed = feed;
     }
 
     /** A gaiola do farm, fixada no relatorio que se abre. */
     static ReportCage fixed(FarmCage cage) {
-        return new ReportCage(cage.id(), cage.battery(), cage.number(), cage.birdCount(), null, null);
+        return new ReportCage(cage.id(), cage.battery(), cage.number(), cage.birdCount(), null, null, null);
     }
 
     /**
@@ -48,6 +52,7 @@ public final class ReportCage {
      *
      * @param production a producao lancada, ou {@code null}
      * @param mortality a mortalidade lancada, ou {@code null}
+     * @param feed a racao lancada, ou {@code null} (feature 004)
      */
     public static ReportCage restore(
             CageId cageId,
@@ -55,8 +60,9 @@ public final class ReportCage {
             int number,
             int birdCount,
             ProductionEntry production,
-            MortalityEntry mortality) {
-        return new ReportCage(cageId, battery, number, birdCount, production, mortality);
+            MortalityEntry mortality,
+            FeedEntry feed) {
+        return new ReportCage(cageId, battery, number, birdCount, production, mortality, feed);
     }
 
     public CageId cageId() {
@@ -109,6 +115,31 @@ public final class ReportCage {
     /** Grava ou troca a mortalidade; quem checa as invariantes e o relatorio. */
     void recordMortality(MortalityEntry entry) {
         this.mortality = Objects.requireNonNull(entry, "entry");
+    }
+
+    /** A racao lancada, ou nenhuma (feature 004). */
+    public Optional<FeedEntry> feed() {
+        return Optional.ofNullable(feed);
+    }
+
+    /** Se a racao da gaiola foi lancada; zero grama e lancamento. */
+    public boolean hasFeed() {
+        return feed != null;
+    }
+
+    /** Grava ou troca a racao; quem checa as invariantes e o relatorio. */
+    void recordFeed(FeedEntry entry) {
+        this.feed = Objects.requireNonNull(entry, "entry");
+    }
+
+    /** O codigo da gaiola, como as telas o escrevem: bateria, hifen e numero com dois digitos ("B-07"). */
+    public String code() {
+        return codeOf(battery, number);
+    }
+
+    /** O codigo de uma gaiola, como as telas o escrevem: a bateria, um traco e o numero com dois digitos. */
+    public static String codeOf(String battery, int number) {
+        return battery + "-" + (number < 10 ? "0" + number : String.valueOf(number));
     }
 
     @Override

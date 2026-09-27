@@ -7,9 +7,12 @@ import io.github.ovyx.production.application.dailyreport.FindDailyReportQuery;
 import io.github.ovyx.production.application.dailyreport.FindReportCageQuery;
 import io.github.ovyx.production.application.dailyreport.ListDailyReportsQuery;
 import io.github.ovyx.production.application.dailyreport.OpenDailyReportCommand;
+import io.github.ovyx.production.application.dailyreport.RecordFeedBySuggestionCommand;
+import io.github.ovyx.production.application.dailyreport.RecordFeedCommand;
 import io.github.ovyx.production.application.dailyreport.RecordMortalityCommand;
 import io.github.ovyx.production.application.dailyreport.RecordProductionCommand;
 import io.github.ovyx.production.application.dailyreport.SuggestDailyReportQuery;
+import io.github.ovyx.production.application.dailyreport.SuggestFeedQuery;
 import io.github.ovyx.production.domain.model.Actor;
 import io.github.ovyx.production.domain.model.CageId;
 import io.github.ovyx.production.domain.model.DailyReportId;
@@ -17,10 +20,8 @@ import io.github.ovyx.shared.application.Dispatcher;
 import io.github.ovyx.shared.application.Result;
 import io.github.ovyx.shared.presentation.AuthenticatedUser;
 import io.github.ovyx.shared.presentation.ResultHttpMapper;
-
 import java.net.URI;
 import java.time.LocalDate;
-
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -182,6 +183,51 @@ public class DailyReportController implements DailyReportApi {
         Result<DailyReportId> confirmed =
             dispatcher.dispatch(new ConfirmNoMortalityCommand(sectorId, reportId, actorOf(user)));
         return resultHttpMapper.ok(detailOf(sectorId, confirmed).map(DailyReportDetailResponse::from));
+    }
+
+    @Override
+    @GetMapping(path = "/{reportId}/feed-suggestion", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<Object> suggestFeed(
+        @PathVariable String sectorId,
+        @PathVariable String reportId,
+        // Opcional aqui, e nao no contrato: sem a formula, a recusa vem do dominio, no campo formulaId.
+        @RequestParam(required = false) String formulaId) {
+        return resultHttpMapper.ok(dispatcher
+            .ask(new SuggestFeedQuery(sectorId, reportId, formulaId))
+            .map(FeedSuggestionResponse::from));
+    }
+
+    @Override
+    @PostMapping(
+        path = "/{reportId}/feed",
+        consumes = MediaType.APPLICATION_JSON_VALUE,
+        produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<Object> recordFeedBySuggestion(
+        @PathVariable String sectorId,
+        @PathVariable String reportId,
+        @RequestBody FeedSuggestionRequest body,
+        AuthenticatedUser user) {
+        Result<DailyReportId> recorded = dispatcher.dispatch(
+            new RecordFeedBySuggestionCommand(sectorId, reportId, body.formulaId(), actorOf(user)));
+        return resultHttpMapper.ok(detailOf(sectorId, recorded).map(DailyReportDetailResponse::from));
+    }
+
+    @Override
+    @PutMapping(
+        path = "/{reportId}/cages/{cageId}/feed",
+        consumes = MediaType.APPLICATION_JSON_VALUE,
+        produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<Object> recordFeed(
+        @PathVariable String sectorId,
+        @PathVariable String reportId,
+        @PathVariable String cageId,
+        @RequestBody FeedRequest body,
+        AuthenticatedUser user) {
+        Result<CageId> recorded = dispatcher.dispatch(new RecordFeedCommand(
+            sectorId, reportId, cageId, body.formulaId(), body.rawConsumption(), actorOf(user)));
+        return resultHttpMapper.ok(recorded
+            .flatMap(id -> dispatcher.ask(new FindReportCageQuery(sectorId, reportId, id.toString())))
+            .map(ReportCageDetailResponse::from));
     }
 
     private Result<DailyReportDetail> detailOf(String sectorId, Result<DailyReportId> written) {

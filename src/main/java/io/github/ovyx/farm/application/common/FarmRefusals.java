@@ -6,8 +6,8 @@ import io.github.ovyx.shared.application.ErrorType;
 import io.github.ovyx.shared.domain.DomainException;
 
 /**
- * Traducao das recusas do contexto farm em {@code ApplicationError}, para setores e gaiolas. Fica no
- * subpacote transversal da aplicacao, {@code common}, porque as duas funcionalidades a usam.
+ * Traducao das recusas do contexto farm em {@code ApplicationError}, para setores, gaiolas e formulas.
+ * Fica no subpacote transversal da aplicacao, {@code common}, porque as funcionalidades a usam.
  *
  * <p>O dominio diz qual regra recusou; aqui se decide a natureza da falha. Dado invalido e
  * {@code VALIDATION}; nome ou codigo que ja tem dono, e setor inativo, sao {@code CONFLICT}, porque
@@ -42,5 +42,11 @@ public final class FarmRefusals {
     public static ApplicationError cageNotFound() {
         return ApplicationError.of(
                 ErrorType.NOT_FOUND, FarmErrorCode.CAGE_NOT_FOUND.code(), "Gaiola não encontrada.");
+    }
+
+    /** O mesmo para a formula que nao existe e para o identificador malformado. */
+    public static ApplicationError feedFormulaNotFound() {
+        return ApplicationError.of(
+                ErrorType.NOT_FOUND, FarmErrorCode.FEED_FORMULA_NOT_FOUND.code(), "Fórmula não encontrada.");
     }
 }

@@ -1,5 +1,6 @@
 package io.github.ovyx.production.application.dailyreport;
 
+import io.github.ovyx.production.domain.model.ReportCage;
 import java.util.UUID;
 
 /**
@@ -9,6 +10,7 @@ import java.util.UUID;
  * @param birdCount as aves da gaiola na abertura
  * @param production a producao lancada, ou {@code null}
  * @param mortality a mortalidade lancada, ou {@code null}
+ * @param feed a racao lancada, ou {@code null} (feature 004)
  */
 public record ReportCageDetail(
         UUID cageId,
@@ -17,10 +19,11 @@ public record ReportCageDetail(
         int number,
         int birdCount,
         CageProduction production,
-        CageMortality mortality) {
+        CageMortality mortality,
+        CageFeed feed) {
 
     /** O codigo da gaiola: o numero completado com um zero abaixo de 10, como no farm. */
     public static String codeOf(String battery, int number) {
-        return battery + "-" + (number < 10 ? "0" + number : String.valueOf(number));
+        return ReportCage.codeOf(battery, number);
     }
 }

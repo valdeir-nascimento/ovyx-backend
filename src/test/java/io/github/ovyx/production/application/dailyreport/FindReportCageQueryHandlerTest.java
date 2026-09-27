@@ -31,7 +31,7 @@ class FindReportCageQueryHandlerTest {
     private final UUID reportId = UUID.randomUUID();
     private final UUID cageId = UUID.fromString("9d2e4f6a-1b3c-4d5e-8f7a-2b4c6d8e0f44");
     private final ReportCageDetail b07 = new ReportCageDetail(
-            cageId, "B-07", "B", 7, 50, new CageProduction(45, 0, 1, 1, 2, 1, 0), null);
+            cageId, "B-07", "B", 7, 50, new CageProduction(45, 0, 1, 1, 2, 1, 0), null, null);
 
     private DailyReportDetail detailOf(UUID sector) {
         return new DailyReportDetail(
@@ -49,6 +49,7 @@ class FindReportCageQueryHandlerTest {
                 null,
                 new ProductionTotals(ProductionStatus.COMPLETE, 0, 45, 40, 3, new BigDecimal("45.92")),
                 new MortalityTotals(MortalityStatus.PENDING, 0, 0, BigDecimal.ZERO, 98),
+                DailyReportTotals.feed(List.of(b07), 45),
                 List.of(b07));
     }
 

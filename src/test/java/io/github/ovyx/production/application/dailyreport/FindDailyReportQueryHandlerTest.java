@@ -45,6 +45,7 @@ class FindDailyReportQueryHandlerTest {
                 null,
                 new ProductionTotals(ProductionStatus.PENDING, 2, 0, 0, 0, BigDecimal.ZERO),
                 new MortalityTotals(MortalityStatus.PENDING, 0, 0, BigDecimal.ZERO, 98),
+                DailyReportTotals.feed(List.of(), 45),
                 List.of());
     }
 

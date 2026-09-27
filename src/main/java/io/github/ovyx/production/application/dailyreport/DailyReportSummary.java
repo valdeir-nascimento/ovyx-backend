@@ -1,5 +1,6 @@
 package io.github.ovyx.production.application.dailyreport;
 
+import io.github.ovyx.production.domain.model.FeedStatus;
 import io.github.ovyx.production.domain.model.MortalityStatus;
 import io.github.ovyx.production.domain.model.ProductionStatus;
 import java.time.LocalDate;
@@ -13,6 +14,7 @@ import java.util.UUID;
  * @param removedBirds mortes mais descartes do dia
  * @param closingBirdCount aves do inicio do dia menos as removidas
  * @param pendingCages gaiolas sem producao lancada
+ * @param feedPendingCages gaiolas sem racao lancada (feature 004)
  */
 public record DailyReportSummary(
         UUID id,
@@ -26,4 +28,6 @@ public record DailyReportSummary(
         String note,
         ProductionStatus productionStatus,
         int pendingCages,
-        MortalityStatus mortalityStatus) {}
+        MortalityStatus mortalityStatus,
+        FeedStatus feedStatus,
+        int feedPendingCages) {}

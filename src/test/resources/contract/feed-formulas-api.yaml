@@ -1,0 +1,576 @@
+openapi: 3.1.0
+info:
+  title: Ovyx — API das Fórmulas de Ração
+  version: 1.0.0
+  description: |
+    Fórmulas de ração da granja (`FeedFormula`): o preço por quilo e o consumo esperado por ave ao dia,
+    a base do custo da ração e do custo por ovo dos relatórios diários.
+
+    **Sessão, erros, CSRF e acesso negado**: iguais aos da API de Identidade
+    (`specs/001-auth-foundation/contracts/identity-api.yaml`). Toda operação exige o cookie de
+    sessão; toda escrita exige o cabeçalho `X-XSRF-TOKEN`; toda recusa segue RFC 9457 com a extensão
+    `code`, e a de validação traz **todas** as violações de uma vez em `details`.
+
+    **Perfis**: qualquer responsável autenticado consulta as fórmulas. Cadastrar, editar, inativar e
+    reativar é exclusivo do perfil Administrador; o usuário comum recebe o 403 `FORBIDDEN` genérico.
+
+    **Nada é apagado**: a fórmula é inativada, deixa de ser oferecida nos lançamentos novos, e os
+    lançamentos que já a usam continuam com o preço deles.
+servers:
+- url: http://localhost:8080
+  description: Ambiente local
+tags:
+- name: Fórmulas de ração
+  description: Cadastro, consulta, inativação e reativação das fórmulas de ração, com o preço por quilo e o consumo esperado
+paths:
+  /api/v1/feed-formulas:
+    get:
+      tags: [Fórmulas de ração]
+      summary: Listar fórmulas
+      description: Fórmulas por nome, com o custo por ave ao dia.
+      operationId: listFeedFormulas
+      parameters:
+      - name: status
+        in: query
+        description: Situação das fórmulas listadas — ativas, inativas ou todas (`ALL`); ausente, só as ativas.
+        schema:
+          $ref: '#/components/schemas/StatusFilter'
+        example: ACTIVE
+      responses:
+        '200':
+          description: Fórmulas encontradas, possivelmente nenhuma
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FeedFormula'
+              examples:
+                formulasAtivas:
+                  summary: Duas fórmulas ativas
+                  value:
+                  - id: 4e6a8c0e-2a4c-4e6a-9c0e-2a4c6e8a0c11
+                    name: Postura Plus
+                    description: Milho, farelo de soja, calcário e premix vitamínico; para codornas em postura
+                    pricePerKg: 2.85
+                    expectedIntake: 28
+                    costPerBirdDay: 0.080
+                    status: ACTIVE
+                    createdAt: '2026-09-20T10:15:00Z'
+                    updatedAt: '2026-09-24T17:40:12Z'
+                  - id: 8a0c2e4a-6c8e-4a0c-8e2a-4c6e8a0c2e22
+                    name: Recria
+                    description: Mais proteína, para as aves antes do pico de postura
+                    pricePerKg: 3.10
+                    expectedIntake: 24
+                    costPerBirdDay: 0.074
+                    status: ACTIVE
+                    createdAt: '2026-09-20T10:16:40Z'
+                    updatedAt: '2026-09-20T10:16:40Z'
+        '400':
+          description: Situação desconhecida (`VALIDATION_FAILED`), com o nome do parâmetro em `details`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                situacaoInvalida:
+                  summary: Situação fora da lista
+                  value:
+                    code: VALIDATION_FAILED
+                    title: Dados inválidos
+                    status: 400
+                    detail: Valor inválido para o parâmetro 'status'.
+                    instance: /api/v1/feed-formulas
+                    details:
+                      parameter: status
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/TrocaDeSenhaPendente'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+    post:
+      tags: [Fórmulas de ração]
+      summary: Cadastrar fórmula
+      operationId: registerFeedFormula
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeedFormulaRequest'
+            examples:
+              novaFormula:
+                summary: Ração de postura
+                value:
+                  name: Postura Plus
+                  pricePerKg: 2.85
+                  expectedIntake: 28
+                  description: Milho, farelo de soja, calcário e premix vitamínico; para codornas em postura
+      responses:
+        '201':
+          description: Fórmula cadastrada, ativa. O cabeçalho `Location` aponta para ela.
+          headers:
+            Location:
+              schema:
+                type: string
+              example: /api/v1/feed-formulas/4e6a8c0e-2a4c-4e6a-9c0e-2a4c6e8a0c11
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedFormula'
+              examples:
+                formulaCadastrada:
+                  summary: Fórmula nova, ativa
+                  value:
+                    id: 4e6a8c0e-2a4c-4e6a-9c0e-2a4c6e8a0c11
+                    name: Postura Plus
+                    description: Milho, farelo de soja, calcário e premix vitamínico; para codornas em postura
+                    pricePerKg: 2.85
+                    expectedIntake: 28
+                    costPerBirdDay: 0.080
+                    status: ACTIVE
+                    createdAt: '2026-09-26T13:02:11Z'
+                    updatedAt: '2026-09-26T13:02:11Z'
+        '400':
+          description: Campos inválidos, todos de uma vez (`VALIDATION_FAILED`), ou corpo ilegível.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                camposInvalidos:
+                  summary: Nome em branco, preço zero e consumo acima do limite
+                  value:
+                    code: VALIDATION_FAILED
+                    title: Dados inválidos
+                    status: 400
+                    detail: Dados inválidos.
+                    instance: /api/v1/feed-formulas
+                    details:
+                      name: Informe o nome da fórmula.
+                      pricePerKg: O preço deve ficar entre R$ 0,01 e R$ 1.000,00 o quilo.
+                      expectedIntake: O consumo esperado deve ficar entre 1 e 200 gramas por ave ao dia.
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '409':
+          $ref: '#/components/responses/NomeEmUso'
+        '415':
+          $ref: '#/components/responses/RequisicaoNaoSuportada'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+  /api/v1/feed-formulas/{formulaId}:
+    parameters:
+    - $ref: '#/components/parameters/FormulaId'
+    get:
+      tags: [Fórmulas de ração]
+      summary: Consultar fórmula
+      operationId: findFeedFormula
+      responses:
+        '200':
+          description: Fórmula encontrada, ativa ou inativa
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedFormula'
+              examples:
+                formula:
+                  summary: Fórmula ativa
+                  value:
+                    id: 4e6a8c0e-2a4c-4e6a-9c0e-2a4c6e8a0c11
+                    name: Postura Plus
+                    description: Milho, farelo de soja, calcário e premix vitamínico; para codornas em postura
+                    pricePerKg: 2.85
+                    expectedIntake: 28
+                    costPerBirdDay: 0.080
+                    status: ACTIVE
+                    createdAt: '2026-09-20T10:15:00Z'
+                    updatedAt: '2026-09-24T17:40:12Z'
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/TrocaDeSenhaPendente'
+        '404':
+          $ref: '#/components/responses/FormulaNaoEncontrada'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+    put:
+      tags: [Fórmulas de ração]
+      summary: Editar fórmula
+      description: Troca os campos da fórmula. Mudar o preço não muda o custo das rações já lançadas, que guardam o preço de quando foram feitas.
+      operationId: updateFeedFormula
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeedFormulaRequest'
+            examples:
+              precoNovo:
+                summary: Preço do fornecedor atualizado
+                value:
+                  name: Postura Plus
+                  pricePerKg: 2.90
+                  expectedIntake: 28
+                  description: Milho, farelo de soja, calcário e premix vitamínico; para codornas em postura
+      responses:
+        '200':
+          description: Fórmula atualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedFormula'
+              examples:
+                formulaAtualizada:
+                  summary: Preço novo
+                  value:
+                    id: 4e6a8c0e-2a4c-4e6a-9c0e-2a4c6e8a0c11
+                    name: Postura Plus
+                    description: Milho, farelo de soja, calcário e premix vitamínico; para codornas em postura
+                    pricePerKg: 2.90
+                    expectedIntake: 28
+                    costPerBirdDay: 0.081
+                    status: ACTIVE
+                    createdAt: '2026-09-20T10:15:00Z'
+                    updatedAt: '2026-09-26T13:20:45Z'
+        '400':
+          description: Campos inválidos, todos de uma vez (`VALIDATION_FAILED`), ou corpo ilegível.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                precoInvalido:
+                  summary: Preço com três casas decimais
+                  value:
+                    code: VALIDATION_FAILED
+                    title: Dados inválidos
+                    status: 400
+                    detail: Dados inválidos.
+                    instance: /api/v1/feed-formulas/4e6a8c0e-2a4c-4e6a-9c0e-2a4c6e8a0c11
+                    details:
+                      pricePerKg: Informe o preço em reais, com até duas casas decimais.
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '404':
+          $ref: '#/components/responses/FormulaNaoEncontrada'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '409':
+          $ref: '#/components/responses/NomeEmUso'
+        '415':
+          $ref: '#/components/responses/RequisicaoNaoSuportada'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+  /api/v1/feed-formulas/{formulaId}/deactivation:
+    parameters:
+    - $ref: '#/components/parameters/FormulaId'
+    post:
+      tags: [Fórmulas de ração]
+      summary: Inativar fórmula
+      description: A fórmula deixa de ser oferecida nos lançamentos novos; os lançamentos que já a usam continuam como estão. Inativar uma fórmula já inativa não muda nada.
+      operationId: deactivateFeedFormula
+      responses:
+        '200':
+          description: Fórmula inativada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedFormula'
+              examples:
+                inativada:
+                  summary: Fórmula inativada
+                  value:
+                    id: 8a0c2e4a-6c8e-4a0c-8e2a-4c6e8a0c2e22
+                    name: Recria
+                    description: Mais proteína, para as aves antes do pico de postura
+                    pricePerKg: 3.10
+                    expectedIntake: 24
+                    costPerBirdDay: 0.074
+                    status: INACTIVE
+                    createdAt: '2026-09-20T10:16:40Z'
+                    updatedAt: '2026-09-26T14:03:51Z'
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '404':
+          $ref: '#/components/responses/FormulaNaoEncontrada'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+  /api/v1/feed-formulas/{formulaId}/reactivation:
+    parameters:
+    - $ref: '#/components/parameters/FormulaId'
+    post:
+      tags: [Fórmulas de ração]
+      summary: Reativar fórmula
+      description: A fórmula volta a ser oferecida nos lançamentos. Reativar uma fórmula já ativa não muda nada.
+      operationId: reactivateFeedFormula
+      responses:
+        '200':
+          description: Fórmula reativada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedFormula'
+              examples:
+                reativada:
+                  summary: Fórmula reativada
+                  value:
+                    id: 8a0c2e4a-6c8e-4a0c-8e2a-4c6e8a0c2e22
+                    name: Recria
+                    description: Mais proteína, para as aves antes do pico de postura
+                    pricePerKg: 3.10
+                    expectedIntake: 24
+                    costPerBirdDay: 0.074
+                    status: ACTIVE
+                    createdAt: '2026-09-20T10:16:40Z'
+                    updatedAt: '2026-09-26T14:10:02Z'
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '404':
+          $ref: '#/components/responses/FormulaNaoEncontrada'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: SESSION
+      description: Cookie de sessão emitido no login. `HttpOnly` e `SameSite=Lax`; `Secure` fora do perfil de desenvolvimento, que usa http.
+  parameters:
+    FormulaId:
+      name: formulaId
+      in: path
+      required: true
+      description: Identificador da fórmula de ração.
+      schema:
+        type: string
+        format: uuid
+      example: 4e6a8c0e-2a4c-4e6a-9c0e-2a4c6e8a0c11
+  responses:
+    SessaoInvalida:
+      description: Sem sessão válida (`UNAUTHENTICATED`), ou responsável inativado com a sessão aberta (`CARETAKER_UNAVAILABLE`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            semSessao:
+              summary: Sem sessão
+              value:
+                code: UNAUTHENTICATED
+                title: Não autenticado
+                status: 401
+                detail: Sua sessão expirou. Entre novamente para continuar.
+                instance: /api/v1/feed-formulas
+    SemPermissao:
+      description: Sem o perfil Administrador (`FORBIDDEN`), sem o token de proteção (`CSRF_TOKEN_INVALID`) ou com a troca de senha pendente (`PASSWORD_CHANGE_REQUIRED`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            semPermissao:
+              summary: Usuário comum tentando alterar
+              value:
+                code: FORBIDDEN
+                title: Acesso negado
+                status: 403
+                detail: Você não tem permissão para executar esta operação.
+                instance: /api/v1/feed-formulas
+            tokenCsrfAusente:
+              summary: Escrita sem o cabeçalho X-XSRF-TOKEN
+              value:
+                code: CSRF_TOKEN_INVALID
+                title: Proteção da requisição ausente
+                status: 403
+                detail: O token de proteção da requisição está ausente ou expirou. Recarregue a página e tente novamente.
+                instance: /api/v1/feed-formulas
+    TrocaDeSenhaPendente:
+      description: Troca de senha pendente (`PASSWORD_CHANGE_REQUIRED`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            trocaDeSenhaPendente:
+              summary: Senha provisória ainda não trocada
+              value:
+                code: PASSWORD_CHANGE_REQUIRED
+                title: Troca de senha obrigatória
+                status: 403
+                detail: É necessário trocar a senha antes de executar qualquer outra operação.
+                instance: /api/v1/feed-formulas
+    FormulaNaoEncontrada:
+      description: Fórmula inexistente, ou identificador malformado (`FEED_FORMULA_NOT_FOUND`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            formulaNaoEncontrada:
+              summary: Identificador que não é de nenhuma fórmula
+              value:
+                code: FEED_FORMULA_NOT_FOUND
+                title: Não encontrado
+                status: 404
+                detail: Fórmula não encontrada.
+                instance: /api/v1/feed-formulas/postura-plus
+    NomeEmUso:
+      description: Outra fórmula, ativa ou inativa, já usa o nome (`FEED_FORMULA_NAME_IN_USE`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            nomeEmUso:
+              summary: Nome de outra fórmula
+              value:
+                code: FEED_FORMULA_NAME_IN_USE
+                title: Operação recusada
+                status: 409
+                detail: Já existe uma fórmula com este nome.
+                instance: /api/v1/feed-formulas
+                details:
+                  name: Já existe uma fórmula com este nome. Se ela está inativa, reative-a.
+    FormatoIndisponivel:
+      description: Formato de resposta indisponível (`REQUEST_NOT_ACCEPTABLE`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    RequisicaoNaoSuportada:
+      description: Corpo em formato diferente de JSON (`REQUEST_NOT_ACCEPTABLE`, 415).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ErroInesperado:
+      description: Falha inesperada (`INTERNAL_ERROR`), sem detalhe da causa.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    Status:
+      type: string
+      enum: [ACTIVE, INACTIVE]
+      description: Situação da fórmula.
+    StatusFilter:
+      type: string
+      enum: [ACTIVE, INACTIVE, ALL]
+      default: ACTIVE
+      description: Filtro de situação da lista; `ALL` traz ativas e inativas.
+    FeedFormulaRequest:
+      type: object
+      description: Cadastro ou edição de fórmula. O preço e o consumo podem vir como número ou como texto.
+      required: [name, pricePerKg, expectedIntake]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 80
+          description: Nome da fórmula, único entre todas, ativas e inativas
+          example: Postura Plus
+        pricePerKg:
+          type: number
+          minimum: 0.01
+          maximum: 1000
+          description: Preço por quilo, em reais, com até duas casas decimais
+          example: 2.85
+        expectedIntake:
+          type: integer
+          minimum: 1
+          maximum: 200
+          description: Consumo esperado por ave ao dia, em gramas
+          example: 28
+        description:
+          type: string
+          maxLength: 500
+          description: Ingredientes e indicação
+          example: Milho, farelo de soja, calcário e premix vitamínico; para codornas em postura
+    FeedFormula:
+      type: object
+      description: Fórmula de ração, com o custo por ave ao dia
+      required: [id, name, pricePerKg, expectedIntake, costPerBirdDay, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 4e6a8c0e-2a4c-4e6a-9c0e-2a4c6e8a0c11
+        name:
+          type: string
+          example: Postura Plus
+        description:
+          type: string
+          description: Ausente quando não há descrição
+          example: Milho, farelo de soja, calcário e premix vitamínico; para codornas em postura
+        pricePerKg:
+          type: number
+          description: Preço por quilo, em reais
+          example: 2.85
+        expectedIntake:
+          type: integer
+          description: Consumo esperado por ave ao dia, em gramas
+          example: 28
+        costPerBirdDay:
+          type: number
+          description: Preço × consumo esperado ÷ 1.000, em reais, com três casas
+          example: 0.080
+        status:
+          $ref: '#/components/schemas/Status'
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-09-20T10:15:00Z'
+        updatedAt:
+          type: string
+          format: date-time
+          example: '2026-09-24T17:40:12Z'
+    Problem:
+      type: object
+      description: RFC 9457 Problem Details, com a extensão `code` do erro de aplicação. Igual ao da API de Identidade.
+      required: [code, title, status]
+      properties:
+        code:
+          type: string
+          example: FEED_FORMULA_NAME_IN_USE
+        title:
+          type: string
+          example: Operação recusada
+        status:
+          type: integer
+          example: 409
+        detail:
+          type: string
+          example: Já existe uma fórmula com este nome.
+        instance:
+          type: string
+          example: /api/v1/feed-formulas
+        details:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            name: Já existe uma fórmula com este nome. Se ela está inativa, reative-a.
+security:
+- sessionCookie: []

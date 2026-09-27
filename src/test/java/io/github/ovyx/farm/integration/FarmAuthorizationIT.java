@@ -14,8 +14,8 @@ import io.github.ovyx.IntegrationTestSupport;
 import io.github.ovyx.identity.domain.port.CaretakerRepository;
 import io.github.ovyx.identity.domain.port.PasswordHasher;
 import jakarta.servlet.http.Cookie;
-import java.time.Clock;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -37,17 +37,19 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * Quem pode o quê nas rotas do contexto farm (FR-018, FR-019; US4; SC-004; S-10, S-11).
+ * Quem pode o quê nas rotas do contexto farm (FR-018, FR-019; US4; SC-004; S-10, S-11; e FR-006, FR-021 e
+ * R-010 da 004).
  *
  * <p>Consultar é de qualquer responsável autenticado; cadastrar, editar, inativar e reativar é só do
- * administrador. O usuário comum recebe o 403 genérico da feature 001, o mesmo para o setor ou a
- * gaiola que existem e para os que não existem; e o visitante sem sessão, o 401.
+ * administrador, para setores, gaiolas e fórmulas de ração. O usuário comum recebe o 403 genérico da
+ * feature 001, o mesmo para o que existe e para o que não existe; e o visitante sem sessão, o 401.
  */
 @AutoConfigureMockMvc
 @DisplayName("Farm authorization")
 class FarmAuthorizationIT extends IntegrationTestSupport {
 
     private static final String SECTORS = "/api/v1/sectors";
+    private static final String FORMULAS = "/api/v1/feed-formulas";
 
     /** Os campos da recusa genérica, e só eles, como na feature 001. */
     private static final String[] PROBLEM_FIELDS = {"title", "status", "detail", "instance", "code"};
@@ -71,6 +73,7 @@ class FarmAuthorizationIT extends IntegrationTestSupport {
     private Cookie[] commonUser;
     private String sectorPath;
     private String cagePath;
+    private String formulaPath;
 
     @BeforeEach
     void registerASectorAndSignInAsACommonUser() throws Exception {
@@ -100,23 +103,36 @@ class FarmAuthorizationIT extends IntegrationTestSupport {
                 .getResponse()
                 .getContentAsString();
         cagePath = sectorPath + "/cages/" + JsonPath.read(cage, "$.id");
+        String formula = mockMvc.perform(post(FORMULAS)
+                        .with(sessions.csrf())
+                        .cookie(administrator)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name": "Autorização %s", "pricePerKg": "2,85", "expectedIntake": 28}
+                                """.formatted(UUID.randomUUID())))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        formulaPath = FORMULAS + "/" + JsonPath.read(formula, "$.id");
         commonUser = sessions.commonUser().cookies();
     }
 
-    /** A rota com os identificadores do setor cadastrado para o teste no lugar dos marcadores. */
+    /** A rota com os identificadores cadastrados para o teste no lugar dos marcadores. */
     private MockHttpServletRequestBuilder request(HttpMethod method, String route) {
         return MockMvcRequestBuilders.request(method, pathOf(route));
     }
 
-    /** O caminho da rota, com o setor e a gaiola cadastrados para o teste. */
+    /** O caminho da rota, com o setor, a gaiola e a fórmula cadastrados para o teste. */
     private String pathOf(String route) {
-        return route.replace("{cage}", cagePath).replace("{sector}", sectorPath);
+        return route.replace("{cage}", cagePath).replace("{sector}", sectorPath).replace("{formula}", formulaPath);
     }
 
-    /** Um corpo que serve às escritas de setor e de gaiola: cada uma lê só os campos dela. */
+    /** Um corpo que serve às escritas de setor, de gaiola e de fórmula: cada uma lê só os campos dela. */
     private static MockHttpServletRequestBuilder withBody(MockHttpServletRequestBuilder request) {
         return request.contentType(MediaType.APPLICATION_JSON).content("""
-                {"name": "Codornas — Galpão 9", "battery": "C", "number": 9, "birdCount": 50}
+                {"name": "Codornas — Galpão 9", "battery": "C", "number": 9, "birdCount": 50,
+                 "pricePerKg": "2,85", "expectedIntake": 28}
                 """);
     }
 
@@ -185,10 +201,16 @@ class FarmAuthorizationIT extends IntegrationTestSupport {
         "POST, {sector}/deactivation",
         "POST, {sector}/reactivation",
         "POST, {cage}/deactivation",
-        "POST, {cage}/reactivation"
+        "POST, {cage}/reactivation",
+        "GET, /api/v1/feed-formulas",
+        "GET, {formula}",
+        "POST, /api/v1/feed-formulas",
+        "PUT, {formula}",
+        "POST, {formula}/deactivation",
+        "POST, {formula}/reactivation"
     })
-    @DisplayName("requires a session on every sector and cage route")
-    void givenAnonymousVisitor_whenCallingASectorOrCageRoute_thenRequireAuthentication(String method, String route)
+    @DisplayName("requires a session on every sector, cage and formula route")
+    void givenAnonymousVisitor_whenCallingAFarmRoute_thenRequireAuthentication(String method, String route)
             throws Exception {
         // given
         MockHttpServletRequestBuilder request = withBody(request(HttpMethod.valueOf(method), route));
@@ -212,6 +234,42 @@ class FarmAuthorizationIT extends IntegrationTestSupport {
 
         // then
         response.andExpect(status().isOk());
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @CsvSource({"/api/v1/feed-formulas", "{formula}"})
+    @DisplayName("lets a common user list and find the formulas")
+    void givenCommonUser_whenReadingTheFormulas_thenAnswerOk(String route) throws Exception {
+        // given
+        MockHttpServletRequestBuilder request = request(HttpMethod.GET, route);
+
+        // when
+        ResultActions response = mockMvc.perform(request.cookie(commonUser));
+
+        // then
+        response.andExpect(status().isOk());
+    }
+
+    @ParameterizedTest(name = "{0} {1}")
+    @CsvSource({
+        "POST, /api/v1/feed-formulas",
+        "PUT, {formula}",
+        "POST, {formula}/deactivation",
+        "POST, {formula}/reactivation"
+    })
+    @DisplayName("forbids a common user to register, update, deactivate or reactivate a formula")
+    void givenCommonUser_whenWritingAFormula_thenForbid(String method, String route) throws Exception {
+        // given
+        MockHttpServletRequestBuilder request = withBody(request(HttpMethod.valueOf(method), route));
+
+        // when
+        ResultActions response = mockMvc.perform(request.with(sessions.csrf()).cookie(commonUser));
+
+        // then
+        response.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        mockMvc.perform(get(formulaPath).cookie(commonUser))
+                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.pricePerKg").value(2.85));
     }
 
     @ParameterizedTest(name = "{0} {1}")
@@ -244,10 +302,11 @@ class FarmAuthorizationIT extends IntegrationTestSupport {
 
     // ------------------------------------------------------------------ matriz completa (US4)
 
-    /** A rota com um setor e uma gaiola que não existem no lugar dos marcadores. */
+    /** A rota com um setor, uma gaiola e uma fórmula que não existem no lugar dos marcadores. */
     private static String missing(String route) {
         return route.replace("{cage}", SECTORS + "/" + UUID.randomUUID() + "/cages/" + UUID.randomUUID())
-                .replace("{sector}", SECTORS + "/" + UUID.randomUUID());
+                .replace("{sector}", SECTORS + "/" + UUID.randomUUID())
+                .replace("{formula}", FORMULAS + "/" + UUID.randomUUID());
     }
 
     private MvcResult write(Cookie[] session, HttpMethod method, String path) throws Exception {
@@ -277,9 +336,12 @@ class FarmAuthorizationIT extends IntegrationTestSupport {
         "POST, {sector}/cages",
         "PUT, {cage}",
         "POST, {cage}/deactivation",
-        "POST, {cage}/reactivation"
+        "POST, {cage}/reactivation",
+        "PUT, {formula}",
+        "POST, {formula}/deactivation",
+        "POST, {formula}/reactivation"
     })
-    @DisplayName("refuses a common user about a sector or a cage that exists exactly as about one that does not")
+    @DisplayName("refuses a common user about an item that exists exactly as about one that does not")
     void givenCommonUser_whenWritingAboutAnExistingAndAMissingItem_thenAnswerTheSameRefusal(String method, String route)
             throws Exception {
         // given
@@ -304,7 +366,11 @@ class FarmAuthorizationIT extends IntegrationTestSupport {
         "POST, {sector}/cages",
         "PUT, {cage}",
         "POST, {cage}/deactivation",
-        "POST, {cage}/reactivation"
+        "POST, {cage}/reactivation",
+        "POST, /api/v1/feed-formulas",
+        "PUT, {formula}",
+        "POST, {formula}/deactivation",
+        "POST, {formula}/reactivation"
     })
     @DisplayName("answers a common user only the generic refusal, with the path that was asked for")
     void givenCommonUser_whenWriting_thenAnswerOnlyTheGenericRefusal(String method, String route) throws Exception {
@@ -349,6 +415,32 @@ class FarmAuthorizationIT extends IntegrationTestSupport {
 
         // then
         response.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("CSRF_TOKEN_INVALID"));
+    }
+
+    @Test
+    @DisplayName("refuses a formula write of an administrator without the protection token")
+    void givenAdministratorWithoutTheCsrfToken_whenRegisteringAFormula_thenRefuseTheMissingToken() throws Exception {
+        // given
+        Cookie[] administrator = sessions.administrator().cookies();
+
+        // when
+        ResultActions response = mockMvc.perform(withBody(post(FORMULAS)).cookie(administrator));
+
+        // then
+        response.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("CSRF_TOKEN_INVALID"));
+    }
+
+    @Test
+    @DisplayName("forbids even an administrator to delete a formula: nothing is deleted, and the route does not exist")
+    void givenAdministrator_whenDeletingAFormula_thenForbid() throws Exception {
+        // given
+        Cookie[] administrator = sessions.administrator().cookies();
+
+        // when
+        ResultActions response = mockMvc.perform(delete(formulaPath).with(sessions.csrf()).cookie(administrator));
+
+        // then
+        response.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 
     @Test

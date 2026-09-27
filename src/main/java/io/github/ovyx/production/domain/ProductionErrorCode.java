@@ -51,6 +51,24 @@ public enum ProductionErrorCode implements ErrorCode {
      */
     REMOVALS_EXCEED_OPENING_BIRDS,
 
+    CONSUMPTION_REQUIRED,
+    CONSUMPTION_NOT_INTEGER,
+
+    /**
+     * Consumo fora de 0 a 50.000 g (R-011 da 004): no campo do consumo no lancamento da gaiola, e no da
+     * formula quando a proposta da sugestao de alguma gaiola passaria do maximo.
+     */
+    CONSUMPTION_OUT_OF_RANGE,
+
+    /** Lancamento de racao sem formula, no campo {@code formulaId}. */
+    FORMULA_REQUIRED,
+
+    /** Formula inexistente ou identificador malformado, no campo {@code formulaId} (400, e nao 404). */
+    FORMULA_NOT_FOUND,
+
+    /** Formula inativa num lancamento novo, no campo {@code formulaId} (invariante 10 da 004). */
+    FORMULA_INACTIVE,
+
     // ---------------------------------------------------------------- recusas de operacao
     /** Uma ou mais regras de validacao foram violadas; cada uma vem, com o seu codigo, na recusa. */
     VALIDATION_FAILED,
