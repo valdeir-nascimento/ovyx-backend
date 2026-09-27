@@ -7,9 +7,7 @@ import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.servers.Server;
 import io.swagger.v3.oas.models.tags.Tag;
-
 import java.util.List;
-
 import org.springdoc.core.properties.SwaggerUiConfigProperties;
 import org.springdoc.core.properties.SwaggerUiOAuthProperties;
 import org.springdoc.core.providers.ObjectMapperProvider;
@@ -116,8 +114,18 @@ public class OpenApiConfiguration {
                         **Nada é apagado**: setores e gaiolas são inativados, e continuam consultáveis. Inativar um \
                         setor inativa junto as gaiolas ativas dele; reativá-lo traz de volta exatamente essas gaiolas.
 
-                        Relatórios diários dos setores (`DailyReport`): a produção e a mortalidade lançadas por \
-                        gaiola, um relatório por setor e por dia de coleta.
+                        Fórmulas de ração da granja (`FeedFormula`): o preço por quilo e o consumo esperado por ave ao \
+                        dia, a base do custo da ração e do custo por ovo dos relatórios diários.
+
+                        **Perfis**: qualquer responsável autenticado consulta as fórmulas. Cadastrar, editar, inativar \
+                        e reativar é exclusivo do perfil Administrador; o usuário comum recebe o 403 `FORBIDDEN` \
+                        genérico.
+
+                        **Nada é apagado**: a fórmula é inativada, deixa de ser oferecida nos lançamentos novos, e os \
+                        lançamentos que já a usam continuam com o preço deles.
+
+                        Relatórios diários dos setores (`DailyReport`): a produção, a ração e a mortalidade lançadas \
+                        por gaiola, um relatório por setor e por dia de coleta.
 
                         **Perfis**: qualquer responsável autenticado — usuário comum ou administrador — abre, corrige, \
                         lança e consulta relatórios. Quem abriu e quem fez a última correção ficam registrados pela \
@@ -129,6 +137,10 @@ public class OpenApiConfiguration {
                         **Quantidades**: inteiras. Como na API da Granja, também são aceitas como texto — o que o \
                         formulário digitou —, e o que não é inteiro é recusado no próprio campo, junto das demais \
                         falhas. Nos lançamentos, a classificação e a mortalidade em branco valem zero.
+
+                        **Ração**: cada lançamento guarda o preço por quilo e o consumo esperado da fórmula no \
+                        momento em que foi feito; mudar a fórmula depois não muda o custo dos lançamentos já feitos. \
+                        A fórmula de um lançamento novo precisa estar ativa (API das Fórmulas de Ração).
                         """))
             .tags(List.of(
                 new Tag()
@@ -147,10 +159,15 @@ public class OpenApiConfiguration {
                     .name("Gaiolas")
                     .description("Cadastro, consulta, inativação e reativação das gaiolas de um setor"),
                 new Tag()
+                    .name("Fórmulas de ração")
+                    .description(
+                        "Cadastro, consulta, inativação e reativação das fórmulas de ração, com o preço por quilo"
+                            + " e o consumo esperado"),
+                new Tag()
                     .name("Relatórios diários")
                     .description(
                         "Abertura, correção e consulta dos relatórios diários de um setor, com os lançamentos de"
-                            + " produção e de mortalidade de cada gaiola")))
+                            + " produção, de ração e de mortalidade de cada gaiola")))
             .addSecurityItem(new SecurityRequirement().addList(SESSION_COOKIE))
             .components(new Components()
                 .addSecuritySchemes(

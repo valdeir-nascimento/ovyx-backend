@@ -6,22 +6,27 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.groups.Tuple.tuple;
 
 import io.github.ovyx.IntegrationTestSupport;
+import io.github.ovyx.production.application.dailyreport.CageFeed;
 import io.github.ovyx.production.application.dailyreport.CageMortality;
 import io.github.ovyx.production.application.dailyreport.CageProduction;
 import io.github.ovyx.production.application.dailyreport.DailyReportDetail;
 import io.github.ovyx.production.application.dailyreport.DailyReportDirectory;
 import io.github.ovyx.production.application.dailyreport.DailyReportSummary;
+import io.github.ovyx.production.application.dailyreport.FeedTotals;
 import io.github.ovyx.production.application.dailyreport.LatestDailyReport;
 import io.github.ovyx.production.application.dailyreport.ReportCageDetail;
 import io.github.ovyx.production.domain.model.CageId;
 import io.github.ovyx.production.domain.model.DailyReport;
 import io.github.ovyx.production.domain.model.DailyReportId;
 import io.github.ovyx.production.domain.model.FarmSector;
+import io.github.ovyx.production.domain.model.FeedFormulaChoice;
+import io.github.ovyx.production.domain.model.FeedStatus;
 import io.github.ovyx.production.domain.model.MortalityStatus;
 import io.github.ovyx.production.domain.model.ProductionStatus;
 import io.github.ovyx.production.domain.model.SectorId;
 import io.github.ovyx.production.domain.port.DailyReportRepository;
 import io.github.ovyx.production.domain.port.FarmStructure;
+import io.github.ovyx.production.domain.port.FeedCatalog;
 import io.github.ovyx.production.domain.valueobject.EggGrades;
 import io.github.ovyx.shared.application.PageResponse;
 import java.math.BigDecimal;
@@ -46,6 +51,9 @@ class DailyReportDirectoryIT extends IntegrationTestSupport {
 
     @Autowired
     private FarmStructure farmStructure;
+
+    @Autowired
+    private FeedCatalog feedCatalog;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -485,5 +493,173 @@ class DailyReportDirectoryIT extends IntegrationTestSupport {
 
         // then
         assertThat(birds).isEqualTo(98);
+    }
+
+    // ------------------------------------------------------------------ ração (feature 004)
+
+    /** O relatório de 24/09 com as duas gaiolas lançadas e a ração do setor pela sugestão da fórmula. */
+    private DailyReport savedFedWith(FarmSector sector, UUID formulaId) {
+        DailyReport report = savedWithBothCagesRecorded(sector);
+        DailyReport loaded = repository.findById(sector.id(), report.id()).orElseThrow();
+        loaded.recordFeedBySuggestion(
+                sector, FeedFormulaChoice.lookup(formulaId.toString(), feedCatalog), JOAO, RECORDED_AT);
+        repository.save(loaded);
+        return loaded;
+    }
+
+    @Test
+    @DisplayName("gives each cage of the detail its feed, with the price and the intake kept, and the totals of the day")
+    void givenReportFedBySuggestion_whenFindingTheDetail_thenFindTheFeedOfEachCageAndTheTotals() {
+        // given
+        FarmSector sector = sectorWithTwoCages();
+        UUID posturaPlus = fixtures.posturaPlus();
+        DailyReport report = savedFedWith(sector, posturaPlus);
+
+        // when
+        DailyReportDetail detail = directory.findDetail(sector.id(), report.id()).orElseThrow();
+
+        // then
+        CageFeed b07 = detail.cages().get(1).feed();
+        assertThat(b07.formulaId()).isEqualTo(posturaPlus);
+        assertThat(b07.formulaName()).isEqualTo(fixtures.formulaNameOf(posturaPlus));
+        assertThat(b07.pricePerKg()).isEqualByComparingTo("2.85");
+        assertThat(b07.expectedIntake()).isEqualTo(28);
+        assertThat(b07.consumption()).isEqualTo(1400);
+        assertThat(b07.cost()).isEqualByComparingTo("3.99");
+        assertThat(b07.intakePerBird()).isEqualByComparingTo("28.0");
+        assertThat(b07.deviation()).isEqualByComparingTo("0.0");
+        FeedTotals feed = detail.feed();
+        assertThat(feed.status()).isEqualTo(FeedStatus.COMPLETE);
+        assertThat(feed.pendingCages()).isZero();
+        assertThat(feed.consumption()).isEqualTo(2744);
+        assertThat(feed.cost()).isEqualByComparingTo("7.82");
+        assertThat(feed.costPerEgg()).isEqualByComparingTo("0.088");
+        assertThat(feed.intakePerBird()).isEqualByComparingTo("28.0");
+        assertThat(feed.expectedIntakePerBird()).isEqualByComparingTo("28.0");
+    }
+
+    @Test
+    @DisplayName("shows the current name of the formula, and the price kept in the entry after the formula changes")
+    void givenFormulaRenamedAndRepriced_whenFindingTheDetail_thenShowTheNewNameAndTheOldPrice() {
+        // given
+        FarmSector sector = sectorWithTwoCages();
+        UUID posturaPlus = fixtures.posturaPlus();
+        DailyReport report = savedFedWith(sector, posturaPlus);
+        jdbc.update("update feed_formula set name = ? where id = ?", "Postura Plus " + posturaPlus, posturaPlus);
+        fixtures.repriceFormula(posturaPlus, "3.10");
+
+        // when
+        DailyReportDetail detail = directory.findDetail(sector.id(), report.id()).orElseThrow();
+
+        // then
+        assertThat(detail.cages().get(0).feed().formulaName()).isEqualTo("Postura Plus " + posturaPlus);
+        assertThat(detail.cages().get(0).feed().pricePerKg()).isEqualByComparingTo("2.85");
+        assertThat(detail.feed().cost()).isEqualByComparingTo("7.82");
+    }
+
+    @Test
+    @DisplayName("leaves the feed of the cages out, and the feed pending, before any feed")
+    void givenReportWithoutFeed_whenFindingTheDetail_thenFindTheFeedPending() {
+        // given
+        FarmSector sector = sectorWithTwoCages();
+        DailyReport report = savedWithBothCagesRecorded(sector);
+
+        // when
+        DailyReportDetail detail = directory.findDetail(sector.id(), report.id()).orElseThrow();
+
+        // then
+        assertThat(detail.cages()).allSatisfy(cage -> assertThat(cage.feed()).isNull());
+        assertThat(detail.feed().status()).isEqualTo(FeedStatus.PENDING);
+        assertThat(detail.feed().pendingCages()).isEqualTo(2);
+        assertThat(detail.feed().consumption()).isZero();
+        assertThat(detail.feed().intakePerBird()).isNull();
+    }
+
+    @Test
+    @DisplayName("gives the cage of the report its feed")
+    void givenReportFedBySuggestion_whenFindingACage_thenFindItsFeed() {
+        // given
+        FarmSector sector = sectorWithTwoCages();
+        DailyReport report = savedFedWith(sector, fixtures.posturaPlus());
+
+        // when
+        ReportCageDetail a01 = directory.findCage(sector.id(), report.id(), cageOf(report, 0)).orElseThrow();
+
+        // then
+        assertThat(a01.feed().consumption()).isEqualTo(1344);
+        assertThat(a01.feed().cost()).isEqualByComparingTo("3.83");
+    }
+
+    @Test
+    @DisplayName("lists each report with the status of its feed and the cages still without it")
+    void givenOneReportFedAndOneNot_whenListing_thenFindTheStatusOfTheFeedOfEach() {
+        // given
+        FarmSector sector = sectorWithTwoCages();
+        DailyReport fed = savedFedWith(sector, fixtures.posturaPlus());
+        DailyReport notFed = savedOn(sector, "2026-09-23");
+
+        // when
+        PageResponse<DailyReportSummary> page = directory.list(sector.id(), null, 0, 20);
+
+        // then
+        assertThat(page.content())
+                .extracting(DailyReportSummary::id, DailyReportSummary::feedStatus, DailyReportSummary::feedPendingCages)
+                .containsExactly(
+                        tuple(fed.id().value(), FeedStatus.COMPLETE, 0),
+                        tuple(notFed.id().value(), FeedStatus.PENDING, 2));
+    }
+
+    @Test
+    @DisplayName("weighs the expected intake of the day by the birds of each cage, with two formulas (004, US4)")
+    void givenCagesFedWithTwoFormulas_whenFindingTheDetail_thenWeighTheExpectedIntakeByTheBirds() {
+        // given
+        // A-01 (48 aves) com 24 g e B-07 (50 aves) com 28 g: (48 × 24 + 50 × 28) ÷ 98 = 26,04 g.
+        FarmSector sector = sectorWithTwoCages();
+        DailyReport report = savedWithBothCagesRecorded(sector);
+        DailyReport loaded = repository.findById(sector.id(), report.id()).orElseThrow();
+        loaded.recordFeed(
+                sector,
+                cageOf(loaded, 0),
+                FeedFormulaChoice.lookup(fixtures.formula("3.10", 24, "ACTIVE").toString(), feedCatalog),
+                "1100",
+                JOAO,
+                RECORDED_AT);
+        loaded.recordFeed(
+                sector,
+                cageOf(loaded, 1),
+                FeedFormulaChoice.lookup(fixtures.posturaPlus().toString(), feedCatalog),
+                "1250",
+                JOAO,
+                RECORDED_AT);
+        repository.save(loaded);
+
+        // when
+        DailyReportDetail detail = directory.findDetail(sector.id(), report.id()).orElseThrow();
+
+        // then
+        assertThat(detail.feed().expectedIntakePerBird()).isEqualByComparingTo("26.0");
+        assertThat(detail.feed().intakePerBird()).isEqualByComparingTo("24.0");
+        assertThat(detail.cages().get(0).feed().deviation()).isEqualByComparingTo("-4.5");
+        assertThat(detail.cages().get(1).feed().intakePerBird()).isEqualByComparingTo("25.0");
+        assertThat(detail.cages().get(1).feed().deviation()).isEqualByComparingTo("-10.7");
+    }
+
+    @Test
+    @DisplayName("leaves the cost per egg out of a report fed without any egg collected (004, US4)")
+    void givenReportFedWithoutProduction_whenFindingTheDetail_thenLeaveTheCostPerEggOut() {
+        // given
+        FarmSector sector = sectorWithTwoCages();
+        DailyReport report = savedOn(sector, "2026-09-24");
+        DailyReport loaded = repository.findById(sector.id(), report.id()).orElseThrow();
+        loaded.recordFeedBySuggestion(
+                sector, FeedFormulaChoice.lookup(fixtures.posturaPlus().toString(), feedCatalog), JOAO, RECORDED_AT);
+        repository.save(loaded);
+
+        // when
+        DailyReportDetail detail = directory.findDetail(sector.id(), report.id()).orElseThrow();
+
+        // then
+        assertThat(detail.feed().cost()).isEqualByComparingTo("7.82");
+        assertThat(detail.feed().costPerEgg()).isNull();
     }
 }

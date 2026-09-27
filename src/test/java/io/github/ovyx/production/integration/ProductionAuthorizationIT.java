@@ -30,7 +30,8 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 
 /**
  * Quem pode o quê nos relatórios (FR-019, FR-020; ProductionRouteAuthorization): qualquer responsável
- * autenticado, usuário comum ou administrador, faz as nove operações, e ninguém sem sessão. Quem deve a
+ * autenticado, usuário comum ou administrador, faz as doze operações — as nove da 003 e as três da ração da
+ * 004 (R-010 da 004) —, e ninguém sem sessão. Quem deve a
  * troca de senha só troca a senha, a escrita sem o token CSRF é recusada, e o relatório de um setor
  * inativo só é consultado.
  */
@@ -56,12 +57,14 @@ class ProductionAuthorizationIT extends IntegrationTestSupport {
     private IntegrationSessions sessions;
     private ProductionFixtures fixtures;
     private UUID sectorId;
+    private UUID formulaId;
 
     @BeforeEach
     void setUp() {
         sessions = new IntegrationSessions(mockMvc, caretakerRepository, passwordHasher, clock);
         fixtures = new ProductionFixtures(jdbc);
         sectorId = fixtures.sectorWithTwoCages();
+        formulaId = fixtures.posturaPlus();
     }
 
     private String reports() {
@@ -91,22 +94,36 @@ class ProductionAuthorizationIT extends IntegrationTestSupport {
         return new Report(path, path + "/cages/" + JsonPath.read(opened, "$.cages[1].cageId"));
     }
 
-    /** As quatro leituras: a lista, a sugestão, o relatório e a gaiola. */
+    /** As cinco leituras: a lista, a sugestão, o relatório, a gaiola e a proposta da ração. */
     private List<MockHttpServletRequestBuilder> readsOf(Report report) {
-        return List.of(get(reports()), get(reports() + "/suggestion"), get(report.path()), get(report.b07()));
+        return List.of(
+                get(reports()),
+                get(reports() + "/suggestion"),
+                get(report.path()),
+                get(report.b07()),
+                get(report.path() + "/feed-suggestion").queryParam("formulaId", formulaId.toString()));
     }
 
-    /** As cinco escritas: abrir outro dia, corrigir, lançar a produção, confirmar o dia e lançar a mortalidade. */
+    /**
+     * As sete escritas: abrir outro dia, corrigir, lançar a produção, confirmar o dia, lançar a mortalidade,
+     * lançar a ração do setor e corrigir a ração de uma gaiola.
+     */
     private List<MockHttpServletRequestBuilder> writesOf(Report report) {
         return List.of(
                 post(reports()).contentType(MediaType.APPLICATION_JSON).content(generalData("2026-09-02")),
                 put(report.path()).contentType(MediaType.APPLICATION_JSON).content(generalData("2026-09-01")),
                 put(report.b07() + "/production").contentType(MediaType.APPLICATION_JSON).content("{\"eggs\": 45}"),
                 post(report.path() + "/mortality-confirmation"),
-                put(report.b07() + "/mortality").contentType(MediaType.APPLICATION_JSON).content("{\"deaths\": 1}"));
+                put(report.b07() + "/mortality").contentType(MediaType.APPLICATION_JSON).content("{\"deaths\": 1}"),
+                post(report.path() + "/feed")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"formulaId\": \"" + formulaId + "\"}"),
+                put(report.b07() + "/feed")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"formulaId\": \"" + formulaId + "\", \"consumption\": 1250}"));
     }
 
-    /** As nove operações do contrato, as leituras antes das escritas. */
+    /** As doze operações do contrato, as leituras antes das escritas. */
     private List<MockHttpServletRequestBuilder> operationsOf(Report report) {
         List<MockHttpServletRequestBuilder> operations = new ArrayList<>(readsOf(report));
         operations.addAll(writesOf(report));
@@ -127,8 +144,8 @@ class ProductionAuthorizationIT extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("lets a common user do the nine operations")
-    void givenCommonUser_whenDoingTheNineOperations_thenLetThemThrough() throws Exception {
+    @DisplayName("lets a common user do the twelve operations")
+    void givenCommonUser_whenDoingTheTwelveOperations_thenLetThemThrough() throws Exception {
         // given
         Cookie[] commonUser = sessions.commonUser().cookies();
         Report report = openedReport(commonUser);
@@ -138,12 +155,13 @@ class ProductionAuthorizationIT extends IntegrationTestSupport {
                 outcomesOf(operationsOf(report), request -> request.with(sessions.csrf()).cookie(commonUser));
 
         // then
-        assertThat(outcomes).containsExactly("200", "200", "200", "200", "201", "200", "200", "200", "200");
+        assertThat(outcomes)
+                .containsExactly("200", "200", "200", "200", "200", "201", "200", "200", "200", "200", "200", "200");
     }
 
     @Test
-    @DisplayName("lets an administrator do the nine operations")
-    void givenAdministrator_whenDoingTheNineOperations_thenLetThemThrough() throws Exception {
+    @DisplayName("lets an administrator do the twelve operations")
+    void givenAdministrator_whenDoingTheTwelveOperations_thenLetThemThrough() throws Exception {
         // given
         Cookie[] administrator = sessions.administrator().cookies();
         Report report = openedReport(administrator);
@@ -153,12 +171,13 @@ class ProductionAuthorizationIT extends IntegrationTestSupport {
                 outcomesOf(operationsOf(report), request -> request.with(sessions.csrf()).cookie(administrator));
 
         // then
-        assertThat(outcomes).containsExactly("200", "200", "200", "200", "201", "200", "200", "200", "200");
+        assertThat(outcomes)
+                .containsExactly("200", "200", "200", "200", "200", "201", "200", "200", "200", "200", "200", "200");
     }
 
     @Test
-    @DisplayName("refuses a visitor without session on the nine operations: 401")
-    void givenVisitorWithoutSession_whenDoingTheNineOperations_thenAnswerUnauthenticated() throws Exception {
+    @DisplayName("refuses a visitor without session on the twelve operations: 401")
+    void givenVisitorWithoutSession_whenDoingTheTwelveOperations_thenAnswerUnauthenticated() throws Exception {
         // given
         Report report = openedReport(sessions.commonUser().cookies());
 
@@ -166,12 +185,12 @@ class ProductionAuthorizationIT extends IntegrationTestSupport {
         List<String> outcomes = outcomesOf(operationsOf(report), request -> request.with(sessions.csrf()));
 
         // then
-        assertThat(outcomes).hasSize(9).allMatch("401 UNAUTHENTICATED"::equals);
+        assertThat(outcomes).hasSize(12).allMatch("401 UNAUTHENTICATED"::equals);
     }
 
     @Test
-    @DisplayName("refuses whoever owes the password change on the nine operations: 403")
-    void givenUserOwingThePasswordChange_whenDoingTheNineOperations_thenAnswerPasswordChangeRequired()
+    @DisplayName("refuses whoever owes the password change on the twelve operations: 403")
+    void givenUserOwingThePasswordChange_whenDoingTheTwelveOperations_thenAnswerPasswordChangeRequired()
             throws Exception {
         // given
         Report report = openedReport(sessions.commonUser().cookies());
@@ -181,11 +200,11 @@ class ProductionAuthorizationIT extends IntegrationTestSupport {
         List<String> outcomes = outcomesOf(operationsOf(report), request -> request.with(sessions.csrf()).cookie(owing));
 
         // then
-        assertThat(outcomes).hasSize(9).allMatch("403 PASSWORD_CHANGE_REQUIRED"::equals);
+        assertThat(outcomes).hasSize(12).allMatch("403 PASSWORD_CHANGE_REQUIRED"::equals);
     }
 
     @Test
-    @DisplayName("refuses the five writes without the CSRF token: 403")
+    @DisplayName("refuses the seven writes without the CSRF token: 403")
     void givenWritesWithoutCsrfToken_whenWriting_thenAnswerCsrfTokenInvalid() throws Exception {
         // given
         Cookie[] commonUser = sessions.commonUser().cookies();
@@ -195,7 +214,7 @@ class ProductionAuthorizationIT extends IntegrationTestSupport {
         List<String> outcomes = outcomesOf(writesOf(report), request -> request.cookie(commonUser));
 
         // then
-        assertThat(outcomes).hasSize(5).allMatch("403 CSRF_TOKEN_INVALID"::equals);
+        assertThat(outcomes).hasSize(7).allMatch("403 CSRF_TOKEN_INVALID"::equals);
     }
 
     @Test
@@ -212,7 +231,7 @@ class ProductionAuthorizationIT extends IntegrationTestSupport {
         List<String> reads = outcomesOf(readsOf(report), asTheUser);
 
         // then
-        assertThat(writes).hasSize(5).allMatch("409 SECTOR_INACTIVE"::equals);
-        assertThat(reads).containsExactly("200", "200", "200", "200");
+        assertThat(writes).hasSize(7).allMatch("409 SECTOR_INACTIVE"::equals);
+        assertThat(reads).containsExactly("200", "200", "200", "200", "200");
     }
 }

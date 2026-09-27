@@ -30,6 +30,7 @@ public record DailyReportDetail(
         Instant lastCorrectedAt,
         ProductionTotals production,
         MortalityTotals mortality,
+        FeedTotals feed,
         List<ReportCageDetail> cages) {
 
     public DailyReportDetail {

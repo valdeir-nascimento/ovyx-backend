@@ -778,4 +778,251 @@ public interface DailyReportApi {
             @Parameter(description = REPORT_ID, example = REPORT_ID_EXAMPLE, schema = @Schema(type = "string", format = "uuid"))
             String reportId,
             @Parameter(hidden = true) AuthenticatedUser user);
+
+    @Operation(
+            summary = "Sugerir a ração do setor",
+            description = "O que o lançamento pela sugestão gravaria com a fórmula: para cada gaiola sem ração, as "
+                    + "aves vezes o consumo esperado, e os totais do dia com a proposta. Não grava nada.")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Proposta para as gaiolas sem ração",
+            content = @Content(
+                    mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = FeedSuggestionResponse.class),
+                    examples = @ExampleObject(name = "propostaDoSetor", summary = "Duas gaiolas sem ração, com a Postura Plus", value = DailyReportExamples.SUGGEST_FEED_200_PROPOSTA_DO_SETOR)))
+    @ApiResponse(
+            responseCode = "400",
+            description = "Fórmula ausente, inexistente ou inativa (`VALIDATION_FAILED`, no campo `formulaId`).",
+            content = @Content(
+                    mediaType = PROBLEM_JSON,
+                    schema = @Schema(implementation = ProblemResponse.class),
+                    examples = @ExampleObject(name = "formulaInativa", summary = "Fórmula inativada", value = DailyReportExamples.SUGGEST_FEED_400_FORMULA_INATIVA)))
+    @ApiResponse(
+            responseCode = "401",
+            description = "Sem sessão válida (`UNAUTHENTICATED`), ou responsável inativado com a sessão aberta "
+                    + "(`CARETAKER_UNAVAILABLE`).",
+            content = @Content(
+                    mediaType = PROBLEM_JSON,
+                    schema = @Schema(implementation = ProblemResponse.class),
+                    examples = @ExampleObject(name = "semSessao", summary = "Sem sessão", value = DailyReportExamples.SUGGEST_FEED_401_SEM_SESSAO)))
+    @ApiResponse(
+            responseCode = "403",
+            description = "Troca de senha pendente (`PASSWORD_CHANGE_REQUIRED`).",
+            content = @Content(
+                    mediaType = PROBLEM_JSON,
+                    schema = @Schema(implementation = ProblemResponse.class),
+                    examples = @ExampleObject(name = "trocaDeSenhaPendente", summary = "Senha provisória ainda não trocada", value = DailyReportExamples.SUGGEST_FEED_403_TROCA_DE_SENHA_PENDENTE)))
+    @ApiResponse(
+            responseCode = "404",
+            description = "Setor ou relatório inexistente, relatório de outro setor, ou identificador malformado "
+                    + "(`SECTOR_NOT_FOUND` ou `DAILY_REPORT_NOT_FOUND`).",
+            content = @Content(
+                    mediaType = PROBLEM_JSON,
+                    schema = @Schema(implementation = ProblemResponse.class),
+                    examples = @ExampleObject(name = "relatorioNaoEncontrado", summary = "Relatório que não é deste setor", value = DailyReportExamples.SUGGEST_FEED_404_RELATORIO_NAO_ENCONTRADO)))
+    @ApiResponse(
+            responseCode = "406",
+            description = "Formato de resposta indisponível (`REQUEST_NOT_ACCEPTABLE`).",
+            content = @Content(
+                    mediaType = PROBLEM_JSON,
+                    schema = @Schema(implementation = ProblemResponse.class),
+                    examples = @ExampleObject(value = DailyReportExamples.SUGGEST_FEED_406)))
+    @ApiResponse(
+            responseCode = "500",
+            description = "Falha inesperada (`INTERNAL_ERROR`), sem detalhe da causa.",
+            content = @Content(
+                    mediaType = PROBLEM_JSON,
+                    schema = @Schema(implementation = ProblemResponse.class),
+                    examples = @ExampleObject(value = DailyReportExamples.SUGGEST_FEED_500)))
+    ResponseEntity<Object> suggestFeed(
+            @Parameter(description = SECTOR_ID, example = SECTOR_ID_EXAMPLE, schema = @Schema(type = "string", format = "uuid"))
+            String sectorId,
+            @Parameter(description = REPORT_ID, example = REPORT_ID_EXAMPLE, schema = @Schema(type = "string", format = "uuid"))
+            String reportId,
+            @Parameter(
+                    description = "Fórmula ativa.",
+                    required = true,
+                    example = "4e6a8c0e-2a4c-4e6a-9c0e-2a4c6e8a0c11",
+                    schema = @Schema(type = "string", format = "uuid"))
+            String formulaId);
+
+    @Operation(
+            summary = "Lançar a ração do setor pela sugestão",
+            description = "Cada gaiola ainda sem ração recebe a fórmula e o consumo esperado (aves × consumo "
+                    + "esperado), com o preço atual dela; as gaiolas já lançadas não mudam. Com todas lançadas, "
+                    + "não muda nada.",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    required = true,
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = FeedSuggestionRequest.class),
+                            examples = @ExampleObject(name = "formulaDoSetor", summary = "Postura Plus em todas as gaiolas pendentes", value = DailyReportExamples.FEED_BY_SUGGESTION_REQUEST_FORMULA_DO_SETOR))))
+    @ApiResponse(
+            responseCode = "200",
+            description = "Ração lançada nas gaiolas pendentes; o relatório com os totais do dia",
+            content = @Content(
+                    mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = DailyReportDetailResponse.class),
+                    examples = @ExampleObject(name = "racaoLancada", summary = "Ração do setor completa", value = DailyReportExamples.FEED_BY_SUGGESTION_200_RACAO_LANCADA)))
+    @ApiResponse(
+            responseCode = "400",
+            description = "Fórmula ausente, inexistente ou inativa (`VALIDATION_FAILED`, no campo `formulaId`), ou "
+                    + "corpo ilegível.",
+            content = @Content(
+                    mediaType = PROBLEM_JSON,
+                    schema = @Schema(implementation = ProblemResponse.class),
+                    examples = @ExampleObject(name = "formulaInativa", summary = "Fórmula inativada", value = DailyReportExamples.FEED_BY_SUGGESTION_400_FORMULA_INATIVA)))
+    @ApiResponse(
+            responseCode = "401",
+            description = "Sem sessão válida (`UNAUTHENTICATED`), ou responsável inativado com a sessão aberta "
+                    + "(`CARETAKER_UNAVAILABLE`).",
+            content = @Content(
+                    mediaType = PROBLEM_JSON,
+                    schema = @Schema(implementation = ProblemResponse.class),
+                    examples = @ExampleObject(name = "semSessao", summary = "Sem sessão", value = DailyReportExamples.FEED_BY_SUGGESTION_401_SEM_SESSAO)))
+    @ApiResponse(
+            responseCode = "403",
+            description = "Escrita sem o token de proteção (`CSRF_TOKEN_INVALID`) ou com a troca de senha pendente "
+                    + "(`PASSWORD_CHANGE_REQUIRED`). Qualquer perfil escreve; não há 403 de perfil.",
+            content = @Content(
+                    mediaType = PROBLEM_JSON,
+                    schema = @Schema(implementation = ProblemResponse.class),
+                    examples = {
+                        @ExampleObject(name = "tokenCsrfAusente", summary = "Escrita sem o cabeçalho X-XSRF-TOKEN", value = DailyReportExamples.FEED_BY_SUGGESTION_403_TOKEN_CSRF_AUSENTE),
+                        @ExampleObject(name = "trocaDeSenhaPendente", summary = "Senha provisória ainda não trocada", value = DailyReportExamples.FEED_BY_SUGGESTION_403_TROCA_DE_SENHA_PENDENTE)
+                    }))
+    @ApiResponse(
+            responseCode = "404",
+            description = "Setor ou relatório inexistente, relatório de outro setor, ou identificador malformado "
+                    + "(`SECTOR_NOT_FOUND` ou `DAILY_REPORT_NOT_FOUND`).",
+            content = @Content(
+                    mediaType = PROBLEM_JSON,
+                    schema = @Schema(implementation = ProblemResponse.class),
+                    examples = @ExampleObject(name = "relatorioNaoEncontrado", summary = "Relatório que não é deste setor", value = DailyReportExamples.FEED_BY_SUGGESTION_404_RELATORIO_NAO_ENCONTRADO)))
+    @ApiResponse(
+            responseCode = "406",
+            description = "Formato de resposta indisponível (`REQUEST_NOT_ACCEPTABLE`).",
+            content = @Content(
+                    mediaType = PROBLEM_JSON,
+                    schema = @Schema(implementation = ProblemResponse.class),
+                    examples = @ExampleObject(value = DailyReportExamples.FEED_BY_SUGGESTION_406)))
+    @ApiResponse(
+            responseCode = "409",
+            description = "Lançamento num relatório de setor inativo (`SECTOR_INACTIVE`).",
+            content = @Content(
+                    mediaType = PROBLEM_JSON,
+                    schema = @Schema(implementation = ProblemResponse.class),
+                    examples = @ExampleObject(name = "setorInativo", summary = "Setor inativado depois da abertura do relatório", value = DailyReportExamples.FEED_BY_SUGGESTION_409_SETOR_INATIVO)))
+    @ApiResponse(
+            responseCode = "415",
+            description = "Corpo em formato diferente de JSON (`REQUEST_NOT_ACCEPTABLE`, 415).",
+            content = @Content(
+                    mediaType = PROBLEM_JSON,
+                    schema = @Schema(implementation = ProblemResponse.class),
+                    examples = @ExampleObject(value = DailyReportExamples.FEED_BY_SUGGESTION_415)))
+    @ApiResponse(
+            responseCode = "500",
+            description = "Falha inesperada (`INTERNAL_ERROR`), sem detalhe da causa.",
+            content = @Content(
+                    mediaType = PROBLEM_JSON,
+                    schema = @Schema(implementation = ProblemResponse.class),
+                    examples = @ExampleObject(value = DailyReportExamples.FEED_BY_SUGGESTION_500)))
+    ResponseEntity<Object> recordFeedBySuggestion(
+            @Parameter(description = SECTOR_ID, example = SECTOR_ID_EXAMPLE, schema = @Schema(type = "string", format = "uuid"))
+            String sectorId,
+            @Parameter(description = REPORT_ID, example = REPORT_ID_EXAMPLE, schema = @Schema(type = "string", format = "uuid"))
+            String reportId,
+            FeedSuggestionRequest body,
+            @Parameter(hidden = true) AuthenticatedUser user);
+
+    @Operation(
+            summary = "Lançar ração da gaiola",
+            description = "Lança ou corrige a fórmula e o consumo da gaiola. Mantida a fórmula, o preço e o esperado "
+                    + "guardados continuam; trocada, a gaiola passa a usar os atuais da nova, que precisa estar "
+                    + "ativa.",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    required = true,
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = FeedRequest.class),
+                            examples = @ExampleObject(name = "racaoDaGaiola", summary = "Consumo pesado da B-07", value = DailyReportExamples.FEED_REQUEST_RACAO_DA_GAIOLA))))
+    @ApiResponse(
+            responseCode = "200",
+            description = "Ração gravada na gaiola do relatório",
+            content = @Content(
+                    mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = ReportCageDetailResponse.class),
+                    examples = @ExampleObject(name = "racaoLancada", summary = "B-07 abaixo do esperado", value = DailyReportExamples.FEED_200_RACAO_LANCADA)))
+    @ApiResponse(
+            responseCode = "400",
+            description = "Campos inválidos, todos de uma vez (`VALIDATION_FAILED`), inclusive fórmula inexistente ou "
+                    + "inativa, ou corpo ilegível.",
+            content = @Content(
+                    mediaType = PROBLEM_JSON,
+                    schema = @Schema(implementation = ProblemResponse.class),
+                    examples = @ExampleObject(name = "camposInvalidos", summary = "Consumo decimal e fórmula inativa", value = DailyReportExamples.FEED_400_CAMPOS_INVALIDOS)))
+    @ApiResponse(
+            responseCode = "401",
+            description = "Sem sessão válida (`UNAUTHENTICATED`), ou responsável inativado com a sessão aberta "
+                    + "(`CARETAKER_UNAVAILABLE`).",
+            content = @Content(
+                    mediaType = PROBLEM_JSON,
+                    schema = @Schema(implementation = ProblemResponse.class),
+                    examples = @ExampleObject(name = "semSessao", summary = "Sem sessão", value = DailyReportExamples.FEED_401_SEM_SESSAO)))
+    @ApiResponse(
+            responseCode = "403",
+            description = "Escrita sem o token de proteção (`CSRF_TOKEN_INVALID`) ou com a troca de senha pendente "
+                    + "(`PASSWORD_CHANGE_REQUIRED`). Qualquer perfil escreve; não há 403 de perfil.",
+            content = @Content(
+                    mediaType = PROBLEM_JSON,
+                    schema = @Schema(implementation = ProblemResponse.class),
+                    examples = {
+                        @ExampleObject(name = "tokenCsrfAusente", summary = "Escrita sem o cabeçalho X-XSRF-TOKEN", value = DailyReportExamples.FEED_403_TOKEN_CSRF_AUSENTE),
+                        @ExampleObject(name = "trocaDeSenhaPendente", summary = "Senha provisória ainda não trocada", value = DailyReportExamples.FEED_403_TROCA_DE_SENHA_PENDENTE)
+                    }))
+    @ApiResponse(
+            responseCode = "404",
+            description = "Setor, relatório ou gaiola inexistente, gaiola que não está no relatório, ou identificador "
+                    + "malformado (`SECTOR_NOT_FOUND`, `DAILY_REPORT_NOT_FOUND` ou `CAGE_NOT_FOUND`).",
+            content = @Content(
+                    mediaType = PROBLEM_JSON,
+                    schema = @Schema(implementation = ProblemResponse.class),
+                    examples = @ExampleObject(name = "gaiolaForaDoRelatorio", summary = "Gaiola cadastrada depois da abertura do relatório", value = DailyReportExamples.FEED_404_GAIOLA_FORA_DO_RELATORIO)))
+    @ApiResponse(
+            responseCode = "406",
+            description = "Formato de resposta indisponível (`REQUEST_NOT_ACCEPTABLE`).",
+            content = @Content(
+                    mediaType = PROBLEM_JSON,
+                    schema = @Schema(implementation = ProblemResponse.class),
+                    examples = @ExampleObject(value = DailyReportExamples.FEED_406)))
+    @ApiResponse(
+            responseCode = "409",
+            description = "Lançamento num relatório de setor inativo (`SECTOR_INACTIVE`).",
+            content = @Content(
+                    mediaType = PROBLEM_JSON,
+                    schema = @Schema(implementation = ProblemResponse.class),
+                    examples = @ExampleObject(name = "setorInativo", summary = "Setor inativado depois da abertura do relatório", value = DailyReportExamples.FEED_409_SETOR_INATIVO)))
+    @ApiResponse(
+            responseCode = "415",
+            description = "Corpo em formato diferente de JSON (`REQUEST_NOT_ACCEPTABLE`, 415).",
+            content = @Content(
+                    mediaType = PROBLEM_JSON,
+                    schema = @Schema(implementation = ProblemResponse.class),
+                    examples = @ExampleObject(value = DailyReportExamples.FEED_415)))
+    @ApiResponse(
+            responseCode = "500",
+            description = "Falha inesperada (`INTERNAL_ERROR`), sem detalhe da causa.",
+            content = @Content(
+                    mediaType = PROBLEM_JSON,
+                    schema = @Schema(implementation = ProblemResponse.class),
+                    examples = @ExampleObject(value = DailyReportExamples.FEED_500)))
+    ResponseEntity<Object> recordFeed(
+            @Parameter(description = SECTOR_ID, example = SECTOR_ID_EXAMPLE, schema = @Schema(type = "string", format = "uuid"))
+            String sectorId,
+            @Parameter(description = REPORT_ID, example = REPORT_ID_EXAMPLE, schema = @Schema(type = "string", format = "uuid"))
+            String reportId,
+            @Parameter(description = CAGE_ID, example = CAGE_ID_EXAMPLE, schema = @Schema(type = "string", format = "uuid"))
+            String cageId,
+            FeedRequest body,
+            @Parameter(hidden = true) AuthenticatedUser user);
 }

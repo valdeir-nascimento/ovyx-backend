@@ -4,11 +4,12 @@ import jakarta.persistence.Column;
 import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.util.UUID;
 
 /**
  * Representacao da gaiola do relatorio na tabela {@code report_cage}: a gaiola como estava na abertura,
- * com a producao e a mortalidade, nulas enquanto nao lancadas. Sem comportamento de negocio.
+ * com a producao, a mortalidade e a racao, nulas enquanto nao lancadas. Sem comportamento de negocio.
  */
 @Entity
 @Table(name = "report_cage")
@@ -57,6 +58,19 @@ public class ReportCageRecord {
 
     @Column(name = "mortality_note", length = 500)
     private String mortalityNote;
+
+    // A racao (feature 004): as quatro colunas nulas juntas enquanto nao lancada (ck_report_cage_feed).
+    @Column(name = "feed_formula_id")
+    private UUID feedFormulaId;
+
+    @Column(name = "feed_price_per_kg", precision = 7, scale = 2)
+    private BigDecimal feedPricePerKg;
+
+    @Column(name = "feed_expected_intake")
+    private Integer feedExpectedIntake;
+
+    @Column(name = "feed_consumption")
+    private Integer feedConsumption;
 
     /** Exigido pelo Hibernate. */
     protected ReportCageRecord() {}
@@ -122,6 +136,30 @@ public class ReportCageRecord {
 
     String getMortalityNote() {
         return mortalityNote;
+    }
+
+    UUID getFeedFormulaId() {
+        return feedFormulaId;
+    }
+
+    BigDecimal getFeedPricePerKg() {
+        return feedPricePerKg;
+    }
+
+    Integer getFeedExpectedIntake() {
+        return feedExpectedIntake;
+    }
+
+    Integer getFeedConsumption() {
+        return feedConsumption;
+    }
+
+    /** Grava a racao; as quatro nulas quando nao lancada. */
+    void applyFeed(UUID formulaId, BigDecimal pricePerKg, Integer expectedIntake, Integer consumption) {
+        this.feedFormulaId = formulaId;
+        this.feedPricePerKg = pricePerKg;
+        this.feedExpectedIntake = expectedIntake;
+        this.feedConsumption = consumption;
     }
 
     /** Grava a mortalidade; mortes e descartes nulos quando nao lancada. */

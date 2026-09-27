@@ -1,5 +1,6 @@
 package io.github.ovyx.production.infrastructure.persistence;
 
+import io.github.ovyx.production.application.dailyreport.CageFeed;
 import io.github.ovyx.production.application.dailyreport.CageMortality;
 import io.github.ovyx.production.application.dailyreport.CageProduction;
 import io.github.ovyx.production.application.dailyreport.DailyReportDetail;
@@ -7,11 +8,13 @@ import io.github.ovyx.production.application.dailyreport.DailyReportDirectory;
 import io.github.ovyx.production.application.dailyreport.DailyReportSummary;
 import io.github.ovyx.production.application.dailyreport.DailyReportTotals;
 import io.github.ovyx.production.application.dailyreport.LatestDailyReport;
+import io.github.ovyx.production.application.dailyreport.ProductionTotals;
 import io.github.ovyx.production.application.dailyreport.ReportCageDetail;
 import io.github.ovyx.production.application.dailyreport.ReportingSector;
 import io.github.ovyx.production.domain.model.Actor;
 import io.github.ovyx.production.domain.model.CageId;
 import io.github.ovyx.production.domain.model.DailyReportId;
+import io.github.ovyx.production.domain.model.FeedStatus;
 import io.github.ovyx.production.domain.model.MortalityStatus;
 import io.github.ovyx.production.domain.model.ProductionStatus;
 import io.github.ovyx.production.domain.model.SectorId;
@@ -35,8 +38,9 @@ import org.springframework.stereotype.Repository;
  *
  * <p>A lista soma as gaiolas de cada relatorio na propria consulta; o detalhe traz as gaiolas e calcula
  * os totais com {@link DailyReportTotals}; a gaiola do relatorio sai da mesma leitura de linha que o
- * detalhe usa, e por isso as duas nao divergem. O setor vem da tabela {@code sector}, na mesma camada
- * anticorrupcao da {@code JdbcFarmStructure} (R-004).
+ * detalhe usa, e por isso as duas nao divergem. O setor vem da tabela {@code sector}, e o nome atual da
+ * formula de cada racao, da {@code feed_formula}, na mesma camada anticorrupcao da
+ * {@code JdbcFarmStructure} (R-004; R-005 da 004).
  */
 @Repository
 public class JdbcDailyReportDirectory implements DailyReportDirectory {
@@ -46,7 +50,14 @@ public class JdbcDailyReportDirectory implements DailyReportDirectory {
             r.opening_bird_count, r.no_mortality_confirmed,
             coalesce(sum(c.eggs), 0) as collected_eggs,
             coalesce(sum(c.deaths + c.culls), 0) as removed_birds,
-            count(c.cage_id) filter (where c.eggs is null) as pending_cages
+            count(c.cage_id) filter (where c.eggs is null) as pending_cages,
+            count(c.cage_id) filter (where c.feed_consumption is null) as feed_pending_cages
+            """;
+
+    /** As colunas da gaiola do relatorio, com o nome atual da formula da racao. */
+    private static final String CAGE_COLUMNS = """
+            select c.*, f.name as feed_formula_name
+              from report_cage c left join feed_formula f on f.id = c.feed_formula_id
             """;
 
     private final JdbcClient jdbcClient;
@@ -123,10 +134,9 @@ public class JdbcDailyReportDirectory implements DailyReportDirectory {
     @Override
     public Optional<ReportCageDetail> findCage(SectorId sectorId, DailyReportId reportId, CageId cageId) {
         return jdbcClient
-                .sql("""
-                        select c.* from report_cage c join daily_report r on r.id = c.report_id
-                         where c.report_id = :reportId and r.sector_id = :sectorId and c.cage_id = :cageId
-                        """)
+                .sql(CAGE_COLUMNS
+                        + " join daily_report r on r.id = c.report_id"
+                        + " where c.report_id = :reportId and r.sector_id = :sectorId and c.cage_id = :cageId")
                 .param("reportId", reportId.value())
                 .param("sectorId", sectorId.value())
                 .param("cageId", cageId.value())
@@ -165,7 +175,7 @@ public class JdbcDailyReportDirectory implements DailyReportDirectory {
 
     private List<ReportCageDetail> cagesOf(DailyReportId reportId) {
         return jdbcClient
-                .sql("select * from report_cage where report_id = :id order by battery, number")
+                .sql(CAGE_COLUMNS + " where c.report_id = :id order by c.battery, c.number")
                 .param("id", reportId.value())
                 .query((row, index) -> cageOf(row))
                 .list();
@@ -175,6 +185,7 @@ public class JdbcDailyReportDirectory implements DailyReportDirectory {
         int opening = row.getInt("opening_bird_count");
         int removed = row.getInt("removed_birds");
         int pending = row.getInt("pending_cages");
+        int feedPending = row.getInt("feed_pending_cages");
         return new DailyReportSummary(
                 row.getObject("id", UUID.class),
                 row.getObject("collection_date", LocalDate.class),
@@ -187,7 +198,9 @@ public class JdbcDailyReportDirectory implements DailyReportDirectory {
                 row.getString("note"),
                 ProductionStatus.of(pending),
                 pending,
-                MortalityStatus.of(row.getBoolean("no_mortality_confirmed"), removed));
+                MortalityStatus.of(row.getBoolean("no_mortality_confirmed"), removed),
+                FeedStatus.of(feedPending),
+                feedPending);
     }
 
     private static DailyReportDetail detailOf(ResultSet row, ReportingSector sector, List<ReportCageDetail> cages)
@@ -195,6 +208,7 @@ public class JdbcDailyReportDirectory implements DailyReportDirectory {
         int opening = row.getInt("opening_bird_count");
         boolean confirmed = row.getBoolean("no_mortality_confirmed");
         UUID correctedById = row.getObject("last_corrected_by_id", UUID.class);
+        ProductionTotals production = DailyReportTotals.production(opening, cages);
         return new DailyReportDetail(
                 row.getObject("id", UUID.class),
                 sector,
@@ -208,8 +222,9 @@ public class JdbcDailyReportDirectory implements DailyReportDirectory {
                 instantOf(row, "opened_at"),
                 correctedById == null ? null : new Actor(correctedById, row.getString("last_corrected_by_name")),
                 instantOf(row, "last_corrected_at"),
-                DailyReportTotals.production(opening, cages),
+                production,
                 DailyReportTotals.mortality(opening, confirmed, cages),
+                DailyReportTotals.feed(cages, production.collectedEggs()),
                 cages);
     }
 
@@ -218,12 +233,14 @@ public class JdbcDailyReportDirectory implements DailyReportDirectory {
         int number = row.getInt("number");
         Integer eggs = row.getObject("eggs", Integer.class);
         Integer deaths = row.getObject("deaths", Integer.class);
+        Integer consumption = row.getObject("feed_consumption", Integer.class);
+        int birdCount = row.getInt("bird_count");
         return new ReportCageDetail(
                 row.getObject("cage_id", UUID.class),
                 ReportCageDetail.codeOf(battery, number),
                 battery,
                 number,
-                row.getInt("bird_count"),
+                birdCount,
                 eggs == null
                         ? null
                         : new CageProduction(
@@ -236,7 +253,16 @@ public class JdbcDailyReportDirectory implements DailyReportDirectory {
                                 row.getInt("abnormal")),
                 deaths == null
                         ? null
-                        : new CageMortality(deaths, row.getInt("culls"), row.getString("mortality_note")));
+                        : new CageMortality(deaths, row.getInt("culls"), row.getString("mortality_note")),
+                consumption == null
+                        ? null
+                        : CageFeed.of(
+                                row.getObject("feed_formula_id", UUID.class),
+                                row.getString("feed_formula_name"),
+                                row.getBigDecimal("feed_price_per_kg"),
+                                row.getInt("feed_expected_intake"),
+                                consumption,
+                                birdCount));
     }
 
     private static Instant instantOf(ResultSet row, String column) throws SQLException {

@@ -4,11 +4,13 @@ import io.github.ovyx.production.domain.model.Actor;
 import io.github.ovyx.production.domain.model.CageId;
 import io.github.ovyx.production.domain.model.DailyReport;
 import io.github.ovyx.production.domain.model.DailyReportId;
+import io.github.ovyx.production.domain.model.FeedFormulaId;
 import io.github.ovyx.production.domain.model.ReportCage;
 import io.github.ovyx.production.domain.model.SectorId;
 import io.github.ovyx.production.domain.valueobject.CollectionDate;
 import io.github.ovyx.production.domain.valueobject.CollectionTime;
 import io.github.ovyx.production.domain.valueobject.EggGrades;
+import io.github.ovyx.production.domain.valueobject.FeedEntry;
 import io.github.ovyx.production.domain.valueobject.FlockAge;
 import io.github.ovyx.production.domain.valueobject.MortalityEntry;
 import io.github.ovyx.production.domain.valueobject.MortalityNote;
@@ -112,6 +114,7 @@ final class DailyReportRecordMapper {
 
     private static void applyEntries(ReportCageRecord record, ReportCage cage) {
         applyProduction(record, cage);
+        applyFeed(record, cage);
         MortalityEntry mortality = cage.mortality().orElse(null);
         if (mortality == null) {
             record.applyMortality(null, null, null);
@@ -121,6 +124,26 @@ final class DailyReportRecordMapper {
                     mortality.culls(),
                     mortality.note() == null ? null : mortality.note().value());
         }
+    }
+
+    private static void applyFeed(ReportCageRecord record, ReportCage cage) {
+        FeedEntry feed = cage.feed().orElse(null);
+        if (feed == null) {
+            record.applyFeed(null, null, null, null);
+            return;
+        }
+        record.applyFeed(feed.formulaId().value(), feed.pricePerKg(), feed.expectedIntake(), feed.consumption());
+    }
+
+    private static FeedEntry feedOf(ReportCageRecord record) {
+        if (record.getFeedConsumption() == null) {
+            return null;
+        }
+        return new FeedEntry(
+                FeedFormulaId.of(record.getFeedFormulaId()),
+                record.getFeedPricePerKg(),
+                record.getFeedExpectedIntake(),
+                record.getFeedConsumption());
     }
 
     private static void applyProduction(ReportCageRecord record, ReportCage cage) {
@@ -147,7 +170,8 @@ final class DailyReportRecordMapper {
                 record.getNumber(),
                 record.getBirdCount(),
                 productionOf(record),
-                mortalityOf(record));
+                mortalityOf(record),
+                feedOf(record));
     }
 
     private static MortalityEntry mortalityOf(ReportCageRecord record) {

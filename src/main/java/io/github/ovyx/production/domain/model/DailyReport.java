@@ -5,6 +5,7 @@ import io.github.ovyx.production.domain.port.DailyReportRoster;
 import io.github.ovyx.production.domain.valueobject.CollectionDate;
 import io.github.ovyx.production.domain.valueobject.CollectionTime;
 import io.github.ovyx.production.domain.valueobject.EggGrades;
+import io.github.ovyx.production.domain.valueobject.FeedEntry;
 import io.github.ovyx.production.domain.valueobject.FlockAge;
 import io.github.ovyx.production.domain.valueobject.MortalityEntry;
 import io.github.ovyx.production.domain.valueobject.OpeningBirdCount;
@@ -22,6 +23,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -42,6 +44,9 @@ import java.util.Optional;
  *       (FR-012)
  *   <li>A confirmacao de dia sem ocorrencia so vale sem morte nem descarte lancado (FR-013)
  *   <li>Nada e apagado (FR-021)
+ *   <li>Um lancamento de racao por gaiola: a sugestao nunca troca a racao de uma gaiola ja lancada
+ *       (invariante 9 da 004)
+ *   <li>Toda formula nova num lancamento de racao esta ativa (invariante 10 da 004)
  * </ol>
  *
  * <p>A primeira depende dos demais relatorios do setor. Mesmo assim e decidida aqui, e nao no tratador
@@ -380,6 +385,80 @@ public final class DailyReport extends AggregateRoot<DailyReportId> {
     /** Quantas gaiolas ainda estao sem producao lancada. */
     public int pendingCages() {
         return (int) cages.stream().filter(cage -> !cage.hasProduction()).count();
+    }
+
+    /**
+     * Lanca a racao do setor pela sugestao (FR-009 da 004): cada gaiola ainda sem racao recebe a formula e as
+     * aves dela vezes o consumo esperado, com o preco e o esperado guardados. As gaiolas ja lancadas nao
+     * mudam (invariante 9), e por isso duas pessoas lancando o setor ao mesmo tempo nao lancam uma gaiola
+     * duas vezes: a segunda, que espera o bloqueio da linha, encontra as gaiolas ja lancadas (FR-022).
+     *
+     * <p>Primeiro o setor, que precisa estar ativo; depois a formula, que precisa existir e estar ativa;
+     * por fim as propostas, que nao podem passar do consumo maximo. Recusada, nenhuma gaiola muda.
+     *
+     * @return quantas gaiolas receberam a racao: nenhuma quando ja estavam todas lancadas, e entao nao ha o
+     *     que gravar nem correcao a marcar
+     * @throws DomainException quando o setor esta inativo, quando a formula falta, nao existe ou esta inativa,
+     *     ou quando a proposta de alguma gaiola passaria do consumo maximo
+     */
+    public int recordFeedBySuggestion(FarmSector sector, FeedFormulaChoice choice, Actor actor, Instant now) {
+        refuseIfNotOf(sector);
+        refuseIfInactive(sector);
+        Map<ReportCage, FeedEntry> proposals = FeedProposal.of(
+                        choice,
+                        cages.stream().filter(cage -> !cage.hasFeed()).toList(),
+                        ReportCage::code,
+                        ReportCage::birdCount)
+                .entries();
+
+        proposals.forEach(ReportCage::recordFeed);
+        if (!proposals.isEmpty()) {
+            markCorrection(actor, now);
+        }
+        return proposals.size();
+    }
+
+    /**
+     * Lanca ou corrige a racao de uma gaiola do relatorio (FR-010, FR-011 da 004), e marca a correcao do
+     * relatorio com quem lancou e quando.
+     *
+     * <p>Mantida a formula que a gaiola ja usa, o preco e o consumo esperado guardados continuam, mesmo com a
+     * formula inativada ou com outro preco agora: o custo do passado nao muda (R-005). Trocada, a formula
+     * nova precisa estar ativa, e o lancamento guarda o preco e o esperado atuais dela (invariante 10).
+     *
+     * <p>Primeiro a gaiola, depois o setor, por fim os campos, todos de uma vez: a formula antes do consumo.
+     *
+     * @throws DomainException quando a gaiola nao e do relatorio, quando o setor esta inativo, ou quando a
+     *     formula falta, nao existe ou e nova e inativa, ou o consumo falta, nao e inteiro ou sai da faixa
+     */
+    public void recordFeed(
+            FarmSector sector, CageId cageId, FeedFormulaChoice choice, String rawConsumption, Actor actor, Instant now) {
+        ReportCage cage = cageOrRefuse(cageId);
+        refuseIfNotOf(sector);
+        refuseIfInactive(sector);
+        Notification notification = new Notification();
+        Optional<CatalogFormula> formula = choice.validate(notification);
+        Optional<FeedEntry> kept = cage.feed()
+                .filter(current -> formula.map(chosen -> chosen.id().equals(current.formulaId())).orElse(false));
+        if (kept.isEmpty()) {
+            formula.ifPresent(chosen -> chosen.validateActive(notification));
+        }
+        FeedEntry.validateConsumption(rawConsumption, notification);
+        notification.throwIfAny(ProductionErrorCode.VALIDATION_FAILED);
+
+        cage.recordFeed(kept.map(current -> current.withConsumption(rawConsumption))
+                .orElseGet(() -> FeedEntry.of(formula.orElseThrow(), rawConsumption)));
+        markCorrection(actor, now);
+    }
+
+    /** {@code COMPLETE} quando toda gaiola do relatorio tem a racao lancada (R-008 da 004). */
+    public FeedStatus feedStatus() {
+        return FeedStatus.of(pendingFeedCages());
+    }
+
+    /** Quantas gaiolas ainda estao sem racao lancada. */
+    public int pendingFeedCages() {
+        return (int) cages.stream().filter(cage -> !cage.hasFeed()).count();
     }
 
     /** {@code RECORDED} quando ha ocorrencia lancada ou a confirmacao de dia sem ocorrencia. */

@@ -16,7 +16,9 @@ public record ReportCageDetailResponse(
         @Schema(description = "Ausente enquanto a produção não é lançada") @JsonInclude(JsonInclude.Include.NON_NULL)
         CageProductionResponse production,
         @Schema(description = "Ausente enquanto a mortalidade não é lançada") @JsonInclude(JsonInclude.Include.NON_NULL)
-        CageMortalityResponse mortality) {
+        CageMortalityResponse mortality,
+        @Schema(description = "Ausente enquanto a ração não é lançada") @JsonInclude(JsonInclude.Include.NON_NULL)
+        CageFeedResponse feed) {
 
     public static ReportCageDetailResponse from(ReportCageDetail cage) {
         return new ReportCageDetailResponse(
@@ -26,6 +28,7 @@ public record ReportCageDetailResponse(
                 cage.number(),
                 cage.birdCount(),
                 CageProductionResponse.from(cage.production()),
-                CageMortalityResponse.from(cage.mortality()));
+                CageMortalityResponse.from(cage.mortality()),
+                CageFeedResponse.from(cage.feed()));
     }
 }

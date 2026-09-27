@@ -31,6 +31,7 @@ public record DailyReportDetailResponse(
         Instant lastCorrectedAt,
         ProductionTotalsResponse production,
         MortalityTotalsResponse mortality,
+        FeedTotalsResponse feed,
         @Schema(description = "As gaiolas do relatório, por bateria e número") List<ReportCageDetailResponse> cages) {
 
     public static DailyReportDetailResponse from(DailyReportDetail detail) {
@@ -49,6 +50,7 @@ public record DailyReportDetailResponse(
                 detail.lastCorrectedAt(),
                 ProductionTotalsResponse.from(detail.production()),
                 MortalityTotalsResponse.from(detail.mortality()),
+                FeedTotalsResponse.from(detail.feed()),
                 detail.cages().stream().map(ReportCageDetailResponse::from).toList());
     }
 }
