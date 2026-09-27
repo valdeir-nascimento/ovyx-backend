@@ -6,13 +6,13 @@ import static io.github.ovyx.production.domain.model.DailyReportTestDataBuilder.
 import static io.github.ovyx.production.domain.model.FarmSectorTestDataBuilder.aFarmSector;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.github.ovyx.production.application.common.FarmCalendar;
 import io.github.ovyx.production.domain.model.DailyReport;
 import io.github.ovyx.production.domain.model.DailyReportId;
 import io.github.ovyx.production.domain.model.FarmSector;
 import io.github.ovyx.production.fixtures.InMemoryDailyReportRepository;
 import io.github.ovyx.production.fixtures.InMemoryFarmStructure;
 import io.github.ovyx.shared.application.ErrorType;
+import io.github.ovyx.shared.application.FarmCalendar;
 import io.github.ovyx.shared.application.Result;
 import io.github.ovyx.shared.domain.FixedClock;
 import java.time.ZoneId;

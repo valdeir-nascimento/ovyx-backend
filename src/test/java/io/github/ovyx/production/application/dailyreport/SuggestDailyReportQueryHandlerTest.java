@@ -2,9 +2,9 @@ package io.github.ovyx.production.application.dailyreport;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.github.ovyx.production.application.common.FarmCalendar;
 import io.github.ovyx.production.domain.model.SectorId;
 import io.github.ovyx.shared.application.ErrorType;
+import io.github.ovyx.shared.application.FarmCalendar;
 import io.github.ovyx.shared.application.Result;
 import io.github.ovyx.shared.domain.FixedClock;
 import java.time.LocalDate;

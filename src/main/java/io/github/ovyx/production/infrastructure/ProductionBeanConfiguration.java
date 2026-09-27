@@ -1,6 +1,5 @@
 package io.github.ovyx.production.infrastructure;
 
-import io.github.ovyx.production.application.common.FarmCalendar;
 import io.github.ovyx.production.application.dailyreport.ConfirmNoMortalityCommandHandler;
 import io.github.ovyx.production.application.dailyreport.CorrectDailyReportCommandHandler;
 import io.github.ovyx.production.application.dailyreport.DailyReportDirectory;
@@ -17,6 +16,7 @@ import io.github.ovyx.production.application.dailyreport.SuggestFeedQueryHandler
 import io.github.ovyx.production.domain.port.DailyReportRepository;
 import io.github.ovyx.production.domain.port.FarmStructure;
 import io.github.ovyx.production.domain.port.FeedCatalog;
+import io.github.ovyx.shared.application.FarmCalendar;
 import java.time.Clock;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -29,11 +29,6 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 public class ProductionBeanConfiguration {
-
-    @Bean
-    FarmCalendar farmCalendar(Clock clock, ProductionProperties properties) {
-        return new FarmCalendar(clock, properties.zone());
-    }
 
     @Bean
     OpenDailyReportCommandHandler openDailyReportCommandHandler(

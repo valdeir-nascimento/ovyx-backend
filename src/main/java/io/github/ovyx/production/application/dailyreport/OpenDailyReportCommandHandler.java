@@ -1,6 +1,5 @@
 package io.github.ovyx.production.application.dailyreport;
 
-import io.github.ovyx.production.application.common.FarmCalendar;
 import io.github.ovyx.production.application.common.ProductionRefusals;
 import io.github.ovyx.production.domain.model.DailyReport;
 import io.github.ovyx.production.domain.model.DailyReportId;
@@ -9,6 +8,7 @@ import io.github.ovyx.production.domain.model.SectorId;
 import io.github.ovyx.production.domain.port.DailyReportRepository;
 import io.github.ovyx.production.domain.port.FarmStructure;
 import io.github.ovyx.shared.application.CommandHandler;
+import io.github.ovyx.shared.application.FarmCalendar;
 import io.github.ovyx.shared.application.Result;
 import io.github.ovyx.shared.domain.DomainException;
 import java.time.Clock;

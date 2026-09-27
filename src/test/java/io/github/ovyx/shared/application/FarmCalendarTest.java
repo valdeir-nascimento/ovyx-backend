@@ -1,4 +1,4 @@
-package io.github.ovyx.production.application.common;
+package io.github.ovyx.shared.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -11,7 +11,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * "Hoje" e "agora" no fuso da granja (R-006): o relatório é do dia da granja, e não do instante em UTC.
+ * "Hoje" e "agora" no fuso da granja (R-006 da 003; R-004 da 005): o relatório e a pesagem são do dia da
+ * granja, e não do instante em UTC.
  */
 @DisplayName("FarmCalendar")
 class FarmCalendarTest {
