@@ -52,6 +52,12 @@ class ArchitectureRulesTest {
                         "presentation does not depend on infrastructure",
                         ArchitectureRules.PRESENTATION_MUST_NOT_DEPEND_ON_INFRASTRUCTURE),
                 Arguments.of(
+                        "no bounded context depends on another one",
+                        ArchitectureRules.BOUNDED_CONTEXTS_MUST_BE_INDEPENDENT),
+                Arguments.of(
+                        "the shared kernel depends on no bounded context",
+                        ArchitectureRules.SHARED_KERNEL_MUST_NOT_DEPEND_ON_BOUNDED_CONTEXTS),
+                Arguments.of(
                         "controllers carry no API documentation",
                         ArchitectureRules.CONTROLLERS_MUST_NOT_CARRY_API_DOCUMENTATION),
                 Arguments.of(
@@ -59,7 +65,10 @@ class ArchitectureRulesTest {
                         ArchitectureRules.CONTROLLERS_MUST_IMPLEMENT_THEIR_API_INTERFACE),
                 Arguments.of(
                         "no handler lets a domain refusal escape",
-                        ArchitectureRules.HANDLERS_MUST_CATCH_DOMAIN_REFUSALS));
+                        ArchitectureRules.HANDLERS_MUST_CATCH_DOMAIN_REFUSALS),
+                Arguments.of(
+                        "outside domain and application, a domain refusal arrives only as a Failure",
+                        ArchitectureRules.OUTER_LAYERS_MUST_NOT_RECEIVE_DOMAIN_REFUSALS));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -67,7 +76,7 @@ class ArchitectureRulesTest {
     @DisplayName("production code follows every architecture rule")
     void givenProductionClasses_whenEvaluatingAnArchitectureRule_thenFindNoViolation(
             String description, ArchRule rule) {
-        // given — PRODUCTION_CLASSES, imported once for the whole class
+        // given — PRODUCTION_CLASSES, importadas uma vez para a classe inteira
 
         // when
         EvaluationResult result = rule.evaluate(PRODUCTION_CLASSES);

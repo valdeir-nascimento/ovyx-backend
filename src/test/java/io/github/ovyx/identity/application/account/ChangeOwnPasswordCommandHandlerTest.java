@@ -3,13 +3,14 @@ package io.github.ovyx.identity.application.account;
 import static io.github.ovyx.identity.domain.model.CaretakerTestDataBuilder.aCaretaker;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.github.ovyx.identity.application.InMemoryCaretakerRepository;
+import io.github.ovyx.identity.fixtures.InMemoryCaretakerRepository;
 import io.github.ovyx.identity.domain.FakePasswordHasher;
 import io.github.ovyx.identity.domain.IdentityErrorCode;
 import io.github.ovyx.identity.domain.model.Caretaker;
 import io.github.ovyx.identity.domain.model.CaretakerId;
 import io.github.ovyx.identity.domain.model.Role;
 import io.github.ovyx.identity.domain.port.PasswordHasher;
+import io.github.ovyx.shared.application.ErrorType;
 import io.github.ovyx.shared.application.Result;
 import io.github.ovyx.shared.domain.FixedClock;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,7 +55,7 @@ class ChangeOwnPasswordCommandHandlerTest {
     @Test
     @DisplayName("changes the password and the previous one stops working")
     void givenMatchingCurrentPassword_whenChanging_thenAcceptOnlyTheNewPassword() {
-        // given — Maria is registered in setUp with CURRENT
+        // given — Maria foi cadastrada no setUp com CURRENT
 
         // when
         Result<CaretakerId> result = change(CURRENT, NEW);
@@ -76,6 +77,7 @@ class ChangeOwnPasswordCommandHandlerTest {
 
         // then
         assertThat(result.isFailure()).isTrue();
+        assertThat(result.error().type()).isEqualTo(ErrorType.VALIDATION);
         assertThat(result.error().details())
                 .hasEntrySatisfying("currentPassword", message -> assertThat(message).contains("incorreta"));
         assertThat(reloadedMaria().authenticate(CURRENT, hasher)).isTrue();
@@ -110,6 +112,7 @@ class ChangeOwnPasswordCommandHandlerTest {
         // then
         assertThat(result.isFailure()).isTrue();
         assertThat(result.error().code()).isEqualTo(IdentityErrorCode.CARETAKER_UNAVAILABLE.code());
+        assertThat(result.error().type()).isEqualTo(ErrorType.UNAUTHENTICATED);
     }
 
     @Test
@@ -118,7 +121,7 @@ class ChangeOwnPasswordCommandHandlerTest {
         // given
         // A sessao pode sobreviver a inativacao. Inativo nao entra no sistema (invariante 4), e
         // trocar a senha por uma sessao antiga seria um jeito de continuar agindo sobre a conta.
-        maria.deactivate(clock);
+        maria.deactivate(repository, clock);
         repository.save(maria);
 
         // when
@@ -127,7 +130,33 @@ class ChangeOwnPasswordCommandHandlerTest {
         // then
         assertThat(result.isFailure()).isTrue();
         assertThat(result.error().code()).isEqualTo(IdentityErrorCode.CARETAKER_UNAVAILABLE.code());
-        maria.reactivate(clock);
+        assertThat(result.error().type())
+                .as("a sessao de quem foi inativado termina: 401, e nao recusa de preenchimento")
+                .isEqualTo(ErrorType.UNAUTHENTICATED);
+        maria.reactivate(repository, clock);
+        assertThat(reloadedMaria().authenticate(CURRENT, hasher))
+                .as("a senha anterior continua valendo")
+                .isTrue();
+    }
+
+    @Test
+    @DisplayName("reports a wrong current password together with every violation of the new one (T103)")
+    void givenWrongCurrentAndNewPasswordOutsidePolicy_whenChanging_thenReportEverythingInOneRound() {
+        // given
+        String wrongCurrent = "SenhaErrada2026";
+        String shortWithoutDigit = "abc";
+
+        // when
+        Result<CaretakerId> result = change(wrongCurrent, shortWithoutDigit);
+
+        // then
+        assertThat(result.error().type()).isEqualTo(ErrorType.VALIDATION);
+        assertThat(result.error().details())
+                .containsOnlyKeys("currentPassword", "newPassword")
+                .containsEntry("currentPassword", "A senha atual está incorreta.")
+                .hasEntrySatisfying("newPassword", message -> assertThat(message)
+                        .contains("ao menos 12 caracteres")
+                        .contains("ao menos um dígito"));
         assertThat(reloadedMaria().authenticate(CURRENT, hasher))
                 .as("a senha anterior continua valendo")
                 .isTrue();

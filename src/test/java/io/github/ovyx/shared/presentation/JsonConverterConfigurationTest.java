@@ -39,7 +39,7 @@ class JsonConverterConfigurationTest {
     @Test
     @DisplayName("replaces the default JSON converter instead of adding a second one")
     void givenBootDefaultJsonConverter_whenCustomizing_thenReplaceItInsteadOfAddingASecondOne() {
-        // given — converters() registers the Boot default before customizing
+        // given — converters() registra o padrao do Boot antes de personalizar
 
         // when
         List<HttpMessageConverter<?>> converters = converters();
@@ -54,7 +54,7 @@ class JsonConverterConfigurationTest {
     @Test
     @DisplayName("keeps the byte array converter ahead of the JSON converter")
     void givenByteArrayAndJsonConverters_whenCustomizing_thenKeepByteArraysAheadOfJson() {
-        // given — converters() registers the Boot defaults, byte array included
+        // given — converters() registra os padroes do Boot, inclusive o de byte array
 
         // when
         List<HttpMessageConverter<?>> converters = converters();

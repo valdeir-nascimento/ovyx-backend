@@ -54,12 +54,12 @@ class CaretakerRepositoryIT extends IntegrationTestSupport {
     }
 
     private void deactivate(Caretaker caretaker) {
-        caretaker.deactivate(clock);
+        caretaker.deactivate(repository, clock);
         repository.save(caretaker);
     }
 
     private void reactivate(Caretaker caretaker) {
-        caretaker.reactivate(clock);
+        caretaker.reactivate(repository, clock);
         repository.save(caretaker);
     }
 

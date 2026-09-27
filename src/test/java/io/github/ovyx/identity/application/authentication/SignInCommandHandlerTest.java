@@ -4,7 +4,7 @@ import static io.github.ovyx.identity.domain.model.CaretakerTestDataBuilder.aCar
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.ovyx.identity.application.CountingSignInThrottle;
-import io.github.ovyx.identity.application.InMemoryCaretakerRepository;
+import io.github.ovyx.identity.fixtures.InMemoryCaretakerRepository;
 import io.github.ovyx.identity.application.RecordingAccessEventRecorder;
 import io.github.ovyx.identity.domain.CountingPasswordHasher;
 import io.github.ovyx.identity.domain.model.AccessEvent;
@@ -75,12 +75,12 @@ class SignInCommandHandlerTest {
     }
 
     private void deactivateMaria() {
-        maria.deactivate(clock);
+        maria.deactivate(repository, clock);
         repository.save(maria);
     }
 
     private void reactivateMaria() {
-        maria.reactivate(clock);
+        maria.reactivate(repository, clock);
         repository.save(maria);
     }
 
@@ -91,7 +91,7 @@ class SignInCommandHandlerTest {
         @Test
         @DisplayName("signs in by email and returns only the caretaker identity")
         void givenCorrectEmailAndPassword_whenSigningIn_thenReturnTheCaretakerIdentity() {
-            // given — Maria is registered in setUp
+            // given — Maria foi cadastrada no setUp
 
             // when
             Result<CaretakerId> result = signIn(EMAIL, PASSWORD);
@@ -106,7 +106,7 @@ class SignInCommandHandlerTest {
         @ValueSource(strings = {MOBILE, "(91) 98888-7777"})
         @DisplayName("signs in by mobile phone, formatted or not, as the same account")
         void givenMobilePhoneInAnySpelling_whenSigningIn_thenReturnTheSameCaretaker(String mobilePhone) {
-            // given — mobilePhone from @ValueSource
+            // given — celular vindo do @ValueSource
 
             // when
             Result<CaretakerId> result = signIn(mobilePhone, PASSWORD);
@@ -138,7 +138,7 @@ class SignInCommandHandlerTest {
         @Test
         @DisplayName("identifies the caretaker when a wrong password targets an existing account")
         void givenWrongPasswordForExistingAccount_whenSigningIn_thenAuditWhoseAccountItWas() {
-            // given — Maria is registered in setUp
+            // given — Maria foi cadastrada no setUp
 
             // when
             signIn(EMAIL, WRONG_PASSWORD);
@@ -164,7 +164,7 @@ class SignInCommandHandlerTest {
         @Test
         @DisplayName("leaves the caretaker empty when the identifier matches nobody")
         void givenUnknownIdentifier_whenSigningIn_thenAuditWithoutACaretaker() {
-            // given — no account uses UNKNOWN
+            // given — nenhuma conta usa UNKNOWN
 
             // when
             signIn(UNKNOWN, PASSWORD);
@@ -181,7 +181,7 @@ class SignInCommandHandlerTest {
         @Test
         @DisplayName("fails when the identifier does not exist")
         void givenUnknownIdentifier_whenSigningIn_thenFailAsInvalidCredentials() {
-            // given — no account uses UNKNOWN
+            // given — nenhuma conta usa UNKNOWN
 
             // when
             Result<CaretakerId> result = signIn(UNKNOWN, PASSWORD);
@@ -194,7 +194,7 @@ class SignInCommandHandlerTest {
         @Test
         @DisplayName("fails when the password is wrong")
         void givenWrongPassword_whenSigningIn_thenFailAsInvalidCredentials() {
-            // given — Maria is registered in setUp
+            // given — Maria foi cadastrada no setUp
 
             // when
             Result<CaretakerId> result = signIn(EMAIL, WRONG_PASSWORD);
@@ -236,7 +236,7 @@ class SignInCommandHandlerTest {
         @ValueSource(strings = {"x91988887777", "91988887777@qualquer.com"})
         @DisplayName("does not reach an account through an identifier with extra characters")
         void givenIdentifierWithExtraCharacters_whenSigningIn_thenDoNotReachTheAccount(String garbled) {
-            // given — garbled from @ValueSource
+            // given — texto embaralhado vindo do @ValueSource
             // Antes da correcao, a busca descartava tudo que nao fosse digito e x91988887777 entrava
             // na conta de Maria, com uma chave de contencao propria.
 
@@ -296,7 +296,7 @@ class SignInCommandHandlerTest {
         @Test
         @DisplayName("an unknown identifier pays exactly one hash verification")
         void givenUnknownIdentifier_whenSigningIn_thenPayExactlyOneVerification() {
-            // given — no account uses UNKNOWN
+            // given — nenhuma conta usa UNKNOWN
 
             // when
             signIn(UNKNOWN, PASSWORD);
@@ -336,7 +336,7 @@ class SignInCommandHandlerTest {
         @Test
         @DisplayName("a wrong password pays exactly one hash verification")
         void givenWrongPassword_whenSigningIn_thenPayExactlyOneVerification() {
-            // given — Maria is registered in setUp
+            // given — Maria foi cadastrada no setUp
 
             // when
             signIn(EMAIL, WRONG_PASSWORD);
@@ -348,7 +348,7 @@ class SignInCommandHandlerTest {
         @Test
         @DisplayName("a successful sign-in pays exactly one hash verification")
         void givenCorrectCredentials_whenSigningIn_thenPayExactlyOneVerification() {
-            // given — Maria is registered in setUp
+            // given — Maria foi cadastrada no setUp
 
             // when
             signIn(EMAIL, PASSWORD);

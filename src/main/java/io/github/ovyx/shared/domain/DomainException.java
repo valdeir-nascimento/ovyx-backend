@@ -38,7 +38,7 @@ public class DomainException extends RuntimeException {
     ) {
         super(message);
         this.errorCode = Objects.requireNonNull(errorCode, "errorCode");
-        this.details = Map.copyOf(Objects.requireNonNull(details, "details"));
+        this.details = orderedCopyOf(details);
         this.violations = List.of();
     }
 
@@ -70,6 +70,18 @@ public class DomainException extends RuntimeException {
     /** As violacoes regra a regra; vazio quando a recusa nao veio de um {@link Notification}. */
     public List<Violation> violations() {
         return violations;
+    }
+
+    /**
+     * Copia imutavel que preserva a ordem e recusa campo ou mensagem nulos.
+     *
+     * <p>{@code Map.copyOf} recusava os nulos, mas embaralhava a ordem, que e a do formulario.
+     */
+    private static Map<String, String> orderedCopyOf(final Map<String, String> details) {
+        Map<String, String> copy = new LinkedHashMap<>();
+        Objects.requireNonNull(details, "details").forEach((field, message) -> copy.put(
+                Objects.requireNonNull(field, "details field"), Objects.requireNonNull(message, "details message")));
+        return Collections.unmodifiableMap(copy);
     }
 
     private static Map<String, String> detailsOf(List<Violation> violations) {

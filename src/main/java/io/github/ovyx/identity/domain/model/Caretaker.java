@@ -2,6 +2,7 @@ package io.github.ovyx.identity.domain.model;
 
 import io.github.ovyx.identity.domain.PasswordPolicy;
 import io.github.ovyx.identity.domain.IdentityErrorCode;
+import io.github.ovyx.identity.domain.port.CaretakerRoster;
 import io.github.ovyx.identity.domain.port.PasswordHasher;
 import io.github.ovyx.identity.domain.valueobject.Cpf;
 import io.github.ovyx.identity.domain.valueobject.Email;
@@ -9,10 +10,13 @@ import io.github.ovyx.identity.domain.valueobject.FullName;
 import io.github.ovyx.identity.domain.valueobject.MobilePhone;
 import io.github.ovyx.identity.domain.valueobject.PasswordHash;
 import io.github.ovyx.shared.domain.AggregateRoot;
+import io.github.ovyx.shared.domain.DomainException;
 import io.github.ovyx.shared.domain.Notification;
+import io.github.ovyx.shared.domain.Violation;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Set;
 
 /**
  * Raiz de agregado do contexto Identity: a pessoa autorizada a usar o sistema.
@@ -30,13 +34,24 @@ import java.time.Instant;
  *   <li>A senha nunca entra em texto claro: so o valor produzido pelo {@link PasswordHasher}
  *   <li>Responsavel inativo nao autentica (FR-005)
  *   <li>Trocar a propria senha exige a senha atual e a politica minima atendida (FR-020, FR-022)
+ *   <li>O CPF nao se repete entre responsaveis, e e-mail e celular nao se repetem entre ativos (FR-016)
+ *   <li>O sistema nunca fica sem administrador ativo (FR-019)
  * </ol>
  *
- * <p>Unicidade de e-mail e celular (FR-016) e a regra do ultimo administrador (FR-019) sao
- * invariantes <em>entre</em> agregados: dependem de consulta ao repositorio e por isso vivem nos
- * tratadores, nao aqui.
+ * <p>As duas ultimas dependem dos demais responsaveis. Mesmo assim sao decididas aqui, e nao no
+ * tratador (principio II): o agregado pergunta ao {@link CaretakerRoster} e recusa. O tratador so
+ * entrega a porta, como entrega o {@link PasswordHasher}.
+ *
+ * <p>A pergunta e a gravacao so valem juntas dentro de uma transacao, e duas requisicoes simultaneas
+ * podem fazer a mesma pergunta antes de qualquer uma gravar. Por isso o despachante abre uma
+ * transacao por comando; a contagem de administradores ativos trava as linhas contadas ate a
+ * confirmacao; e, quando um indice unico recusa a segunda gravacao, o comando roda de novo e recebe
+ * daqui o conflito com o codigo da regra.
  */
 public final class Caretaker extends AggregateRoot<CaretakerId> {
+
+    private static final String KEEP_AN_ADMINISTRATOR = "O sistema precisa de ao menos um administrador ativo.";
+    private static final String LAST_ADMINISTRATOR_REFUSAL = "Este é o último administrador ativo do sistema.";
 
     private final Instant createdAt;
 
@@ -90,9 +105,10 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
         String rawEmail,
         String rawMobilePhone,
         String rawPassword,
-        Role role,
+        String rawRole,
         boolean mustChangePassword,
         PasswordHasher hasher,
+        CaretakerRoster roster,
         Clock clock
     ) {
 
@@ -103,27 +119,64 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
         Email.validate(rawEmail, notification);
         MobilePhone.validate(rawMobilePhone, notification);
         PasswordPolicy.validate(rawPassword, "password", rawEmail, rawCpf, notification);
-        if (role == null) {
-            notification.add("role", IdentityErrorCode.ROLE_REQUIRED, "Informe o perfil.");
-        }
+        Role.validate(rawRole, notification);
         notification.throwIfAny(IdentityErrorCode.VALIDATION_FAILED);
 
         // Daqui em diante cada campo ja passou pelas proprias regras: construir os objetos de valor
         // nao recusa mais, e nenhum deles precisa existir pela metade.
+        CaretakerId id = CaretakerId.generate();
+        Cpf cpf = Cpf.of(rawCpf);
+        Email email = Email.of(rawEmail);
+        MobilePhone mobilePhone = MobilePhone.of(rawMobilePhone);
+
+        // So com os identificadores na forma canonica da para perguntar quem mais os usa. E so depois
+        // deles o hash: o Argon2 custa caro demais para um cadastro que vai ser recusado.
+        refuse(identifierConflicts(id, cpf, email, mobilePhone, true, roster));
+
         Instant now = clock.instant();
         return new Caretaker(
-            CaretakerId.generate(),
+            id,
             FullName.of(rawFullName),
-            Cpf.of(rawCpf),
-            Email.of(rawEmail),
-            MobilePhone.of(rawMobilePhone),
+            cpf,
+            email,
+            mobilePhone,
             hasher.hash(rawPassword),
-            role,
+            Role.of(rawRole),
             CaretakerStatus.ACTIVE,
             mustChangePassword,
             now,
             now
         );
+    }
+
+    /**
+     * Cadastra com o perfil ja escolhido, para quem nao recebe texto digitado, como a semeadura.
+     *
+     * @throws io.github.ovyx.shared.domain.DomainException quando algum campo viola uma regra
+     */
+    public static Caretaker register(
+        String rawFullName,
+        String rawCpf,
+        String rawEmail,
+        String rawMobilePhone,
+        String rawPassword,
+        Role role,
+        boolean mustChangePassword,
+        PasswordHasher hasher,
+        CaretakerRoster roster,
+        Clock clock
+    ) {
+        return register(
+            rawFullName,
+            rawCpf,
+            rawEmail,
+            rawMobilePhone,
+            rawPassword,
+            role == null ? null : role.name(),
+            mustChangePassword,
+            hasher,
+            roster,
+            clock);
     }
 
     /**
@@ -178,10 +231,20 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
      * <p>A senha atual ausente e verificada aqui, junto com a politica da nova, e nao na borda HTTP:
      * assim as violacoes dos dois campos voltam de uma vez so.
      *
-     * @throws io.github.ovyx.shared.domain.DomainException quando a senha atual nao confere ou a
-     *                                                      nova viola a politica
+     * <p>O inativo e recusado antes de tudo, com {@code CARETAKER_UNAVAILABLE}: a sessao pode
+     * sobreviver a inativacao, e trocar a senha por ela seria continuar agindo sobre a conta
+     * (invariante 4). A recusa mora aqui, e nao em quem chama, para nenhum chamador precisar lembrar
+     * dela (T179).
+     *
+     * @throws io.github.ovyx.shared.domain.DomainException quando o responsavel esta inativo, quando a
+     *                                                      senha atual nao confere ou quando a nova
+     *                                                      viola a politica
      */
     public void changeOwnPassword(String currentPassword, String newPassword, PasswordHasher hasher, Clock clock) {
+        if (!isActive()) {
+            throw new DomainException(
+                    IdentityErrorCode.CARETAKER_UNAVAILABLE, IdentityErrorCode.CARETAKER_UNAVAILABLE_MESSAGE);
+        }
 
         Notification notification = new Notification();
 
@@ -200,16 +263,177 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
     }
 
     /**
-     * Inativa o responsavel. Nao remove nada: o historico permanece consultavel (FR-018).
+     * Edita os dados cadastrais e o perfil (FR-014). A senha nao muda por aqui.
+     *
+     * <p>Mesma ordem do cadastro: primeiro todas as violacoes de campo, de uma vez (FR-017); depois
+     * todos os conflitos com os demais responsaveis, tambem de uma vez. Recusada, a edicao nao altera
+     * nada.
+     *
+     * @throws io.github.ovyx.shared.domain.DomainException quando algum campo viola uma regra, quando
+     *                                                      um identificador ja tem dono ou quando o
+     *                                                      rebaixamento deixaria o sistema sem
+     *                                                      administrador ativo
      */
-    public void deactivate(Clock clock) {
+    public void update(
+        String rawFullName,
+        String rawCpf,
+        String rawEmail,
+        String rawMobilePhone,
+        String rawNewRole,
+        CaretakerRoster roster,
+        Clock clock
+    ) {
+        Notification notification = new Notification();
+        FullName.validate(rawFullName, notification);
+        Cpf.validate(rawCpf, notification);
+        Email.validate(rawEmail, notification);
+        MobilePhone.validate(rawMobilePhone, notification);
+        Role.validate(rawNewRole, notification);
+        notification.throwIfAny(IdentityErrorCode.VALIDATION_FAILED);
+
+        Role newRole = Role.of(rawNewRole);
+        Cpf newCpf = Cpf.of(rawCpf);
+        Email newEmail = Email.of(rawEmail);
+        MobilePhone newMobilePhone = MobilePhone.of(rawMobilePhone);
+        Notification conflicts = identifierConflicts(id(), newCpf, newEmail, newMobilePhone, isActive(), roster);
+        if (newRole != Role.ADMINISTRATOR && isTheLastActiveAdministrator(roster)) {
+            conflicts.add("role", IdentityErrorCode.LAST_ADMINISTRATOR, KEEP_AN_ADMINISTRATOR);
+        }
+        refuse(conflicts);
+
+        this.fullName = FullName.of(rawFullName);
+        this.cpf = newCpf;
+        this.email = newEmail;
+        this.mobilePhone = newMobilePhone;
+        this.role = newRole;
+        touch(clock);
+    }
+
+    /**
+     * Inativa o responsavel. Nao remove nada: o historico permanece consultavel (FR-018).
+     *
+     * <p>Inativar quem ja esta inativo nao muda nada, nem o instante da ultima alteracao.
+     *
+     * @throws io.github.ovyx.shared.domain.DomainException quando o responsavel e o ultimo
+     *                                                      administrador ativo (FR-019)
+     */
+    public void deactivate(CaretakerRoster roster, Clock clock) {
+        if (!isActive()) {
+            return;
+        }
+        if (isTheLastActiveAdministrator(roster)) {
+            refuse(new Notification().add("status", IdentityErrorCode.LAST_ADMINISTRATOR, KEEP_AN_ADMINISTRATOR));
+        }
         this.status = CaretakerStatus.INACTIVE;
         touch(clock);
     }
 
-    public void reactivate(Clock clock) {
+    /**
+     * Reativa o responsavel.
+     *
+     * <p>Enquanto ele esteve inativo, o e-mail e o celular dele ficaram livres, e outro ativo pode
+     * te-los recebido: nesse caso a reativacao e recusada (FR-016).
+     *
+     * @throws io.github.ovyx.shared.domain.DomainException quando outro ativo ja usa o e-mail ou o
+     *                                                      celular
+     */
+    public void reactivate(CaretakerRoster roster, Clock clock) {
+        if (isActive()) {
+            return;
+        }
+        refuse(identifierConflicts(id(), cpf, email, mobilePhone, true, roster));
         this.status = CaretakerStatus.ACTIVE;
         touch(clock);
+    }
+
+    /**
+     * Devolve a administracao a quem tem o CPF configurado para o administrador inicial, quando o
+     * sistema ficou sem nenhum administrador ativo (FR-025).
+     *
+     * <p>E a saida da instalacao que perdeu o ultimo administrador: sem ela, a semeadura tentava
+     * cadastrar de novo a mesma pessoa, esbarrava no proprio CPF, e a aplicacao recusava subir. O
+     * responsavel volta ativo e administrador, com a senha provisoria configurada e a troca
+     * obrigatoria no primeiro acesso, como o administrador criado pela semeadura.
+     *
+     * <p>Enquanto ele esteve inativo, o e-mail e o celular dele ficaram livres; se outro ativo os
+     * recebeu, a restauracao e recusada, como a reativacao (FR-016).
+     *
+     * @throws io.github.ovyx.shared.domain.DomainException quando a senha provisoria viola a politica
+     *                                                      ou quando outro ativo ja usa o e-mail ou o
+     *                                                      celular
+     */
+    public void restoreAsInitialAdministrator(
+        String rawPassword, PasswordHasher hasher, CaretakerRoster roster, Clock clock) {
+        Notification notification = new Notification();
+        PasswordPolicy.validate(rawPassword, "password", email.value(), cpf.value(), notification);
+        notification.throwIfAny(IdentityErrorCode.VALIDATION_FAILED);
+        refuse(identifierConflicts(id(), cpf, email, mobilePhone, true, roster));
+
+        this.passwordHash = hasher.hash(rawPassword);
+        this.role = Role.ADMINISTRATOR;
+        this.status = CaretakerStatus.ACTIVE;
+        this.mustChangePassword = true;
+        touch(clock);
+    }
+
+    /**
+     * Se o responsavel e, agora, o unico administrador ativo.
+     *
+     * <p>Pergunta pelo proprio identificador no conjunto dos ativos, e nao so pela quantidade: a copia
+     * em maos pode estar vencida. Se outra operacao ja o inativou ou rebaixou, ele nao esta no
+     * conjunto e nao e "o ultimo"; a gravacao segue, a versao da linha a recusa, e a nova tentativa
+     * decide sobre o estado atual. Contando so os ativos, a recusa vinha sobre um estado que ja nao
+     * existia, e recusa nao grava nada, entao a versao nunca era conferida.
+     *
+     * <p>A copia que diz que ele nao e administrador ativo nem pergunta: assim a edicao de um usuario
+     * comum nao trava as linhas dos administradores.
+     */
+    private boolean isTheLastActiveAdministrator(CaretakerRoster roster) {
+        if (!isActive() || role != Role.ADMINISTRATOR) {
+            return false;
+        }
+        Set<CaretakerId> active = roster.activeAdministrators();
+        return active.contains(id()) && active.size() <= 1;
+    }
+
+    /**
+     * Os identificadores que outro responsavel ja tem.
+     *
+     * <p>O CPF conflita com qualquer outro, ativo ou nao: a mesma pessoa nao existe duas vezes. E-mail
+     * e celular so conflitam entre ativos (FR-016), e so para quem esta ativo ou vai ficar: um
+     * inativo nao entra no sistema, e por isso nao disputa identificador de acesso.
+     */
+    private static Notification identifierConflicts(
+        CaretakerId self, Cpf cpf, Email email, MobilePhone mobilePhone, boolean active, CaretakerRoster roster) {
+        Notification conflicts = new Notification();
+        if (roster.isCpfTakenByAnother(cpf, self)) {
+            conflicts.add("cpf", IdentityErrorCode.CPF_ALREADY_IN_USE, "Já existe um responsável com este CPF.");
+        }
+        if (active && roster.isEmailTakenByAnotherActive(email, self)) {
+            conflicts.add("email", IdentityErrorCode.EMAIL_ALREADY_IN_USE, "Já existe um responsável ativo com este e-mail.");
+        }
+        if (active && roster.isMobilePhoneTakenByAnotherActive(mobilePhone, self)) {
+            conflicts.add(
+                "mobilePhone",
+                IdentityErrorCode.MOBILE_PHONE_ALREADY_IN_USE,
+                "Já existe um responsável ativo com este celular.");
+        }
+        return conflicts;
+    }
+
+    /**
+     * Recusa com todos os conflitos de uma vez.
+     *
+     * <p>Cada conflito e uma recusa por si, com o proprio codigo. O codigo da operacao e o do primeiro,
+     * na ordem do formulario, e a mensagem geral tambem.
+     */
+    private static void refuse(Notification conflicts) {
+        if (!conflicts.hasErrors()) {
+            return;
+        }
+        Violation first = conflicts.violations().getFirst();
+        String message = first.code() == IdentityErrorCode.LAST_ADMINISTRATOR ? LAST_ADMINISTRATOR_REFUSAL : first.message();
+        throw new DomainException(first.code(), message, conflicts.violations());
     }
 
     private void touch(Clock clock) {

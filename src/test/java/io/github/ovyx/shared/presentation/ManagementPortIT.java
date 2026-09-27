@@ -8,6 +8,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -18,6 +20,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalManagementPort;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -47,26 +50,40 @@ class ManagementPortIT extends IntegrationTestSupport {
     private static final String SIGN_OUT = "/paths/~1api~1v1~1auth~1sign-out/post";
     private static final String ME = "/paths/~1api~1v1~1auth~1me/get";
     private static final String PASSWORD = "/paths/~1api~1v1~1me~1password/put";
+    private static final String REGISTER = "/paths/~1api~1v1~1caretakers/post";
+    private static final String SEARCH = "/paths/~1api~1v1~1caretakers/get";
+    private static final String FIND = "/paths/~1api~1v1~1caretakers~1{caretakerId}/get";
+    private static final String UPDATE = "/paths/~1api~1v1~1caretakers~1{caretakerId}/put";
+    private static final String DEACTIVATE = "/paths/~1api~1v1~1caretakers~1{caretakerId}~1deactivation/post";
 
-    /** As quatro operacoes publicadas: o ponteiro no documento e o caminho que cada uma atende. */
-    private static final List<Operation> OPERATIONS = List.of(
-            new Operation(SIGN_IN, "/api/v1/auth/sign-in"),
-            new Operation(SIGN_OUT, "/api/v1/auth/sign-out"),
-            new Operation(ME, "/api/v1/auth/me"),
-            new Operation(PASSWORD, "/api/v1/me/password"));
+    private static final Set<String> HTTP_METHODS = Set.of("get", "post", "put", "patch", "delete");
 
-    private record Operation(String pointer, String path) {}
-
-    /** Um exemplo de resposta de erro, com o que ele precisa respeitar: status e caminho da operacao. */
-    private record ErrorExample(String path, int status, String name, JsonNode body) {
+    /** Uma operacao publicada: o ponteiro no documento, o metodo e o caminho — talvez com variaveis. */
+    private record Operation(String pointer, String method, String path) {
 
         String label() {
-            return path + " " + status + " " + name;
+            return method.toUpperCase(Locale.ROOT) + " " + path;
+        }
+
+        /** O {@code instance} de um exemplo e um caminho concreto; o da operacao pode ter {@code {id}}. */
+        boolean matches(String instance) {
+            return instance.matches(path.replaceAll("\\{[^/]+}", "[^/]+"));
+        }
+    }
+
+    /** Um exemplo de resposta de erro, com o que ele precisa respeitar: status e caminho da operacao. */
+    private record ErrorExample(Operation operation, int status, String name, JsonNode body) {
+
+        String label() {
+            return operation.label() + " " + status + " " + name;
         }
     }
 
     @LocalManagementPort
     private int managementPort;
+
+    @LocalServerPort
+    private int serverPort;
 
     private final HttpClient client =
             HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build();
@@ -83,7 +100,25 @@ class ManagementPortIT extends IntegrationTestSupport {
     }
 
     /**
-     * Todos os exemplos de erro publicados, operacao por operacao.
+     * Todas as operacoes que o documento publica, lidas dele mesmo.
+     *
+     * <p>Uma lista fixa aqui deixaria de fora, em silencio, toda operacao nova: as da US2 gerariam
+     * zero verificacoes e a suite continuaria verde.
+     */
+    private static List<Operation> operations(JsonNode document) {
+        return document.path("paths").properties().stream()
+                .flatMap(path -> path.getValue().properties().stream()
+                        .filter(method -> HTTP_METHODS.contains(method.getKey()))
+                        .map(method -> new Operation(
+                                "/paths/" + path.getKey().replace("~", "~0").replace("/", "~1") + "/"
+                                        + method.getKey(),
+                                method.getKey(),
+                                path.getKey())))
+                .toList();
+    }
+
+    /**
+     * Todos os exemplos de erro publicados para a operacao.
      *
      * <p>O springdoc publica um exemplo sem nome em {@code example}, no singular, e os nomeados em
      * {@code examples}. Resposta de erro sem nenhum dos dois vira um exemplo sem corpo, para que o
@@ -92,21 +127,21 @@ class ManagementPortIT extends IntegrationTestSupport {
     private static List<ErrorExample> errorExamples(JsonNode document, Operation operation) {
         return document.at(operation.pointer()).path("responses").properties().stream()
                 .filter(response -> Integer.parseInt(response.getKey()) >= 400)
-                .flatMap(response -> examplesOf(operation.path(), response.getKey(), response.getValue()))
+                .flatMap(response -> examplesOf(operation, response.getKey(), response.getValue()))
                 .toList();
     }
 
-    private static Stream<ErrorExample> examplesOf(String path, String status, JsonNode response) {
+    private static Stream<ErrorExample> examplesOf(Operation operation, String status, JsonNode response) {
         JsonNode content = response.at("/content/application~1problem+json");
         int code = Integer.parseInt(status);
         if (content.path("example").isObject()) {
-            return Stream.of(new ErrorExample(path, code, "example", content.path("example")));
+            return Stream.of(new ErrorExample(operation, code, "example", content.path("example")));
         }
         if (!content.path("examples").isObject()) {
-            return Stream.of(new ErrorExample(path, code, "(sem exemplo)", null));
+            return Stream.of(new ErrorExample(operation, code, "(sem exemplo)", null));
         }
         return content.path("examples").properties().stream()
-                .map(named -> new ErrorExample(path, code, named.getKey(), named.getValue().path("value")));
+                .map(named -> new ErrorExample(operation, code, named.getKey(), named.getValue().path("value")));
     }
 
     @Test
@@ -167,7 +202,15 @@ class ManagementPortIT extends IntegrationTestSupport {
     }
 
     @ParameterizedTest(name = "{0} under \"{1}\"")
-    @CsvSource({SIGN_IN + ", Acesso", PASSWORD + ", Minha conta"})
+    @CsvSource({
+        SIGN_IN + ", Acesso",
+        PASSWORD + ", Minha conta",
+        REGISTER + ", Responsáveis",
+        SEARCH + ", Responsáveis",
+        FIND + ", Responsáveis",
+        UPDATE + ", Responsáveis",
+        DEACTIVATE + ", Responsáveis"
+    })
     @DisplayName("each operation is published under the tag the contract assigns")
     void givenPublishedDocument_whenReadingAnOperationTag_thenUseTheTagTheContractAssigns(String pointer, String tag)
             throws Exception {
@@ -197,16 +240,42 @@ class ManagementPortIT extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("no caretaker administration tag is published before the story that delivers it")
-    void givenPublishedDocument_whenReadingTheTags_thenPublishNoCaretakerAdministrationYet() throws Exception {
+    @DisplayName("the published description tells what an undeclared route really answers")
+    void givenPublishedDocument_whenReadingTheDescription_thenTellWhatAnUndeclaredRouteReallyAnswers()
+            throws Exception {
         // given
+        // O texto prometeu primeiro um 405 que o sistema nunca devolve, e depois um 403 que so vale
+        // para quem tem sessao. A resposta real depende de quem pergunta, e o texto precisa dizer isso.
         JsonNode document = document();
 
         // when
-        String tags = document.at("/tags").toString();
+        String description = document.at("/info/description").asString();
 
         // then
-        assertThat(tags).doesNotContain("Responsáveis");
+        assertThat(description)
+                .contains("sem sessão, a resposta é 401 `UNAUTHENTICATED`")
+                .contains("com sessão, 403 `FORBIDDEN`")
+                .contains("sem o cabeçalho `X-XSRF-TOKEN` é recusada antes disso, com 403 `CSRF_TOKEN_INVALID`")
+                .contains("`TRACE`, que o próprio servidor recusa com 405");
+    }
+
+    @ParameterizedTest(name = "TRACE {0}")
+    @ValueSource(strings = {"/api/v1/auth/me", "/api/v1/rota-que-nao-existe"})
+    @DisplayName("TRACE is refused by the server itself with 405, as the published description warns")
+    void givenTraceRequest_whenReachingTheApplicationPort_thenTheServerAnswers405(String path) throws Exception {
+        // given
+        // O texto publicado diz que rota ou metodo nao declarados nao produzem 405, com esta excecao. O
+        // TRACE e recusado pelo Tomcat antes da cadeia de seguranca, e por isso so aparece com um
+        // servidor de verdade: o MockMvc nao passa por ele.
+        HttpRequest trace = HttpRequest.newBuilder(URI.create("http://localhost:" + serverPort + path))
+                .method("TRACE", HttpRequest.BodyPublishers.noBody())
+                .build();
+
+        // when
+        HttpResponse<String> response = client.send(trace, HttpResponse.BodyHandlers.ofString());
+
+        // then
+        assertThat(response.statusCode()).isEqualTo(405);
     }
 
     @ParameterizedTest(name = "{0}: {1}")
@@ -214,7 +283,12 @@ class ManagementPortIT extends IntegrationTestSupport {
         SIGN_IN + ", Entrar no sistema",
         SIGN_OUT + ", Sair do sistema",
         ME + ", Consultar o responsável autenticado",
-        PASSWORD + ", Trocar a própria senha"
+        PASSWORD + ", Trocar a própria senha",
+        REGISTER + ", Cadastrar responsável",
+        SEARCH + ", Listar e pesquisar responsáveis",
+        FIND + ", Consultar responsável",
+        UPDATE + ", Editar responsável",
+        DEACTIVATE + ", Inativar responsável"
     })
     @DisplayName("every operation keeps its summary")
     void givenPublishedDocument_whenReadingAnOperation_thenKeepItsSummary(String pointer, String summary)
@@ -232,7 +306,31 @@ class ManagementPortIT extends IntegrationTestSupport {
     }
 
     @ParameterizedTest(name = "{0} {1}")
-    @CsvSource({SIGN_IN + ", 400", SIGN_IN + ", 401", SIGN_IN + ", 403", ME + ", 401", PASSWORD + ", 400"})
+    @CsvSource({
+        SIGN_IN + ", 400",
+        SIGN_IN + ", 401",
+        SIGN_IN + ", 403",
+        SIGN_IN + ", 406",
+        ME + ", 401",
+        ME + ", 406",
+        PASSWORD + ", 400",
+        REGISTER + ", 400",
+        REGISTER + ", 401",
+        REGISTER + ", 403",
+        REGISTER + ", 406",
+        REGISTER + ", 409",
+        REGISTER + ", 415",
+        SEARCH + ", 400",
+        SEARCH + ", 401",
+        SEARCH + ", 403",
+        FIND + ", 400",
+        FIND + ", 404",
+        UPDATE + ", 400",
+        UPDATE + ", 404",
+        UPDATE + ", 409",
+        DEACTIVATE + ", 404",
+        DEACTIVATE + ", 409"
+    })
     @DisplayName("every operation publishes the error responses it can produce")
     void givenPublishedDocument_whenReadingAnOperationResponses_thenPublishTheErrorsItCanProduce(
             String pointer, String status) throws Exception {
@@ -246,6 +344,24 @@ class ManagementPortIT extends IntegrationTestSupport {
 
         // then
         assertThat(responses.has(status)).isTrue();
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {REGISTER, SEARCH, FIND, UPDATE, DEACTIVATE, PASSWORD})
+    @DisplayName("every operation that revalidates the session publishes the caretaker deactivated with it open")
+    void givenPublishedDocument_whenReadingARevalidatedOperation401_thenPublishTheCaretakerUnavailableExample(
+            String pointer) throws Exception {
+        // given
+        // A sessao e reconferida a cada requisicao: quem integra precisa saber que o 401 pode chegar
+        // com a sessao aberta, e que ela termina ali.
+        JsonNode document = document();
+
+        // when
+        JsonNode example = document.at(
+                pointer + "/responses/401/content/application~1problem+json/examples/responsavelIndisponivel/value");
+
+        // then
+        assertThat(example.path("code").asString()).isEqualTo("CARETAKER_UNAVAILABLE");
     }
 
     @ParameterizedTest
@@ -263,24 +379,46 @@ class ManagementPortIT extends IntegrationTestSupport {
         assertThat(declared.isObject()).isTrue();
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {SIGN_IN, SIGN_OUT, ME, PASSWORD})
-    @DisplayName("every operation publishes at least one error example")
-    void givenPublishedDocument_whenCollectingAnOperationErrorExamples_thenFindAtLeastOne(String pointer)
-            throws Exception {
+    @Test
+    @DisplayName("the operations under verification are read from the published document")
+    void givenPublishedDocument_whenListingItsOperations_thenFindEveryPublishedOperation() throws Exception {
         // given
-        // Sem esta guarda, uma operacao sem nenhum exemplo de erro nao geraria teste algum abaixo, e
-        // passaria em silencio.
-        Operation operation = OPERATIONS.stream()
-                .filter(candidate -> candidate.pointer().equals(pointer))
-                .findFirst()
-                .orElseThrow();
+        // Guarda do que vem abaixo: se a leitura das operacoes quebrasse e devolvesse nada, os testes
+        // dinamicos seriam zero e passariam em silencio.
+        JsonNode document = document();
 
         // when
-        List<ErrorExample> examples = errorExamples(document(), operation);
+        List<String> operations = operations(document).stream().map(Operation::label).toList();
 
         // then
-        assertThat(examples).isNotEmpty();
+        assertThat(operations)
+                .contains(
+                        "POST /api/v1/auth/sign-in",
+                        "POST /api/v1/auth/sign-out",
+                        "GET /api/v1/auth/me",
+                        "PUT /api/v1/me/password",
+                        "POST /api/v1/caretakers",
+                        "GET /api/v1/caretakers",
+                        "GET /api/v1/caretakers/{caretakerId}",
+                        "PUT /api/v1/caretakers/{caretakerId}",
+                        "POST /api/v1/caretakers/{caretakerId}/deactivation");
+    }
+
+    @TestFactory
+    @DisplayName("every published operation publishes at least one error example")
+    Stream<DynamicTest> givenPublishedDocument_whenCollectingEachOperationErrorExamples_thenFindAtLeastOne()
+            throws Exception {
+        // given
+        // Uma operacao sem nenhum exemplo de erro nao geraria teste algum na verificacao seguinte, e
+        // passaria em silencio.
+        JsonNode document = document();
+
+        // when
+        List<Operation> operations = operations(document);
+
+        // then
+        return operations.stream().map(operation -> DynamicTest.dynamicTest(
+                operation.label(), () -> assertThat(errorExamples(document, operation)).isNotEmpty()));
     }
 
     @TestFactory
@@ -295,7 +433,7 @@ class ManagementPortIT extends IntegrationTestSupport {
         JsonNode document = document();
 
         // when
-        List<ErrorExample> examples = OPERATIONS.stream()
+        List<ErrorExample> examples = operations(document).stream()
                 .flatMap(operation -> errorExamples(document, operation).stream())
                 .toList();
 
@@ -307,7 +445,7 @@ class ManagementPortIT extends IntegrationTestSupport {
                     .isEqualTo(example.status());
             assertThat(example.body().path("instance").asString())
                     .as("o exemplo aponta outro endpoint")
-                    .isEqualTo(example.path());
+                    .matches(example.operation()::matches);
             assertThat(example.body().path("code").asString())
                     .as("exemplo sem código da regra")
                     .isNotBlank();
@@ -329,7 +467,16 @@ class ManagementPortIT extends IntegrationTestSupport {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {SIGN_IN + "/responses/200/content", ME + "/responses/200/content"})
+    @ValueSource(
+            strings = {
+                SIGN_IN + "/responses/200/content",
+                ME + "/responses/200/content",
+                REGISTER + "/responses/201/content",
+                SEARCH + "/responses/200/content",
+                FIND + "/responses/200/content",
+                UPDATE + "/responses/200/content",
+                DEACTIVATE + "/responses/200/content"
+            })
     @DisplayName("every successful body is published as JSON")
     void givenPublishedDocument_whenReadingA200Response_thenPublishItAsJson(String pointer) throws Exception {
         // given
@@ -346,7 +493,7 @@ class ManagementPortIT extends IntegrationTestSupport {
     @ValueSource(strings = {"/actuator/swagger-ui/swagger-initializer.js", "/actuator/swagger-ui/swagger-config"})
     @DisplayName("the Swagger UI assets and configuration are reachable")
     void givenSwaggerUiAsset_whenRequestingIt_thenAnswerOk(String asset) throws Exception {
-        // given — asset from @ValueSource
+        // given — arquivo vindo do @ValueSource
         // A liberacao passou a ser por endpoint. Os arquivos da interface vivem abaixo do caminho
         // do endpoint e precisam continuar alcancaveis, ou a pagina abre em branco.
 

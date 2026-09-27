@@ -48,7 +48,7 @@ class GlobalExceptionHandlerTest {
     @DisplayName("keeps the status of every framework error it translates")
     void givenFrameworkError_whenTranslating_thenKeepItsStatusUnderOneStableCode(
             ErrorResponse error, int status) {
-        // given — error and its status from @MethodSource
+        // given — erro e o seu status vindos do @MethodSource
 
         // when
         ResponseEntity<ProblemDetail> response = handler.onSpringMvcError(error);

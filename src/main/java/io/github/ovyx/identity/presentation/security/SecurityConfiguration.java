@@ -1,12 +1,15 @@
 package io.github.ovyx.identity.presentation.security;
 
+import io.github.ovyx.shared.presentation.ApiDocsProperties;
+import io.github.ovyx.shared.presentation.RouteAuthorization;
 import jakarta.servlet.DispatcherType;
+import java.time.Duration;
+import java.util.List;
 import org.springframework.boot.security.autoconfigure.actuate.web.servlet.EndpointRequest;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -17,6 +20,11 @@ import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
 import org.springframework.security.web.savedrequest.NullRequestCache;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.filter.CorsFilter;
+import tools.jackson.databind.ObjectMapper;
 
 @Configuration
 @EnableWebSecurity
@@ -25,15 +33,49 @@ public class SecurityConfiguration {
     private final ProblemAuthenticationEntryPoint authenticationEntryPoint;
     private final ProblemAccessDeniedHandler accessDeniedHandler;
     private final PasswordChangeRequiredFilter passwordChangeRequiredFilter;
+    private final ApiDocsProperties apiDocs;
+    private final ObjectMapper objectMapper;
+    private final List<RouteAuthorization> routeAuthorizations;
 
+    /**
+     * @param routeAuthorizations as rotas de cada contexto (R-008 da feature 002). Nenhum contexto
+     *     conhece as rotas de outro; esta configuracao so as aplica, antes da negacao por omissao.
+     */
     public SecurityConfiguration(
         ProblemAuthenticationEntryPoint authenticationEntryPoint,
         ProblemAccessDeniedHandler accessDeniedHandler,
-        PasswordChangeRequiredFilter passwordChangeRequiredFilter
+        PasswordChangeRequiredFilter passwordChangeRequiredFilter,
+        ApiDocsProperties apiDocs,
+        ObjectMapper objectMapper,
+        List<RouteAuthorization> routeAuthorizations
     ) {
         this.authenticationEntryPoint = authenticationEntryPoint;
         this.accessDeniedHandler = accessDeniedHandler;
         this.passwordChangeRequiredFilter = passwordChangeRequiredFilter;
+        this.apiDocs = apiDocs;
+        this.objectMapper = objectMapper;
+        this.routeAuthorizations = List.copyOf(routeAuthorizations);
+    }
+
+    /**
+     * CORS so para a interface de documentacao, que chama a API de outra origem (FR-026, FR-028).
+     *
+     * <p>Com credenciais — o cookie da sessao precisa ir junto —, e por isso com as origens exatas
+     * da configuracao, nunca curinga: uma origem qualquer liberada seria um site alheio agindo com a
+     * sessao de quem o visita. So os metodos e os cabecalhos que a API usa, e o {@code Location} do
+     * cadastro exposto, para a interface mostra-lo.
+     */
+    private CorsConfigurationSource apiDocsCors() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(apiDocs.allowedOrigins());
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT"));
+        configuration.setAllowedHeaders(List.of("Content-Type", "Accept", "X-XSRF-TOKEN"));
+        configuration.setExposedHeaders(List.of("Location"));
+        configuration.setAllowCredentials(true);
+        configuration.setMaxAge(Duration.ofMinutes(30));
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/api/**", configuration);
+        return source;
     }
 
     /**
@@ -72,26 +114,22 @@ public class SecurityConfiguration {
 
     @Bean
     @Order(2)
-    SecurityFilterChain apiSecurityFilterChain(HttpSecurity http) throws Exception {
-        return http.authorizeHttpRequests(requests -> requests
+    SecurityFilterChain apiSecurityFilterChain(HttpSecurity http, SessionRevalidationFilter sessionRevalidationFilter)
+        throws Exception {
+        http.authorizeHttpRequests(requests -> {
                 // Despacho interno de erro: sem esta liberacao, todo 500 era reenviado a /error,
                 // barrado por falta de autenticacao e entregue ao cliente como 401.
-                .dispatcherTypeMatchers(DispatcherType.ERROR)
-                .permitAll()
-                // Rotas da Historia 1, uma a uma, cada uma com a sua regra.
-                .requestMatchers(HttpMethod.POST, "/api/v1/auth/sign-in")
-                .permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/v1/auth/sign-out")
-                .authenticated()
-                .requestMatchers(HttpMethod.GET, "/api/v1/auth/me")
-                .authenticated()
-                .requestMatchers(HttpMethod.PUT, "/api/v1/me/password")
-                .authenticated()
+                requests.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll();
+                // As rotas de cada contexto, declaradas por ele mesmo (R-008 da feature 002).
+                routeAuthorizations.forEach(routes -> routes.authorize(requests));
                 // Negacao por omissao para todos, inclusive autenticados (FR-012). Com
                 // authenticated() aqui, uma rota administrativa esquecida nasceria aberta a
                 // qualquer usuario comum.
-                .anyRequest()
-                .denyAll())
+                requests.anyRequest().denyAll();
+            })
+            // O CORS da documentacao entra como filtro proprio, abaixo, para recusar no formato de erro
+            // do contrato; o configurador do Spring Security nao aceita outro processador.
+            .cors(AbstractHttpConfigurer::disable)
             // Padrao do Spring Security para SPA: cookie XSRF-TOKEN legivel pelo cliente,
             // emitido ja na primeira resposta, e devolvido no cabecalho X-XSRF-TOKEN. Somado a
             // SameSite=Lax, fecha o vetor de CSRF sem travar o primeiro login.
@@ -116,10 +154,29 @@ public class SecurityConfiguration {
             .formLogin(AbstractHttpConfigurer::disable)
             .httpBasic(AbstractHttpConfigurer::disable)
             .logout(AbstractHttpConfigurer::disable)
+            // Antes da autorizacao: ela precisa decidir pela situacao e pelo perfil de agora, e nao
+            // pelos gravados na sessao no login (FR-005, FR-008).
+            .addFilterBefore(sessionRevalidationFilter, AuthorizationFilter.class)
             // Depois da autorizacao: so faz sentido cobrar a troca de senha de quem ja passou por
             // ela. Antes, o filtro nem teria identidade para inspecionar.
-            .addFilterAfter(passwordChangeRequiredFilter, AuthorizationFilter.class)
-            .build();
+            .addFilterAfter(passwordChangeRequiredFilter, AuthorizationFilter.class);
+        // Sem origem configurada, nenhum CORS: a API so fala com a propria origem. Com ela, o filtro
+        // fica onde o Spring Security o poria, antes do CSRF.
+        if (!apiDocs.allowedOrigins().isEmpty()) {
+            CorsFilter cors = new CorsFilter(apiDocsCors());
+            cors.setCorsProcessor(new ProblemCorsProcessor(objectMapper));
+            http.addFilterBefore(cors, CsrfFilter.class);
+        }
+        return http.build();
+    }
+
+    /** Pelo mesmo motivo do filtro de troca de senha: ele ja entra na cadeia de seguranca. */
+    @Bean
+    FilterRegistrationBean<SessionRevalidationFilter> sessionRevalidationFilterRegistration(
+        SessionRevalidationFilter filter) {
+        FilterRegistrationBean<SessionRevalidationFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
     }
 
     /**

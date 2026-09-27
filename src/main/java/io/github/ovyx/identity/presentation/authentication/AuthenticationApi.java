@@ -27,14 +27,41 @@ public interface AuthenticationApi {
     @Operation(
         summary = "Entrar no sistema",
         description = "Autentica por e-mail ou celular, indistintamente, no campo `identifier`."
-            + " Em caso de sucesso, devolve o cookie de sessão e a identidade do responsável.")
+            + " Em caso de sucesso, devolve o cookie de sessão e a identidade do responsável.",
+        requestBody =
+        @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            required = true,
+            content =
+            @Content(
+                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                schema = @Schema(implementation = SignInRequest.class),
+                examples = {
+                    @ExampleObject(
+                        name = "porEmail",
+                        summary = "Entrada por e-mail",
+                        value = AuthenticationExamples.SIGN_IN_BY_EMAIL),
+                    @ExampleObject(
+                        name = "porCelular",
+                        summary = "Entrada por celular",
+                        value = AuthenticationExamples.SIGN_IN_BY_MOBILE_PHONE)
+                })))
     @ApiResponse(
         responseCode = "200",
         description = "Autenticado. A resposta traz o cookie de sessão e a identidade do responsável.",
         content =
         @Content(
             mediaType = MediaType.APPLICATION_JSON_VALUE,
-            schema = @Schema(implementation = AuthenticatedCaretakerResponse.class)))
+            schema = @Schema(implementation = AuthenticatedCaretakerResponse.class),
+            examples = {
+                @ExampleObject(
+                    name = "usuarioComum",
+                    summary = "Usuário comum",
+                    value = AuthenticationExamples.SIGN_IN_COMMON_USER),
+                @ExampleObject(
+                    name = "administradorSemeado",
+                    summary = "Administrador inicial, ainda com senha provisória",
+                    value = AuthenticationExamples.SIGN_IN_SEEDED_ADMINISTRATOR)
+            }))
     @ApiResponse(
         responseCode = "400",
         description = "Campo ausente, identificador longo demais ou corpo que não pôde ser lido"
@@ -48,7 +75,12 @@ public interface AuthenticationApi {
                     name = "campoAusente",
                     value = AuthenticationExamples.SIGN_IN_VALIDATION_FAILED),
                 @ExampleObject(
-                    name = "corpoIlegivel",
+                    name = "identificadorLongo",
+                    summary = "Identificador acima de 254 caracteres",
+                    value = AuthenticationExamples.SIGN_IN_IDENTIFIER_TOO_LONG),
+                @ExampleObject(
+                    name = "corpoMalformado",
+                    summary = "Corpo que não é JSON válido",
                     value = AuthenticationExamples.SIGN_IN_UNREADABLE_BODY)
             }))
     @ApiResponse(
@@ -68,6 +100,15 @@ public interface AuthenticationApi {
             mediaType = PROBLEM_JSON,
             schema = @Schema(implementation = ProblemResponse.class),
             examples = @ExampleObject(value = AuthenticationExamples.SIGN_IN_CSRF_TOKEN_INVALID)))
+    @ApiResponse(
+        responseCode = "406",
+        description = "Formato de resposta indisponível (`REQUEST_NOT_ACCEPTABLE`). A negociação recusa antes de"
+            + " a credencial ser conferida: nenhuma sessão é aberta e nenhum acesso é registrado.",
+        content =
+        @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(value = AuthenticationExamples.SIGN_IN_NOT_ACCEPTABLE)))
     @ApiResponse(
         responseCode = "415",
         description = "Corpo em formato diferente de JSON (`REQUEST_NOT_ACCEPTABLE`).",
@@ -144,7 +185,9 @@ public interface AuthenticationApi {
             }))
     @ApiResponse(
         responseCode = "406",
-        description = "Formato de resposta indisponível (`REQUEST_NOT_ACCEPTABLE`).",
+        description = "Formato de resposta indisponível (`REQUEST_NOT_ACCEPTABLE`). A negociação recusa antes de"
+            + " a consulta rodar: a sessão de um responsável inativado só é encerrada na próxima requisição"
+            + " em JSON.",
         content =
         @Content(
             mediaType = PROBLEM_JSON,

@@ -4,6 +4,7 @@ import io.github.ovyx.identity.domain.IdentityErrorCode;
 import io.github.ovyx.shared.domain.Notification;
 import io.github.ovyx.shared.domain.Rule;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * CPF do responsavel, guardado so com digitos.
@@ -25,6 +26,16 @@ public record Cpf(String value) {
      */
     private static final List<Rule<String>> RULES =
             List.of(Rule.of(Cpf::isValid, IdentityErrorCode.CPF_INVALID, "CPF inválido."));
+
+    /**
+     * Construtor canonico: so a garantia estrutural, sem regra de negocio.
+     *
+     * <p>E o caminho da reidratacao, que le do banco um valor ja validado. Revalidar ali reprovaria
+     * registros antigos a cada regra nova; aceitar nulo deixaria um objeto de valor sem valor.
+     */
+    public Cpf {
+        Objects.requireNonNull(value, "value");
+    }
 
     /**
      * Registra no {@link Notification} as violacoes do campo, sem lancar.

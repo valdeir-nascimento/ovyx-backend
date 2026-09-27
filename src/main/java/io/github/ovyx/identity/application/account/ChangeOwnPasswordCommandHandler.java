@@ -18,8 +18,9 @@ import java.util.Optional;
 /**
  * Troca da propria senha.
  *
- * <p>A conferencia da senha atual e a politica minima ficam no agregado; aqui fica a orquestracao:
- * carregar, delegar, gravar.
+ * <p>A conferencia da senha atual, a politica minima e a recusa do inativo ficam no agregado; aqui
+ * fica a orquestracao: carregar, delegar, gravar. E a traducao da recusa: responsavel indisponivel
+ * encerra a sessao (401), e o resto e recusa de preenchimento.
  */
 public class ChangeOwnPasswordCommandHandler implements CommandHandler<ChangeOwnPasswordCommand, CaretakerId> {
 
@@ -37,12 +38,12 @@ public class ChangeOwnPasswordCommandHandler implements CommandHandler<ChangeOwn
     public Result<CaretakerId> handle(ChangeOwnPasswordCommand command) {
         Optional<Caretaker> found = caretakerRepository.findById(command.caretakerId());
 
-        // A sessao pode sobreviver a inativacao; inativo nao age sobre a conta (invariante 4).
-        if (found.isEmpty() || !found.get().isActive()) {
+        // A sessao pode sobreviver a exclusao do cadastro; sem responsavel, nao ha a quem delegar.
+        if (found.isEmpty()) {
             return Result.failure(ApplicationError.of(
                 ErrorType.UNAUTHENTICATED,
                 IdentityErrorCode.CARETAKER_UNAVAILABLE.code(),
-                "Responsável não encontrado ou inativo.")
+                IdentityErrorCode.CARETAKER_UNAVAILABLE_MESSAGE)
             );
         }
 
@@ -50,13 +51,18 @@ public class ChangeOwnPasswordCommandHandler implements CommandHandler<ChangeOwn
 
         try {
             caretaker.changeOwnPassword(command.currentPassword(), command.newPassword(), passwordHasher, clock);
-        } catch (DomainException violation) {
+        } catch (DomainException refusal) {
             // O dominio sinaliza por excecao; o Result nasce aqui, no limite da aplicacao.
-            return Result.failure(ApplicationError.from(violation, ErrorType.VALIDATION));
+            return Result.failure(ApplicationError.from(refusal, typeOf(refusal)));
         }
 
         caretakerRepository.save(caretaker);
 
         return Result.success(caretaker.id());
+    }
+
+    /** O inativo com a sessao aberta tem a sessao encerrada; qualquer outra recusa e de preenchimento. */
+    private static ErrorType typeOf(DomainException refusal) {
+        return refusal.errorCode() == IdentityErrorCode.CARETAKER_UNAVAILABLE ? ErrorType.UNAUTHENTICATED : ErrorType.VALIDATION;
     }
 }

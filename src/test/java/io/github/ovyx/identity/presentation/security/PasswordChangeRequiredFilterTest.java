@@ -125,7 +125,7 @@ class PasswordChangeRequiredFilterTest {
     @Test
     @DisplayName("does not interfere with anonymous requests, which authorization already handles")
     void givenAnonymousRequest_whenFiltering_thenLeaveItToAuthorization() throws Exception {
-        // given — no authentication in the security context
+        // given — nenhuma autenticacao no contexto de seguranca
         MockFilterChain chain = new MockFilterChain();
 
         // when

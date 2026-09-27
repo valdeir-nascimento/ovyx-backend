@@ -55,7 +55,7 @@ class DatabaseMigrationIT extends IntegrationTestSupport {
     @Test
     @DisplayName("creates every table of the slice")
     void givenMigratedDatabase_whenListingTables_thenFindEveryTableOfTheSlice() {
-        // given — the shared container, migrated at startup
+        // given — o contentor compartilhado, migrado na subida
 
         // when
         List<String> tables = jdbc().queryForList(PUBLIC_TABLES, String.class);
@@ -66,22 +66,22 @@ class DatabaseMigrationIT extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("records the four migrations as successfully applied")
-    void givenMigratedDatabase_whenReadingTheHistory_thenFindTheFourMigrationsApplied() {
-        // given — the shared container, migrated at startup
+    @DisplayName("records the eight migrations as successfully applied")
+    void givenMigratedDatabase_whenReadingTheHistory_thenFindTheEightMigrationsApplied() {
+        // given — o contentor compartilhado, migrado na subida
 
         // when
         List<String> versions = jdbc().queryForList(APPLIED_VERSIONS, String.class);
 
         // then
-        assertThat(versions).containsExactly("1", "2", "3", "4");
+        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8");
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"ux_caretaker_email_active", "ux_caretaker_mobile_active"})
     @DisplayName("email and mobile phone indexes are partial, restricted to active caretakers")
     void givenIdentifierIndex_whenReadingItsDefinition_thenRestrictUniquenessToActiveCaretakers(String index) {
-        // given — index from @ValueSource
+        // given — indice vindo do @ValueSource
 
         // when
         List<String> definitions = jdbc().queryForList(CARETAKER_INDEX, String.class, index);
@@ -124,6 +124,26 @@ class DatabaseMigrationIT extends IntegrationTestSupport {
                         "sign_in_attempt",
                         "spring_session",
                         "spring_session_attributes",
+                        "sector",
+                        "cage",
+                        "daily_report",
+                        "report_cage",
+                        "feed_formula",
                         "flyway_schema_history");
+    }
+
+    @Test
+    @DisplayName("adds the feed columns to the report cage")
+    void givenMigratedDatabase_whenListingReportCageColumns_thenFindTheFeedColumns() {
+        // given
+        String table = "report_cage";
+
+        // when
+        List<String> columns = jdbc().queryForList(
+                "select column_name from information_schema.columns where table_name = ?", String.class, table);
+
+        // then
+        assertThat(columns)
+                .contains("feed_formula_id", "feed_price_per_kg", "feed_expected_intake", "feed_consumption");
     }
 }

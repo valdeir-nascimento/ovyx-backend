@@ -1,0 +1,1001 @@
+openapi: 3.1.0
+info:
+  title: Ovyx — API da Granja
+  version: 1.0.0
+  description: |
+    Setores e gaiolas da granja (`Sector`, `Cage`): a estrutura produtiva onde as features
+    seguintes lançam produção, ração, mortalidade e peso.
+
+    **Sessão, erros, CSRF e acesso negado**: iguais aos da API de Identidade
+    (`specs/001-auth-foundation/contracts/identity-api.yaml`). Toda operação exige o cookie de
+    sessão; toda escrita exige o cabeçalho `X-XSRF-TOKEN`; toda recusa segue RFC 9457 com a extensão
+    `code`, e a de validação traz **todas** as violações de uma vez em `details`.
+
+    **Perfis**: qualquer responsável autenticado consulta setores e gaiolas. Cadastrar, editar,
+    inativar e reativar é exclusivo do perfil Administrador; o usuário comum recebe o 403 `FORBIDDEN`
+    genérico, sem saber se o setor ou a gaiola existem.
+
+    **Nada é apagado**: setores e gaiolas são inativados, e continuam consultáveis. Inativar um
+    setor inativa junto as gaiolas ativas dele; reativá-lo traz de volta exatamente essas gaiolas.
+servers:
+- url: http://localhost:8080
+  description: Ambiente local
+tags:
+- name: Setores
+  description: Cadastro, consulta, inativação e reativação de setores
+- name: Gaiolas
+  description: Cadastro, consulta, inativação e reativação das gaiolas de um setor
+paths:
+  /api/v1/sectors:
+    get:
+      tags: [Setores]
+      summary: Listar setores
+      description: Setores com a quantidade de gaiolas ativas e a soma das aves delas, por nome.
+      operationId: listSectors
+      parameters:
+      - name: status
+        in: query
+        description: Situação dos setores listados — ativos, inativos ou todos (`ALL`); ausente, só os ativos.
+        schema:
+          $ref: '#/components/schemas/StatusFilter'
+        example: ACTIVE
+      responses:
+        '200':
+          description: Setores encontrados, possivelmente nenhum
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SectorSummary'
+              examples:
+                setoresAtivos:
+                  summary: Dois setores ativos
+                  value:
+                  - id: 3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11
+                    name: Codornas — Galpão 1
+                    description: Codornas japonesas em postura, baterias A a D
+                    status: ACTIVE
+                    activeCageCount: 48
+                    birdCount: 2400
+                  - id: 7a1b9c3d-2e4f-4a6b-8c0d-5e7f9a1b3c22
+                    name: Poedeiras brancas — Galpão 2
+                    description: Linhagem Hy-Line W-36 em gaiolas convencionais
+                    status: ACTIVE
+                    activeCageCount: 24
+                    birdCount: 1200
+        '400':
+          description: Situação desconhecida (`VALIDATION_FAILED`), com o nome do parâmetro em `details`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                situacaoInvalida:
+                  summary: Situação fora da lista
+                  value:
+                    code: VALIDATION_FAILED
+                    title: Dados inválidos
+                    status: 400
+                    detail: Valor inválido para o parâmetro 'status'.
+                    instance: /api/v1/sectors
+                    details:
+                      parameter: status
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/TrocaDeSenhaPendente'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+    post:
+      tags: [Setores]
+      summary: Cadastrar setor
+      operationId: registerSector
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SectorRequest'
+            examples:
+              novoSetor:
+                summary: Galpão de codornas
+                value:
+                  name: Codornas — Galpão 4
+                  description: Codornas japonesas em postura, baterias A e B
+      responses:
+        '201':
+          description: Setor cadastrado. O cabeçalho `Location` aponta para ele.
+          headers:
+            Location:
+              schema:
+                type: string
+              example: /api/v1/sectors/5c8d2e4f-6a1b-4c3d-9e7f-0a2b4c6d8e33
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SectorDetail'
+              examples:
+                setorCadastrado:
+                  summary: Setor novo, sem gaiolas
+                  value:
+                    id: 5c8d2e4f-6a1b-4c3d-9e7f-0a2b4c6d8e33
+                    name: Codornas — Galpão 4
+                    description: Codornas japonesas em postura, baterias A e B
+                    status: ACTIVE
+                    activeCageCount: 0
+                    birdCount: 0
+                    batteries: []
+                    createdAt: '2026-09-25T13:02:11Z'
+                    updatedAt: '2026-09-25T13:02:11Z'
+        '400':
+          description: Campos inválidos, todos de uma vez (`VALIDATION_FAILED`), ou corpo ilegível.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                camposInvalidos:
+                  summary: Nome curto e descrição longa demais
+                  value:
+                    code: VALIDATION_FAILED
+                    title: Dados inválidos
+                    status: 400
+                    detail: Dados inválidos.
+                    instance: /api/v1/sectors
+                    details:
+                      name: O nome do setor deve ter ao menos 2 caracteres.
+                      description: A descrição deve ter no máximo 500 caracteres.
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '409':
+          description: Outro setor ativo já usa o nome (`SECTOR_NAME_IN_USE`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                nomeEmUso:
+                  summary: Nome de um setor ativo
+                  value:
+                    code: SECTOR_NAME_IN_USE
+                    title: Operação recusada
+                    status: 409
+                    detail: Já existe um setor ativo com este nome.
+                    instance: /api/v1/sectors
+                    details:
+                      name: Já existe um setor ativo com este nome.
+        '415':
+          $ref: '#/components/responses/RequisicaoNaoSuportada'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+  /api/v1/sectors/{sectorId}:
+    parameters:
+    - $ref: '#/components/parameters/SectorId'
+    get:
+      tags: [Setores]
+      summary: Consultar setor
+      operationId: findSector
+      responses:
+        '200':
+          description: Setor encontrado, ativo ou inativo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SectorDetail'
+              examples:
+                setor:
+                  summary: Setor com gaiolas
+                  value:
+                    id: 3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11
+                    name: Codornas — Galpão 1
+                    description: Codornas japonesas em postura, baterias A a D
+                    status: ACTIVE
+                    activeCageCount: 48
+                    birdCount: 2400
+                    batteries: [A, B, C, D]
+                    createdAt: '2026-09-20T10:15:00Z'
+                    updatedAt: '2026-09-24T17:40:12Z'
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/TrocaDeSenhaPendente'
+        '404':
+          $ref: '#/components/responses/SetorNaoEncontrado'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+    put:
+      tags: [Setores]
+      summary: Editar setor
+      operationId: updateSector
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SectorRequest'
+            examples:
+              edicao:
+                summary: Nome e descrição corrigidos
+                value:
+                  name: Codornas — Galpão 1 (norte)
+                  description: Codornas japonesas em postura, baterias A a D
+      responses:
+        '200':
+          description: Setor atualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SectorDetail'
+        '400':
+          description: Campos inválidos, todos de uma vez (`VALIDATION_FAILED`), ou corpo ilegível.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                nomeAusente:
+                  summary: Nome em branco
+                  value:
+                    code: VALIDATION_FAILED
+                    title: Dados inválidos
+                    status: 400
+                    detail: Dados inválidos.
+                    instance: /api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11
+                    details:
+                      name: Informe o nome do setor.
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '404':
+          $ref: '#/components/responses/SetorNaoEncontrado'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '409':
+          description: Outro setor ativo já usa o nome (`SECTOR_NAME_IN_USE`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '415':
+          $ref: '#/components/responses/RequisicaoNaoSuportada'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+  /api/v1/sectors/{sectorId}/deactivation:
+    parameters:
+    - $ref: '#/components/parameters/SectorId'
+    post:
+      tags: [Setores]
+      summary: Inativar setor
+      description: Inativa o setor e, junto, todas as gaiolas ativas dele. Inativar um setor já inativo não muda nada.
+      operationId: deactivateSector
+      responses:
+        '200':
+          description: Setor inativado, com as gaiolas dele
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SectorDetail'
+              examples:
+                inativado:
+                  summary: Setor e gaiolas inativados
+                  value:
+                    id: 3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11
+                    name: Codornas — Galpão 1
+                    description: Codornas japonesas em postura, baterias A a D
+                    status: INACTIVE
+                    activeCageCount: 0
+                    birdCount: 0
+                    batteries: [A, B, C, D]
+                    createdAt: '2026-09-20T10:15:00Z'
+                    updatedAt: '2026-09-25T14:03:51Z'
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '404':
+          $ref: '#/components/responses/SetorNaoEncontrado'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+  /api/v1/sectors/{sectorId}/reactivation:
+    parameters:
+    - $ref: '#/components/parameters/SectorId'
+    post:
+      tags: [Setores]
+      summary: Reativar setor
+      description: Reativa o setor e as gaiolas que a inativação dele inativou; as que já estavam inativas antes continuam inativas.
+      operationId: reactivateSector
+      responses:
+        '200':
+          description: Setor reativado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SectorDetail'
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '404':
+          $ref: '#/components/responses/SetorNaoEncontrado'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '409':
+          description: Outro setor ativo tomou o nome enquanto este esteve inativo (`SECTOR_NAME_IN_USE`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+  /api/v1/sectors/{sectorId}/cages:
+    parameters:
+    - $ref: '#/components/parameters/SectorId'
+    get:
+      tags: [Gaiolas]
+      summary: Pesquisar gaiolas do setor
+      description: Gaiolas do setor por bateria e número, com busca pelo código e filtros.
+      operationId: searchCages
+      parameters:
+      - name: code
+        in: query
+        description: Trecho do código, sem distinguir maiúsculas (`B-07`, `b-0`, `07`).
+        schema:
+          type: string
+          maxLength: 10
+        example: B-07
+      - name: battery
+        in: query
+        description: Só as gaiolas desta bateria.
+        schema:
+          type: string
+          maxLength: 3
+        example: B
+      - name: status
+        in: query
+        description: Situação das gaiolas — ativas, inativas ou todas (`ALL`); ausente, só as ativas.
+        schema:
+          $ref: '#/components/schemas/StatusFilter'
+        example: ACTIVE
+      - name: page
+        in: query
+        description: Página, a partir de 0.
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+        example: 0
+      - name: size
+        in: query
+        description: Gaiolas por página, de 1 a 100.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        example: 20
+      responses:
+        '200':
+          description: Página de gaiolas, possivelmente vazia
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CagePage'
+              examples:
+                bateriaB:
+                  summary: Busca por "B-07"
+                  value:
+                    content:
+                    - id: 9d2e4f6a-1b3c-4d5e-8f7a-2b4c6d8e0f44
+                      sectorId: 3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11
+                      code: B-07
+                      battery: B
+                      number: 7
+                      birdCount: 50
+                      status: ACTIVE
+                    page: 0
+                    size: 20
+                    totalElements: 1
+                    totalPages: 1
+        '400':
+          $ref: '#/components/responses/FiltroInvalido'
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/TrocaDeSenhaPendente'
+        '404':
+          $ref: '#/components/responses/SetorNaoEncontrado'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+    post:
+      tags: [Gaiolas]
+      summary: Cadastrar gaiola
+      operationId: registerCage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CageRequest'
+            examples:
+              novaGaiola:
+                summary: Gaiola B-13 com 50 codornas
+                value:
+                  battery: B
+                  number: 13
+                  birdCount: 50
+      responses:
+        '201':
+          description: Gaiola cadastrada. O cabeçalho `Location` aponta para ela.
+          headers:
+            Location:
+              schema:
+                type: string
+              example: /api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/cages/0e3f5a7b-2c4d-4e6f-9a8b-3c5d7e9f1a55
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CageDetail'
+              examples:
+                gaiolaCadastrada:
+                  summary: Gaiola B-13
+                  value:
+                    id: 0e3f5a7b-2c4d-4e6f-9a8b-3c5d7e9f1a55
+                    sectorId: 3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11
+                    code: B-13
+                    battery: B
+                    number: 13
+                    birdCount: 50
+                    status: ACTIVE
+                    createdAt: '2026-09-25T13:10:42Z'
+                    updatedAt: '2026-09-25T13:10:42Z'
+        '400':
+          description: Campos inválidos, todos de uma vez (`VALIDATION_FAILED`), ou corpo ilegível.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                camposInvalidos:
+                  summary: Bateria, número e aves inválidos
+                  value:
+                    code: VALIDATION_FAILED
+                    title: Dados inválidos
+                    status: 400
+                    detail: Dados inválidos.
+                    instance: /api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/cages
+                    details:
+                      battery: Informe a bateria, com até 3 letras ou dígitos.
+                      number: O número da gaiola deve ficar entre 1 e 999.
+                      birdCount: A quantidade de aves deve ficar entre 0 e 1.000.
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '404':
+          $ref: '#/components/responses/SetorNaoEncontrado'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '409':
+          description: Outra gaiola ativa do setor tem a bateria e o número (`CAGE_ALREADY_EXISTS`), ou o setor está inativo (`SECTOR_INACTIVE`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                gaiolaExistente:
+                  summary: B-07 já existe no setor
+                  value:
+                    code: CAGE_ALREADY_EXISTS
+                    title: Operação recusada
+                    status: 409
+                    detail: Já existe uma gaiola ativa B-07 neste setor.
+                    instance: /api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/cages
+                    details:
+                      battery: Já existe uma gaiola ativa B-07 neste setor.
+                      number: Já existe uma gaiola ativa B-07 neste setor.
+                setorInativo:
+                  summary: Setor inativo não recebe gaiolas
+                  value:
+                    code: SECTOR_INACTIVE
+                    title: Operação recusada
+                    status: 409
+                    detail: O setor está inativo. Reative o setor antes de mexer nas gaiolas dele.
+                    instance: /api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/cages
+        '415':
+          $ref: '#/components/responses/RequisicaoNaoSuportada'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+  /api/v1/sectors/{sectorId}/cages/{cageId}:
+    parameters:
+    - $ref: '#/components/parameters/SectorId'
+    - $ref: '#/components/parameters/CageId'
+    get:
+      tags: [Gaiolas]
+      summary: Consultar gaiola
+      operationId: findCage
+      responses:
+        '200':
+          description: Gaiola encontrada, ativa ou inativa
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CageDetail'
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/TrocaDeSenhaPendente'
+        '404':
+          $ref: '#/components/responses/GaiolaNaoEncontrada'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+    put:
+      tags: [Gaiolas]
+      summary: Editar gaiola
+      description: Troca a bateria, o número e a quantidade de aves. O setor da gaiola não muda.
+      operationId: updateCage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CageRequest'
+            examples:
+              avesCorrigidas:
+                summary: Quantidade de aves corrigida
+                value:
+                  battery: B
+                  number: 7
+                  birdCount: 48
+      responses:
+        '200':
+          description: Gaiola atualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CageDetail'
+        '400':
+          description: Campos inválidos, todos de uma vez (`VALIDATION_FAILED`), ou corpo ilegível.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '404':
+          $ref: '#/components/responses/GaiolaNaoEncontrada'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '409':
+          description: Outra gaiola ativa do setor tem a bateria e o número (`CAGE_ALREADY_EXISTS`), ou o setor está inativo (`SECTOR_INACTIVE`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '415':
+          $ref: '#/components/responses/RequisicaoNaoSuportada'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+  /api/v1/sectors/{sectorId}/cages/{cageId}/deactivation:
+    parameters:
+    - $ref: '#/components/parameters/SectorId'
+    - $ref: '#/components/parameters/CageId'
+    post:
+      tags: [Gaiolas]
+      summary: Inativar gaiola
+      description: Inativar uma gaiola já inativa não muda nada.
+      operationId: deactivateCage
+      responses:
+        '200':
+          description: Gaiola inativada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CageDetail'
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '404':
+          $ref: '#/components/responses/GaiolaNaoEncontrada'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+  /api/v1/sectors/{sectorId}/cages/{cageId}/reactivation:
+    parameters:
+    - $ref: '#/components/parameters/SectorId'
+    - $ref: '#/components/parameters/CageId'
+    post:
+      tags: [Gaiolas]
+      summary: Reativar gaiola
+      operationId: reactivateCage
+      responses:
+        '200':
+          description: Gaiola reativada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CageDetail'
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/SemPermissao'
+        '404':
+          $ref: '#/components/responses/GaiolaNaoEncontrada'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '409':
+          description: Outra gaiola ativa tomou a bateria e o número (`CAGE_ALREADY_EXISTS`), ou o setor está inativo (`SECTOR_INACTIVE`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                setorInativo:
+                  summary: Gaiola de setor inativo
+                  value:
+                    code: SECTOR_INACTIVE
+                    title: Operação recusada
+                    status: 409
+                    detail: O setor está inativo. Reative o setor antes de mexer nas gaiolas dele.
+                    instance: /api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/cages/9d2e4f6a-1b3c-4d5e-8f7a-2b4c6d8e0f44/reactivation
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: SESSION
+      description: Cookie de sessão emitido no login. `HttpOnly` e `SameSite=Lax`; `Secure` fora do perfil de desenvolvimento, que usa http.
+  parameters:
+    SectorId:
+      name: sectorId
+      in: path
+      required: true
+      description: Identificador do setor.
+      schema:
+        type: string
+        format: uuid
+      example: 3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11
+    CageId:
+      name: cageId
+      in: path
+      required: true
+      description: Identificador da gaiola.
+      schema:
+        type: string
+        format: uuid
+      example: 9d2e4f6a-1b3c-4d5e-8f7a-2b4c6d8e0f44
+  responses:
+    SessaoInvalida:
+      description: Sem sessão válida (`UNAUTHENTICATED`), ou responsável inativado com a sessão aberta (`CARETAKER_UNAVAILABLE`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            semSessao:
+              summary: Sem sessão
+              value:
+                code: UNAUTHENTICATED
+                title: Não autenticado
+                status: 401
+                detail: Sua sessão expirou. Entre novamente para continuar.
+                instance: /api/v1/sectors
+    SemPermissao:
+      description: Sem o perfil Administrador (`FORBIDDEN`), sem o token de proteção (`CSRF_TOKEN_INVALID`) ou com a troca de senha pendente (`PASSWORD_CHANGE_REQUIRED`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            semPermissao:
+              summary: Usuário comum tentando alterar
+              value:
+                code: FORBIDDEN
+                title: Acesso negado
+                status: 403
+                detail: Você não tem permissão para executar esta operação.
+                instance: /api/v1/sectors
+            tokenCsrfAusente:
+              summary: Escrita sem o cabeçalho X-XSRF-TOKEN
+              value:
+                code: CSRF_TOKEN_INVALID
+                title: Proteção da requisição ausente
+                status: 403
+                detail: O token de proteção da requisição está ausente ou expirou. Recarregue a página e tente novamente.
+                instance: /api/v1/sectors
+    TrocaDeSenhaPendente:
+      description: Troca de senha pendente (`PASSWORD_CHANGE_REQUIRED`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            trocaDeSenhaPendente:
+              summary: Senha provisória ainda não trocada
+              value:
+                code: PASSWORD_CHANGE_REQUIRED
+                title: Troca de senha obrigatória
+                status: 403
+                detail: É necessário trocar a senha antes de executar qualquer outra operação.
+                instance: /api/v1/sectors
+    SetorNaoEncontrado:
+      description: Setor inexistente, ou identificador malformado (`SECTOR_NOT_FOUND`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            setorNaoEncontrado:
+              summary: Identificador que não é de nenhum setor
+              value:
+                code: SECTOR_NOT_FOUND
+                title: Não encontrado
+                status: 404
+                detail: Setor não encontrado.
+                instance: /api/v1/sectors/galpao-9
+    GaiolaNaoEncontrada:
+      description: Setor ou gaiola inexistente, gaiola de outro setor, ou identificador malformado (`SECTOR_NOT_FOUND` ou `CAGE_NOT_FOUND`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            gaiolaNaoEncontrada:
+              summary: Gaiola que não é deste setor
+              value:
+                code: CAGE_NOT_FOUND
+                title: Não encontrado
+                status: 404
+                detail: Gaiola não encontrada.
+                instance: /api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/cages/b-07
+    FiltroInvalido:
+      description: Página fora do permitido ou situação desconhecida (`VALIDATION_FAILED`). Situação desconhecida traz o nome do parâmetro em `details`.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            paginaInvalida:
+              summary: Tamanho de página acima de 100
+              value:
+                code: VALIDATION_FAILED
+                title: Dados inválidos
+                status: 400
+                detail: A requisição contém campos inválidos.
+                instance: /api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/cages
+                details:
+                  size: O tamanho da página deve estar entre 1 e 100.
+            situacaoInvalida:
+              summary: Situação fora da lista
+              value:
+                code: VALIDATION_FAILED
+                title: Dados inválidos
+                status: 400
+                detail: Valor inválido para o parâmetro 'status'.
+                instance: /api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/cages
+                details:
+                  parameter: status
+    FormatoIndisponivel:
+      description: Formato de resposta indisponível (`REQUEST_NOT_ACCEPTABLE`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    RequisicaoNaoSuportada:
+      description: Corpo em formato diferente de JSON (`REQUEST_NOT_ACCEPTABLE`, 415).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ErroInesperado:
+      description: Falha inesperada (`INTERNAL_ERROR`), sem detalhe da causa.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    Status:
+      type: string
+      enum: [ACTIVE, INACTIVE]
+      description: Situação do setor ou da gaiola.
+    StatusFilter:
+      type: string
+      enum: [ACTIVE, INACTIVE, ALL]
+      default: ACTIVE
+      description: Filtro de situação das listas; `ALL` traz ativos e inativos.
+    SectorRequest:
+      type: object
+      description: Cadastro ou edição de setor
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 80
+          description: Nome do setor, único entre os ativos
+          example: Codornas — Galpão 4
+        description:
+          type: string
+          maxLength: 500
+          description: Espécie, linhagem, galpão ou o que ajude a reconhecer o setor
+          example: Codornas japonesas em postura, baterias A e B
+    SectorSummary:
+      type: object
+      description: Setor na lista, com os totais das gaiolas ativas
+      required: [id, name, status, activeCageCount, birdCount]
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11
+        name:
+          type: string
+          example: Codornas — Galpão 1
+        description:
+          type: string
+          example: Codornas japonesas em postura, baterias A a D
+        status:
+          $ref: '#/components/schemas/Status'
+        activeCageCount:
+          type: integer
+          description: Quantidade de gaiolas ativas
+          example: 48
+        birdCount:
+          type: integer
+          description: Soma das aves das gaiolas ativas
+          example: 2400
+    SectorDetail:
+      allOf:
+      - $ref: '#/components/schemas/SectorSummary'
+      - type: object
+        required: [batteries, createdAt, updatedAt]
+        properties:
+          batteries:
+            type: array
+            description: Baterias que as gaiolas do setor usam, ativas ou inativas, em ordem; é o filtro de bateria da lista de gaiolas
+            items:
+              type: string
+            example: [A, B, C, D]
+          createdAt:
+            type: string
+            format: date-time
+            example: '2026-09-20T10:15:00Z'
+          updatedAt:
+            type: string
+            format: date-time
+            example: '2026-09-24T17:40:12Z'
+    CageRequest:
+      type: object
+      description: Cadastro ou edição de gaiola
+      required: [battery, number, birdCount]
+      properties:
+        battery:
+          type: string
+          minLength: 1
+          maxLength: 3
+          description: Bateria, com até 3 letras ou dígitos; gravada em maiúsculas
+          example: B
+        number:
+          type: integer
+          minimum: 1
+          maximum: 999
+          description: Número inteiro da gaiola na bateria
+          example: 7
+        birdCount:
+          type: integer
+          minimum: 0
+          maximum: 1000
+          description: Quantidade inteira de aves; zero é gaiola vazia
+          example: 50
+    CageSummary:
+      type: object
+      description: Gaiola na lista
+      required: [id, sectorId, code, battery, number, birdCount, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 9d2e4f6a-1b3c-4d5e-8f7a-2b4c6d8e0f44
+        sectorId:
+          type: string
+          format: uuid
+          example: 3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11
+        code:
+          type: string
+          description: Bateria, hífen e número com ao menos dois dígitos
+          example: B-07
+        battery:
+          type: string
+          example: B
+        number:
+          type: integer
+          example: 7
+        birdCount:
+          type: integer
+          example: 50
+        status:
+          $ref: '#/components/schemas/Status'
+    CageDetail:
+      allOf:
+      - $ref: '#/components/schemas/CageSummary'
+      - type: object
+        required: [createdAt, updatedAt]
+        properties:
+          createdAt:
+            type: string
+            format: date-time
+            example: '2026-09-21T08:30:00Z'
+          updatedAt:
+            type: string
+            format: date-time
+            example: '2026-09-24T17:42:05Z'
+    CagePage:
+      type: object
+      description: Uma página da pesquisa de gaiolas, com os totais de todas as páginas
+      required: [content, page, size, totalElements, totalPages]
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/CageSummary'
+        page:
+          type: integer
+          example: 0
+        size:
+          type: integer
+          example: 20
+        totalElements:
+          type: integer
+          example: 48
+        totalPages:
+          type: integer
+          example: 3
+    Problem:
+      type: object
+      description: RFC 9457 Problem Details, com a extensão `code` do erro de aplicação. Igual ao da API de Identidade.
+      required: [code, title, status]
+      properties:
+        code:
+          type: string
+          example: SECTOR_NAME_IN_USE
+        title:
+          type: string
+          example: Operação recusada
+        status:
+          type: integer
+          example: 409
+        detail:
+          type: string
+          example: Já existe um setor ativo com este nome.
+        instance:
+          type: string
+          example: /api/v1/sectors
+        details:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            name: Já existe um setor ativo com este nome.
+security:
+- sessionCookie: []

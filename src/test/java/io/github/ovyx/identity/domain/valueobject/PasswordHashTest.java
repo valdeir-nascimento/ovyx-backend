@@ -32,7 +32,7 @@ class PasswordHashTest {
     @ValueSource(strings = {"  "})
     @DisplayName("rejects a blank hash")
     void givenBlankHash_whenCreating_thenRejectIt(String raw) {
-        // given — raw from @NullSource and @ValueSource
+        // given — valor bruto vindo do @NullSource e do @ValueSource
 
         // when
         ThrowingCallable creation = () -> PasswordHash.of(raw);
@@ -45,7 +45,7 @@ class PasswordHashTest {
     @ValueSource(strings = {"5e884898da28047151d0e56f8dc6292773603d0d", "{}vazio"})
     @DisplayName("rejects a hash without an algorithm prefix")
     void givenHashWithoutAlgorithmPrefix_whenCreating_thenRejectIt(String raw) {
-        // given — raw from @ValueSource
+        // given — valor bruto vindo do @ValueSource
         // O primeiro e exatamente o formato do legado: SHA-2 nu, sem identificacao de algoritmo, sem
         // caminho de migracao possivel.
 

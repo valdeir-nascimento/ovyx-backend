@@ -1,0 +1,88 @@
+package io.github.ovyx.farm.domain;
+
+import io.github.ovyx.shared.domain.ErrorCode;
+
+/**
+ * Codigos estaveis das regras do contexto farm (data-model.md, secao Codigos de recusa).
+ *
+ * <p>O codigo e o contrato: quem reage a recusa distingue a regra violada por ele, nunca pelo texto
+ * da mensagem, que pode mudar sem aviso.
+ *
+ * <p>Ha dois niveis, como no identity. Os codigos de recusa identificam a operacao recusada e chegam
+ * ao cliente no campo {@code code}. Os codigos de regra identificam cada violacao dentro de uma
+ * recusa de validacao, um por regra.
+ */
+public enum FarmErrorCode implements ErrorCode {
+
+    // ---------------------------------------------------------------- regras de validacao
+
+    SECTOR_NAME_REQUIRED,
+    SECTOR_NAME_TOO_SHORT,
+    SECTOR_NAME_TOO_LONG,
+
+    SECTOR_DESCRIPTION_TOO_LONG,
+
+    CAGE_BATTERY_REQUIRED,
+    /** Fora de 1 a 3 letras ou digitos: uma violacao so, porque a pessoa corrige a bateria inteira. */
+    CAGE_BATTERY_INVALID,
+
+    CAGE_NUMBER_REQUIRED,
+    CAGE_NUMBER_NOT_INTEGER,
+    CAGE_NUMBER_OUT_OF_RANGE,
+
+    BIRD_COUNT_REQUIRED,
+    BIRD_COUNT_NOT_INTEGER,
+    BIRD_COUNT_OUT_OF_RANGE,
+
+    FEED_FORMULA_NAME_REQUIRED,
+    FEED_FORMULA_NAME_TOO_SHORT,
+    FEED_FORMULA_NAME_TOO_LONG,
+
+    /** Ausente no campo {@code pricePerKg}. */
+    PRICE_REQUIRED,
+    /** Nao e um valor em reais com ate duas casas decimais, como "2,855" ou "1.000,00". */
+    PRICE_INVALID,
+    PRICE_OUT_OF_RANGE,
+
+    EXPECTED_INTAKE_REQUIRED,
+    EXPECTED_INTAKE_NOT_INTEGER,
+    EXPECTED_INTAKE_OUT_OF_RANGE,
+
+    FEED_FORMULA_DESCRIPTION_TOO_LONG,
+
+    // ---------------------------------------------------------------- recusas de operacao
+
+    /** Uma ou mais regras de validacao foram violadas; cada uma vem, com o seu codigo, na recusa. */
+    VALIDATION_FAILED,
+
+    /** Identificador de setor inexistente ou malformado. */
+    SECTOR_NOT_FOUND,
+
+    /** Identificador de gaiola inexistente, malformado ou de outro setor. */
+    CAGE_NOT_FOUND,
+
+    /** Identificador de formula de racao inexistente ou malformado (feature 004). */
+    FEED_FORMULA_NOT_FOUND,
+
+    // ---------------------------------------------------------------- conflitos com outros setores
+
+    /** Outro setor ativo ja tem o nome, comparado sem maiusculas (FR-002). */
+    SECTOR_NAME_IN_USE,
+
+    /** Outra gaiola ativa do setor ja tem a bateria e o numero (FR-007). */
+    CAGE_ALREADY_EXISTS,
+
+    /**
+     * Outra formula, ativa ou inativa, ja tem o nome, comparado sem maiusculas (R-011 da 004): a formula
+     * da nome aos custos do passado, e duas com o mesmo nome misturariam o historico.
+     */
+    FEED_FORMULA_NAME_IN_USE,
+
+    /** Operacao de gaiola num setor inativo: ele nao recebe gaiola nova nem reativa gaiola sozinha (FR-014, FR-015). */
+    SECTOR_INACTIVE;
+
+    @Override
+    public String code() {
+        return name();
+    }
+}

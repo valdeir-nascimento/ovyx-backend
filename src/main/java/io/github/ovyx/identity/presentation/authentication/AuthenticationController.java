@@ -45,7 +45,12 @@ public class AuthenticationController implements AuthenticationApi {
     }
 
     @Override
-    @PostMapping(path = "/auth/sign-in", consumes = MediaType.APPLICATION_JSON_VALUE)
+    // O produces faz a negociacao recusar o formato de resposta antes de o tratador rodar. Sem ele, o
+    // 406 vinha depois da entrada concedida: sessao aberta, acesso auditado, e o cliente recebendo erro.
+    @PostMapping(
+            path = "/auth/sign-in",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Object> signIn(
         @Valid @RequestBody SignInRequest body, HttpServletRequest request, HttpServletResponse response) {
 
@@ -90,7 +95,7 @@ public class AuthenticationController implements AuthenticationApi {
     }
 
     @Override
-    @GetMapping("/auth/me")
+    @GetMapping(path = "/auth/me", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Object> me(HttpServletRequest request) {
         AuthenticatedUser user = SessionAuthenticator.currentUser();
 

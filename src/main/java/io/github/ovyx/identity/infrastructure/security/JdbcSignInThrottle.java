@@ -6,7 +6,6 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -16,8 +15,9 @@ import org.springframework.transaction.annotation.Transactional;
  * funciona com mais de uma instancia — um contador em memoria seria zerado por um restart e
  * contornado por qualquer balanceamento de carga.
  *
- * <p>Cada escrita roda em transacao propria ({@code REQUIRES_NEW}): a falha precisa ficar contada
- * mesmo quando a operacao que a produziu termina em erro.
+ * <p>Cada escrita entra na transacao da entrada que a produziu, e fica contada porque o despachante
+ * confirma a transacao tambem quando a entrada e recusada. Transacao propria ({@code REQUIRES_NEW})
+ * fazia cada entrada segurar duas conexoes, e 10 entradas simultaneas esgotavam o pool.
  *
  * <p>O identificador chega ja na forma canonica de {@code AccessIdentifier}, a mesma usada na busca
  * da conta, e e gravado como veio. Uma segunda normalizacao aqui, com regra propria, era o que
@@ -54,7 +54,7 @@ public class JdbcSignInThrottle implements SignInThrottle {
     }
 
     @Override
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public void registerFailure(String attemptedIdentifier, String origin) {
         Instant now = clock.instant();
         Instant windowStart = now.minus(properties.window());
@@ -98,7 +98,7 @@ public class JdbcSignInThrottle implements SignInThrottle {
     }
 
     @Override
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public void clear(String attemptedIdentifier, String origin) {
         jdbcClient
                 .sql(

@@ -1,12 +1,14 @@
 package io.github.ovyx.identity.domain.model;
 
-import static io.github.ovyx.identity.domain.DomainViolations.detailsOf;
-import static io.github.ovyx.identity.domain.DomainViolations.violationsOf;
+import static io.github.ovyx.shared.domain.DomainViolations.detailsOf;
+import static io.github.ovyx.shared.domain.DomainViolations.refusalCodeOf;
+import static io.github.ovyx.shared.domain.DomainViolations.violationsOf;
 import static io.github.ovyx.identity.domain.model.CaretakerTestDataBuilder.DEFAULT_PASSWORD;
 import static io.github.ovyx.identity.domain.model.CaretakerTestDataBuilder.aCaretaker;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
+import io.github.ovyx.identity.fixtures.InMemoryCaretakerRepository;
 import io.github.ovyx.identity.domain.FakePasswordHasher;
 import io.github.ovyx.identity.domain.IdentityErrorCode;
 import io.github.ovyx.identity.domain.port.PasswordHasher;
@@ -16,13 +18,15 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * Testes do agregado {@code Caretaker} — sem mock de dominio, conforme o principio VI.
  *
- * <p>As invariantes verificadas aqui sao as de data-model.md. As invariantes <em>entre</em>
- * agregados (unicidade de e-mail e celular, ultimo administrador ativo) nao cabem aqui: dependem
- * de consulta ao repositorio e sao verificadas nos testes dos handlers.
+ * <p>As invariantes verificadas aqui sao as de data-model.md que dependem so do proprio
+ * responsavel. As que consultam os demais — unicidade do CPF, do e-mail e do celular, e o ultimo
+ * administrador ativo — estao em {@link CaretakerAdministrationTest}.
  */
 @DisplayName("Caretaker")
 class CaretakerTest {
@@ -132,7 +136,7 @@ class CaretakerTest {
     void givenInactiveCaretaker_whenAuthenticatingWithCorrectPassword_thenRefuse() {
         // given
         Caretaker caretaker = aValidCaretaker().build();
-        caretaker.deactivate(clock);
+        caretaker.deactivate(new InMemoryCaretakerRepository(), clock);
 
         // when
         boolean authenticated = caretaker.authenticate(DEFAULT_PASSWORD, hasher);
@@ -147,10 +151,10 @@ class CaretakerTest {
     void givenDeactivatedCaretaker_whenReactivating_thenAuthenticateAgain() {
         // given
         Caretaker caretaker = aValidCaretaker().build();
-        caretaker.deactivate(clock);
+        caretaker.deactivate(new InMemoryCaretakerRepository(), clock);
 
         // when
-        caretaker.reactivate(clock);
+        caretaker.reactivate(new InMemoryCaretakerRepository(), clock);
 
         // then
         assertThat(caretaker.status()).isEqualTo(CaretakerStatus.ACTIVE);
@@ -169,6 +173,42 @@ class CaretakerTest {
         // then
         assertThat(caretaker.authenticate(DEFAULT_PASSWORD, hasher)).isFalse();
         assertThat(caretaker.authenticate(NEW_PASSWORD, hasher)).isTrue();
+    }
+
+    @Test
+    @DisplayName("refuses the change of an inactive caretaker as unavailable and keeps the password")
+    void givenInactiveCaretaker_whenChangingOwnPassword_thenRefuseAsUnavailableAndKeepThePassword() {
+        // given
+        // A sessao pode sobreviver a inativacao. A recusa mora no agregado (principio II, T179):
+        // nenhum outro chamador precisa lembrar de conferir a situacao antes.
+        Caretaker caretaker = aValidCaretaker().build();
+        caretaker.deactivate(new InMemoryCaretakerRepository(), clock);
+
+        // when
+        var refusal = refusalCodeOf(() -> caretaker.changeOwnPassword(DEFAULT_PASSWORD, NEW_PASSWORD, hasher, clock));
+
+        // then
+        assertThat(refusal).isEqualTo(IdentityErrorCode.CARETAKER_UNAVAILABLE);
+        caretaker.reactivate(new InMemoryCaretakerRepository(), clock);
+        assertThat(caretaker.authenticate(DEFAULT_PASSWORD, hasher))
+                .as("a senha anterior continua valendo")
+                .isTrue();
+    }
+
+    @Test
+    @DisplayName("refuses an inactive caretaker before looking at what was typed")
+    void givenInactiveCaretakerWithInvalidPasswords_whenChangingOwnPassword_thenRefuseAsUnavailableFirst() {
+        // given
+        // A recusa por situacao vem antes da de preenchimento: o inativo nao fica sabendo nem se a
+        // senha atual confere, nem o que falta na nova.
+        Caretaker caretaker = aValidCaretaker().build();
+        caretaker.deactivate(new InMemoryCaretakerRepository(), clock);
+
+        // when
+        var refusal = refusalCodeOf(() -> caretaker.changeOwnPassword("SenhaErrada2026", "abc", hasher, clock));
+
+        // then
+        assertThat(refusal).isEqualTo(IdentityErrorCode.CARETAKER_UNAVAILABLE);
     }
 
     @Test
@@ -263,6 +303,27 @@ class CaretakerTest {
                 .containsExactly(
                         tuple("fullName", IdentityErrorCode.FULL_NAME_REQUIRED),
                         tuple("role", IdentityErrorCode.ROLE_REQUIRED));
+    }
+
+    @ParameterizedTest(name = "refuses \"{0}\"")
+    @ValueSource(strings = {"admin", "ROOT", "administrator"})
+    @DisplayName("refuses a role outside the list and reports it together with the other violations")
+    void givenRoleOutsideTheListAndMissingName_whenRegistering_thenReportBothTogether(String unknownRole) {
+        // given
+        // Convertido em enum na borda, o perfil desconhecido tornava o corpo inteiro ilegivel e
+        // escondia as demais violacoes (FR-017). So o nome exato vale, como o contrato publica.
+        CaretakerTestDataBuilder withUnknownRoleAndNoName =
+                aValidCaretaker().withRoleNamed(unknownRole).withFullName("");
+
+        // when
+        List<Violation> violations = violationsOf(withUnknownRoleAndNoName::build);
+
+        // then
+        assertThat(violations)
+                .extracting(Violation::field, Violation::code)
+                .containsExactly(
+                        tuple("fullName", IdentityErrorCode.FULL_NAME_REQUIRED),
+                        tuple("role", IdentityErrorCode.ROLE_INVALID));
     }
 
     @Test

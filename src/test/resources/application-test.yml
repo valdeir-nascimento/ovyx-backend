@@ -21,6 +21,11 @@ server:
         secure: false
 
 ovyx:
+  api-docs:
+    # Fixo nos testes: a variavel OVYX_API_DOCS_SERVER_URL, que o quickstart manda exportar para
+    # subir o backend em outras portas, nao pode mudar o que a suite espera.
+    server-url: http://localhost:8080
+    server-description: Ambiente local
   security:
     argon2:
       # Parametros reduzidos APENAS em teste: o Argon2id de producao leva centenas de

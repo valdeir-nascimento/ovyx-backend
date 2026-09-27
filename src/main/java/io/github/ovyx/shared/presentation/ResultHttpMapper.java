@@ -5,6 +5,7 @@ import io.github.ovyx.shared.application.ErrorType;
 import io.github.ovyx.shared.application.Result;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
@@ -79,7 +80,9 @@ public class ResultHttpMapper {
         if (!error.details().isEmpty()) {
             body.setProperty("details", error.details());
         }
-        return ResponseEntity.status(status).body(body);
+        // O tipo vem daqui, e nao da negociacao: numa rota com produces = application/json, o Spring
+        // rotulava o erro como JSON comum, contra o contrato de toda resposta de erro.
+        return ResponseEntity.status(status).contentType(MediaType.APPLICATION_PROBLEM_JSON).body(body);
     }
 
     private static String titleOf(final ErrorType type) {

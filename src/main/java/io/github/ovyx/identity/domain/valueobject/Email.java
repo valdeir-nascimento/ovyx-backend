@@ -5,6 +5,7 @@ import io.github.ovyx.shared.domain.Notification;
 import io.github.ovyx.shared.domain.Rule;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.regex.Pattern;
 
 /**
@@ -38,6 +39,16 @@ public record Email(String value) {
                             || FORMAT.matcher(email).matches(),
                     IdentityErrorCode.EMAIL_MALFORMED,
                     "Informe um e-mail em formato válido."));
+
+    /**
+     * Construtor canonico: so a garantia estrutural, sem regra de negocio.
+     *
+     * <p>E o caminho da reidratacao, que le do banco um valor ja validado. Revalidar ali reprovaria
+     * registros antigos a cada regra nova; aceitar nulo deixaria um objeto de valor sem valor.
+     */
+    public Email {
+        Objects.requireNonNull(value, "value");
+    }
 
     /**
      * Registra no {@link Notification} as violacoes do campo, sem lancar.
