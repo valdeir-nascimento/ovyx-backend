@@ -105,14 +105,17 @@ public class OpenApiConfiguration {
                         detalhe da causa, que vai apenas para o log do servidor.
 
                         Setores e gaiolas da granja (`Sector`, `Cage`): a estrutura produtiva onde as features \
-                        seguintes lançam produção, ração, mortalidade e peso.
+                        seguintes lançam produção, ração, mortalidade e peso. Desde a feature 005, também a faixa \
+                        de peso de referência do setor e as pesagens de cada gaiola (`Weighing`).
 
                         **Perfis**: qualquer responsável autenticado consulta setores e gaiolas. Cadastrar, editar, \
                         inativar e reativar é exclusivo do perfil Administrador; o usuário comum recebe o 403 \
-                        `FORBIDDEN` genérico, sem saber se o setor ou a gaiola existem.
+                        `FORBIDDEN` genérico, sem saber se o setor ou a gaiola existem. As pesagens são de qualquer \
+                        responsável: registrar, corrigir e excluir.
 
                         **Nada é apagado**: setores e gaiolas são inativados, e continuam consultáveis. Inativar um \
-                        setor inativa junto as gaiolas ativas dele; reativá-lo traz de volta exatamente essas gaiolas.
+                        setor inativa junto as gaiolas ativas dele; reativá-lo traz de volta exatamente essas gaiolas. \
+                        A pesagem excluída fica guardada como anulada, com quem a anulou e quando, e sai das leituras.
 
                         Fórmulas de ração da granja (`FeedFormula`): o preço por quilo e o consumo esperado por ave ao \
                         dia, a base do custo da ração e do custo por ovo dos relatórios diários.
@@ -158,6 +161,11 @@ public class OpenApiConfiguration {
                 new Tag()
                     .name("Gaiolas")
                     .description("Cadastro, consulta, inativação e reativação das gaiolas de um setor"),
+                new Tag()
+                    .name("Pesagens")
+                    .description(
+                        "O peso médio das aves de cada gaiola, semana a semana, e o acompanhamento diante da faixa"
+                            + " do setor"),
                 new Tag()
                     .name("Fórmulas de ração")
                     .description(

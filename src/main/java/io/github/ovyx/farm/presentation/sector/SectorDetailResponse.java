@@ -25,7 +25,10 @@ public record SectorDetailResponse(
                 example = "[\"A\", \"B\", \"C\", \"D\"]")
         List<String> batteries,
         @Schema(example = "2026-09-20T10:15:00Z") Instant createdAt,
-        @Schema(example = "2026-09-24T17:40:12Z") Instant updatedAt) {
+        @Schema(example = "2026-09-24T17:40:12Z") Instant updatedAt,
+        @Schema(description = "Faixa de peso de referência das aves, em gramas; ausente sem faixa")
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        ReferenceWeightResponse referenceWeight) {
 
     public static SectorDetailResponse from(SectorDetail detail) {
         return new SectorDetailResponse(
@@ -37,6 +40,7 @@ public record SectorDetailResponse(
                 detail.birdCount(),
                 detail.batteries(),
                 detail.createdAt(),
-                detail.updatedAt());
+                detail.updatedAt(),
+                ReferenceWeightResponse.from(detail.referenceWeight()));
     }
 }

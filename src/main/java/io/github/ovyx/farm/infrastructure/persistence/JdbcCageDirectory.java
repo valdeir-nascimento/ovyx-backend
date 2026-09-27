@@ -1,9 +1,10 @@
 package io.github.ovyx.farm.infrastructure.persistence;
 
-import io.github.ovyx.farm.application.common.StatusFilter;
 import io.github.ovyx.farm.application.cage.CageDetail;
 import io.github.ovyx.farm.application.cage.CageDirectory;
+import io.github.ovyx.farm.application.cage.CageLastWeighing;
 import io.github.ovyx.farm.application.cage.CageSummary;
+import io.github.ovyx.farm.application.common.StatusFilter;
 import io.github.ovyx.farm.domain.model.Cage;
 import io.github.ovyx.farm.domain.model.CageId;
 import io.github.ovyx.farm.domain.model.SectorId;
@@ -11,6 +12,7 @@ import io.github.ovyx.farm.domain.model.Status;
 import io.github.ovyx.shared.application.PageResponse;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -42,6 +44,15 @@ public class JdbcCageDirectory implements CageDirectory {
 
     private static final String COLUMNS =
             "id, sector_id, battery, number, bird_count, status, created_at, updated_at";
+
+    /**
+     * A ultima pesagem valida de cada gaiola da pagina, na mesma consulta (R-009 da 005): o indice parcial
+     * {@code ux_weighing_cage_day} atende a busca da mais recente.
+     */
+    private static final String LAST_WEIGHING =
+            " left join lateral (select w.weighed_on as last_weighed_on, w.average_weight as last_average_weight"
+                    + " from weighing w where w.cage_id = cage.id and w.status = 'VALID'"
+                    + " order by w.weighed_on desc limit 1) last on true";
 
     private final JdbcClient jdbcClient;
 
@@ -86,14 +97,16 @@ public class JdbcCageDirectory implements CageDirectory {
                 .single();
 
         List<CageSummary> content = jdbcClient
-                .sql("select " + COLUMNS + " from cage" + where
+                .sql("select " + COLUMNS + ", last.last_weighed_on, last.last_average_weight from cage"
+                        + LAST_WEIGHING
+                        + where
                         // O id desempata a gaiola ativa e as inativas de mesmo codigo: sem ele, a mesma
                         // gaiola podia aparecer em duas paginas, ou em nenhuma.
                         + " order by battery, number, id limit :size offset :offset")
                 .params(parameters)
                 .param("size", size)
                 .param("offset", (long) page * size)
-                .query((rs, rowNumber) -> summaryOf(rs))
+                .query((rs, rowNumber) -> summaryOf(rs, lastWeighingOf(rs)))
                 .list();
 
         return PageResponse.of(content, page, size, total);
@@ -106,7 +119,7 @@ public class JdbcCageDirectory implements CageDirectory {
                 .param("id", cageId.value())
                 .param("sectorId", sectorId.value())
                 .query((rs, rowNumber) -> {
-                    CageSummary summary = summaryOf(rs);
+                    CageSummary summary = summaryOf(rs, null);
                     return new CageDetail(
                             summary.id(),
                             summary.sectorId(),
@@ -121,7 +134,12 @@ public class JdbcCageDirectory implements CageDirectory {
                 .optional();
     }
 
-    private static CageSummary summaryOf(ResultSet rs) throws SQLException {
+    private static CageLastWeighing lastWeighingOf(ResultSet rs) throws SQLException {
+        LocalDate day = rs.getObject("last_weighed_on", LocalDate.class);
+        return day == null ? null : new CageLastWeighing(day, rs.getBigDecimal("last_average_weight"));
+    }
+
+    private static CageSummary summaryOf(ResultSet rs, CageLastWeighing lastWeighing) throws SQLException {
         String battery = rs.getString("battery");
         int number = rs.getInt("number");
         return new CageSummary(
@@ -131,7 +149,8 @@ public class JdbcCageDirectory implements CageDirectory {
                 battery,
                 number,
                 rs.getInt("bird_count"),
-                Status.valueOf(rs.getString("status")));
+                Status.valueOf(rs.getString("status")),
+                lastWeighing);
     }
 
     /** O trecho como texto literal: {@code %} e {@code _} digitados sao procurados, e nao curingas. */

@@ -37,6 +37,13 @@ public class SectorRecord {
     @Column(name = "description", length = 500)
     private String description;
 
+    /** A faixa de peso de referencia, em gramas; os dois nulos sem faixa (feature 005). */
+    @Column(name = "reference_weight_min")
+    private Integer referenceWeightMin;
+
+    @Column(name = "reference_weight_max")
+    private Integer referenceWeightMax;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 10)
     private Status status;
@@ -70,19 +77,36 @@ public class SectorRecord {
     protected SectorRecord() {}
 
     SectorRecord(
-            UUID id, String name, String description, Status status, Instant createdAt, Instant updatedAt) {
+            UUID id,
+            String name,
+            String description,
+            Integer referenceWeightMin,
+            Integer referenceWeightMax,
+            Status status,
+            Instant createdAt,
+            Instant updatedAt) {
         this.id = id;
         this.name = name;
         this.description = description;
+        this.referenceWeightMin = referenceWeightMin;
+        this.referenceWeightMax = referenceWeightMax;
         this.status = status;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
 
     /** Aplica o estado do agregado sobre a linha carregada, preservando a identidade e o cadastro. */
-    void apply(String name, String description, Status status, Instant updatedAt) {
+    void apply(
+            String name,
+            String description,
+            Integer referenceWeightMin,
+            Integer referenceWeightMax,
+            Status status,
+            Instant updatedAt) {
         this.name = name;
         this.description = description;
+        this.referenceWeightMin = referenceWeightMin;
+        this.referenceWeightMax = referenceWeightMax;
         this.status = status;
         this.updatedAt = updatedAt;
     }
@@ -101,6 +125,14 @@ public class SectorRecord {
 
     String getDescription() {
         return description;
+    }
+
+    Integer getReferenceWeightMin() {
+        return referenceWeightMin;
+    }
+
+    Integer getReferenceWeightMax() {
+        return referenceWeightMax;
     }
 
     Status getStatus() {

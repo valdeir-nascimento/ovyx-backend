@@ -7,7 +7,6 @@ import io.github.ovyx.farm.domain.port.SectorRepository;
 import io.github.ovyx.shared.application.CommandHandler;
 import io.github.ovyx.shared.application.Result;
 import io.github.ovyx.shared.domain.DomainException;
-
 import java.time.Clock;
 import java.util.Optional;
 
@@ -33,7 +32,13 @@ public class UpdateSectorCommandHandler implements CommandHandler<UpdateSectorCo
 
         Sector sector = found.get();
         try {
-            sector.update(command.name(), command.description(), sectorRepository, clock);
+            sector.update(
+                    command.name(),
+                    command.description(),
+                    command.minimumWeight(),
+                    command.maximumWeight(),
+                    sectorRepository,
+                    clock);
         } catch (DomainException refusal) {
             return Result.failure(FarmRefusals.from(refusal));
         }

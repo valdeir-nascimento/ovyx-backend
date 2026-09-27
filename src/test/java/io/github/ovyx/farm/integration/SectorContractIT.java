@@ -443,4 +443,60 @@ class SectorContractIT extends IntegrationTestSupport {
         deactivation.andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("SECTOR_NOT_FOUND"));
         reactivation.andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("SECTOR_NOT_FOUND"));
     }
+
+    // ---------------------------------------------------------------- faixa de peso de referência (005)
+
+    @Test
+    @DisplayName("registers a sector with the reference weight range, the limits as numbers or as text")
+    void givenReferenceWeight_whenRegistering_thenAnswerTheRange() throws Exception {
+        // given
+        String body = """
+                {"name": "%s", "minimumWeight": 155, "maximumWeight": "175"}
+                """.formatted(uniqueName());
+
+        // when
+        ResultActions response = register(body);
+
+        // then
+        response.andExpect(status().isCreated())
+                .andExpect(jsonPath("$.referenceWeight.minimum").value(155))
+                .andExpect(jsonPath("$.referenceWeight.maximum").value(175));
+    }
+
+    @Test
+    @DisplayName("refuses an inverted reference weight range with 400, in the minimum field")
+    void givenInvertedRange_whenRegistering_thenAnswerBadRequestInTheMinimumField() throws Exception {
+        // given
+        String body = """
+                {"name": "%s", "minimumWeight": 180, "maximumWeight": 170}
+                """.formatted(uniqueName());
+
+        // when
+        ResultActions response = register(body);
+
+        // then
+        response.andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.details.minimumWeight").value("O peso mínimo deve ser menor que o máximo."));
+    }
+
+    @Test
+    @DisplayName("sets the range on update and clears it when the limits are left out, answering without it")
+    void givenSector_whenUpdatingWithAndWithoutTheRange_thenAnswerTheRangeAndThenNoRange() throws Exception {
+        // given
+        String name = uniqueName();
+        String path = registered(name);
+
+        // when
+        ResultActions withRange = update(path, """
+                {"name": "%s", "minimumWeight": 155, "maximumWeight": 175}
+                """.formatted(name));
+        ResultActions withoutRange = update(path, """
+                {"name": "%s"}
+                """.formatted(name));
+
+        // then
+        withRange.andExpect(status().isOk()).andExpect(jsonPath("$.referenceWeight.minimum").value(155));
+        withoutRange.andExpect(status().isOk()).andExpect(jsonPath("$.referenceWeight").doesNotExist());
+    }
 }

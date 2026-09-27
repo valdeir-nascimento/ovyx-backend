@@ -12,9 +12,7 @@ import io.github.ovyx.farm.domain.model.SectorId;
 import io.github.ovyx.shared.application.Dispatcher;
 import io.github.ovyx.shared.application.Result;
 import io.github.ovyx.shared.presentation.ResultHttpMapper;
-
 import java.net.URI;
-
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -50,7 +48,8 @@ public class SectorController implements SectorApi {
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Object> registerSector(@RequestBody SectorRequest body) {
         // Sem @Valid: o corpo nao tem anotacoes, e todas as violacoes vem do dominio, de uma vez.
-        Result<SectorId> registered = dispatcher.dispatch(new RegisterSectorCommand(body.name(), body.description()));
+        Result<SectorId> registered = dispatcher.dispatch(new RegisterSectorCommand(
+                body.name(), body.description(), body.rawMinimumWeight(), body.rawMaximumWeight()));
         return resultHttpMapper.created(
             detailOf(registered).map(SectorDetailResponse::from),
             detail -> URI.create("/api/v1/sectors/" + detail.id()));
@@ -68,7 +67,8 @@ public class SectorController implements SectorApi {
         consumes = MediaType.APPLICATION_JSON_VALUE,
         produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Object> updateSector(@PathVariable String sectorId, @RequestBody SectorRequest body) {
-        Result<SectorId> updated = dispatcher.dispatch(new UpdateSectorCommand(sectorId, body.name(), body.description()));
+        Result<SectorId> updated = dispatcher.dispatch(new UpdateSectorCommand(
+                sectorId, body.name(), body.description(), body.rawMinimumWeight(), body.rawMaximumWeight()));
         return resultHttpMapper.ok(detailOf(updated).map(SectorDetailResponse::from));
     }
 

@@ -4,24 +4,32 @@ import static io.github.ovyx.farm.domain.model.SectorTestDataBuilder.aUniqueSect
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.ovyx.IntegrationTestSupport;
-import io.github.ovyx.farm.application.common.StatusFilter;
 import io.github.ovyx.farm.application.cage.CageDetail;
 import io.github.ovyx.farm.application.cage.CageDirectory;
+import io.github.ovyx.farm.application.cage.CageLastWeighing;
 import io.github.ovyx.farm.application.cage.CageSummary;
+import io.github.ovyx.farm.application.common.StatusFilter;
+import io.github.ovyx.farm.domain.model.Actor;
 import io.github.ovyx.farm.domain.model.Cage;
+import io.github.ovyx.farm.domain.model.CageId;
 import io.github.ovyx.farm.domain.model.Sector;
 import io.github.ovyx.farm.domain.model.SectorId;
 import io.github.ovyx.farm.domain.model.SectorTestDataBuilder;
 import io.github.ovyx.farm.domain.model.Status;
+import io.github.ovyx.farm.domain.model.Weighing;
 import io.github.ovyx.farm.domain.port.SectorRepository;
+import io.github.ovyx.farm.domain.port.WeighingRepository;
 import io.github.ovyx.shared.application.PageResponse;
 import io.github.ovyx.shared.domain.FixedClock;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * A pesquisa das gaiolas de um setor, direto do banco (R-006; FR-008, FR-010, FR-011; S-05).
@@ -185,5 +193,77 @@ class CageDirectoryIT extends IntegrationTestSupport {
         // then
         assertThat(exists).isTrue();
         assertThat(unknown).isFalse();
+    }
+
+    // ---------------------------------------------------------------- última pesagem (005, US3)
+
+    @Autowired
+    private WeighingRepository weighings;
+
+    @Autowired
+    private JdbcTemplate jdbc;
+
+    private void weighed(Sector sector, CageId cage, String day, String weight) {
+        weighings.save(Weighing.record(
+                sector,
+                cage,
+                day,
+                weight,
+                LocalDate.of(2026, 9, 24),
+                weighings,
+                new Actor(UUID.randomUUID(), "Marina Alves"),
+                clock.instant()));
+    }
+
+    @Test
+    @DisplayName("brings the most recent valid weighing of each cage, and none for a cage never weighed")
+    void givenWeighedAndUnweighedCages_whenSearching_thenBringTheLastValidWeighingOfEach() {
+        // given
+        Sector sector = saved(aUniqueSector().withCage("A", 1, 48).withCage("B", 7, 50));
+        CageId a01 = sector.cages().get(0).id();
+        weighed(sector, a01, "2026-09-17", "158");
+        weighed(sector, a01, "2026-09-24", "161,4");
+        weighed(sector, a01, "2026-09-20", "999");
+        jdbc.update(
+                "update weighing set status = 'VOIDED', voided_by_id = ?, voided_by_name = 'Marina Alves',"
+                        + " voided_at = now() where cage_id = ? and weighed_on = ?",
+                UUID.randomUUID(),
+                a01.value(),
+                LocalDate.of(2026, 9, 20));
+        jdbc.update(
+                "update weighing set status = 'VOIDED', voided_by_id = ?, voided_by_name = 'Marina Alves',"
+                        + " voided_at = now() where cage_id = ? and weighed_on = ?",
+                UUID.randomUUID(),
+                a01.value(),
+                LocalDate.of(2026, 9, 24));
+
+        // when
+        PageResponse<CageSummary> page = directory.search(sector.id(), null, null, StatusFilter.ACTIVE, 0, 100);
+
+        // then
+        assertThat(page.content()).extracting(CageSummary::code).containsExactly("A-01", "B-07");
+        CageLastWeighing last = page.content().get(0).lastWeighing();
+        assertThat(last.weighedOn()).isEqualTo(LocalDate.of(2026, 9, 17));
+        assertThat(last.averageWeight()).isEqualByComparingTo("158.0");
+        assertThat(page.content().get(1).lastWeighing()).isNull();
+    }
+
+    @Test
+    @DisplayName("brings the most recent of several valid weighings, whatever the order they were recorded in")
+    void givenSeveralValidWeighings_whenSearching_thenBringTheMostRecent() {
+        // given
+        Sector sector = saved(aUniqueSector().withCage("A", 1, 48));
+        CageId a01 = sector.cages().get(0).id();
+        weighed(sector, a01, "2026-09-17", "158");
+        weighed(sector, a01, "2026-09-24", "161,4");
+        weighed(sector, a01, "2026-09-10", "156");
+
+        // when
+        PageResponse<CageSummary> page = directory.search(sector.id(), null, null, StatusFilter.ACTIVE, 0, 100);
+
+        // then
+        CageLastWeighing last = page.content().get(0).lastWeighing();
+        assertThat(last.weighedOn()).isEqualTo(LocalDate.of(2026, 9, 24));
+        assertThat(last.averageWeight()).isEqualByComparingTo("161.4");
     }
 }

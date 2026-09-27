@@ -50,6 +50,27 @@ public enum FarmErrorCode implements ErrorCode {
 
     FEED_FORMULA_DESCRIPTION_TOO_LONG,
 
+    /** So um limite da faixa de peso de referencia do setor (feature 005): os dois vao juntos. */
+    REFERENCE_WEIGHT_INCOMPLETE,
+    /** Limite da faixa que nao e inteiro de 1 a 10.000 gramas. */
+    REFERENCE_WEIGHT_INVALID,
+    /** Minimo da faixa igual ou acima do maximo. */
+    REFERENCE_WEIGHT_INVERTED,
+
+    /** Peso medio da pesagem ausente (feature 005). */
+    WEIGHT_REQUIRED,
+    /** Peso que nao e um numero de gramas com ate uma casa decimal. */
+    WEIGHT_INVALID,
+    /** Peso fora de 1 a 10.000 gramas. */
+    WEIGHT_OUT_OF_RANGE,
+
+    /** Data da pesagem ausente. */
+    WEIGHED_ON_REQUIRED,
+    /** Data da pesagem que nao e uma data ISO. */
+    WEIGHED_ON_INVALID,
+    /** Data da pesagem depois de hoje, no fuso da granja. */
+    WEIGHED_ON_IN_FUTURE,
+
     // ---------------------------------------------------------------- recusas de operacao
 
     /** Uma ou mais regras de validacao foram violadas; cada uma vem, com o seu codigo, na recusa. */
@@ -63,6 +84,9 @@ public enum FarmErrorCode implements ErrorCode {
 
     /** Identificador de formula de racao inexistente ou malformado (feature 004). */
     FEED_FORMULA_NOT_FOUND,
+
+    /** Identificador de pesagem inexistente, malformado, de outra gaiola ou de uma pesagem anulada (feature 005). */
+    WEIGHING_NOT_FOUND,
 
     // ---------------------------------------------------------------- conflitos com outros setores
 
@@ -78,8 +102,14 @@ public enum FarmErrorCode implements ErrorCode {
      */
     FEED_FORMULA_NAME_IN_USE,
 
+    /** A gaiola ja tem outra pesagem valida na data (FR-004 da 005). */
+    WEIGHING_DATE_IN_USE,
+
     /** Operacao de gaiola num setor inativo: ele nao recebe gaiola nova nem reativa gaiola sozinha (FR-014, FR-015). */
-    SECTOR_INACTIVE;
+    SECTOR_INACTIVE,
+
+    /** Pesagem de uma gaiola inativa: as pesagens dela so se consultam (FR-008 da 005). */
+    CAGE_INACTIVE;
 
     @Override
     public String code() {

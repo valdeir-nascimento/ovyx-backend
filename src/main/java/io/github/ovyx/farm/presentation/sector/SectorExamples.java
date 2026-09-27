@@ -20,10 +20,22 @@ public final class SectorExamples {
             """
             {
               "name": "Codornas — Galpão 4",
-              "description": "Codornas japonesas em postura, baterias A e B"
+              "description": "Codornas japonesas em postura, baterias A e B",
+              "minimumWeight": 155,
+              "maximumWeight": 175
             }""";
 
     public static final String EDIT =
+            """
+            {
+              "name": "Codornas — Galpão 1 (norte)",
+              "description": "Codornas japonesas em postura, baterias A a D",
+              "minimumWeight": 155,
+              "maximumWeight": 175
+            }""";
+
+    /** A edicao sem os dois limites: o setor fica sem faixa (feature 005). */
+    public static final String EDIT_WITHOUT_RANGE =
             """
             {
               "name": "Codornas — Galpão 1 (norte)",
@@ -62,6 +74,10 @@ public final class SectorExamples {
               "status": "ACTIVE",
               "activeCageCount": 0,
               "birdCount": 0,
+              "referenceWeight": {
+                "minimum": 155,
+                "maximum": 175
+              },
               "batteries": [],
               "createdAt": "2026-09-25T13:02:11Z",
               "updatedAt": "2026-09-25T13:02:11Z"
@@ -135,6 +151,19 @@ public final class SectorExamples {
               "details": {
                 "name": "O nome do setor deve ter ao menos 2 caracteres.",
                 "description": "A descrição deve ter no máximo 500 caracteres."
+              },
+              "instance": \"""";
+
+    /** A faixa com o minimo acima do maximo, recusada no campo do minimo (feature 005). */
+    private static final String RANGE_INVERTED =
+            """
+            {
+              "code": "VALIDATION_FAILED",
+              "title": "Dados inválidos",
+              "status": 400,
+              "detail": "Dados inválidos.",
+              "details": {
+                "minimumWeight": "O peso mínimo deve ser menor que o máximo."
               },
               "instance": \"""";
 
@@ -266,6 +295,7 @@ public final class SectorExamples {
     // ----------------------------------------------------------- POST /api/v1/sectors
 
     public static final String REGISTER_FIELDS_INVALID = FIELDS_INVALID + COLLECTION + END;
+    public static final String REGISTER_RANGE_INVERTED = RANGE_INVERTED + COLLECTION + END;
     public static final String REGISTER_UNREADABLE_BODY = UNREADABLE_BODY + COLLECTION + END;
     public static final String REGISTER_UNAUTHENTICATED = UNAUTHENTICATED + COLLECTION + END;
     public static final String REGISTER_FORBIDDEN = FORBIDDEN + COLLECTION + END;

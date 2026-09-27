@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.ovyx.farm.domain.model.Sector;
 import io.github.ovyx.farm.domain.model.SectorId;
+import io.github.ovyx.farm.domain.valueobject.ReferenceWeight;
 import io.github.ovyx.farm.fixtures.InMemorySectorRepository;
 import io.github.ovyx.shared.application.ErrorType;
 import io.github.ovyx.shared.application.Result;
@@ -36,7 +37,7 @@ class UpdateSectorCommandHandlerTest {
         Sector sector = saved("Codornas — Galpão 1");
         clock.advance(Duration.ofHours(1));
         UpdateSectorCommand command = new UpdateSectorCommand(
-                sector.id().toString(), "Codornas — Galpão 1 (norte)", "Baterias A a D, ala norte");
+                sector.id().toString(), "Codornas — Galpão 1 (norte)", "Baterias A a D, ala norte", null, null);
 
         // when
         Result<SectorId> result = handler.handle(command);
@@ -53,7 +54,7 @@ class UpdateSectorCommandHandlerTest {
     @DisplayName("fails as not found for an unknown or malformed identifier")
     void givenUnknownOrMalformedIdentifier_whenUpdating_thenFailAsNotFound(String sectorId) {
         // given
-        UpdateSectorCommand command = new UpdateSectorCommand(sectorId, "Codornas — Galpão 1", null);
+        UpdateSectorCommand command = new UpdateSectorCommand(sectorId, "Codornas — Galpão 1", null, null, null);
 
         // when
         Result<SectorId> result = handler.handle(command);
@@ -69,7 +70,7 @@ class UpdateSectorCommandHandlerTest {
     void givenMissingNameAndLongDescription_whenUpdating_thenFailAsValidationAndSaveNothing() {
         // given
         Sector sector = saved("Codornas — Galpão 1");
-        UpdateSectorCommand command = new UpdateSectorCommand(sector.id().toString(), " ", "d".repeat(501));
+        UpdateSectorCommand command = new UpdateSectorCommand(sector.id().toString(), " ", "d".repeat(501), null, null);
 
         // when
         Result<SectorId> result = handler.handle(command);
@@ -87,7 +88,7 @@ class UpdateSectorCommandHandlerTest {
         saved("Poedeiras brancas — Galpão 2");
         Sector sector = saved("Codornas — Galpão 1");
         UpdateSectorCommand command =
-                new UpdateSectorCommand(sector.id().toString(), "Poedeiras Brancas — Galpão 2", null);
+                new UpdateSectorCommand(sector.id().toString(), "Poedeiras Brancas — Galpão 2", null, null, null);
 
         // when
         Result<SectorId> result = handler.handle(command);
@@ -96,5 +97,23 @@ class UpdateSectorCommandHandlerTest {
         assertThat(result.error().type()).isEqualTo(ErrorType.CONFLICT);
         assertThat(result.error().code()).isEqualTo("SECTOR_NAME_IN_USE");
         assertThat(repository.saves()).isEqualTo(2);
+    }
+
+    // ---------------------------------------------------------------- faixa de peso de referência (005)
+
+    @Test
+    @DisplayName("sets the reference weight range of the sector")
+    void givenReferenceWeight_whenUpdating_thenSaveTheRange() {
+        // given
+        Sector sector = saved("Codornas — Galpão 1");
+        UpdateSectorCommand command =
+                new UpdateSectorCommand(sector.id().toString(), sector.name().value(), null, "155", "175");
+
+        // when
+        handler.handle(command);
+
+        // then
+        assertThat(repository.findById(sector.id()).orElseThrow().referenceWeight())
+                .contains(new ReferenceWeight(155, 175));
     }
 }

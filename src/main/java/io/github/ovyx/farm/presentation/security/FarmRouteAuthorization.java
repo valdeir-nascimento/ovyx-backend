@@ -24,6 +24,8 @@ public class FarmRouteAuthorization implements RouteAuthorization {
     private static final String CAGE = CAGES + "/*";
     private static final String FORMULAS = "/api/v1/feed-formulas";
     private static final String FORMULA = FORMULAS + "/*";
+    private static final String WEIGHINGS = CAGE + "/weighings";
+    private static final String WEIGHING = WEIGHINGS + "/*";
     private static final String DEACTIVATION = "/deactivation";
     private static final String REACTIVATION = "/reactivation";
 
@@ -71,6 +73,17 @@ public class FarmRouteAuthorization implements RouteAuthorization {
             .requestMatchers(HttpMethod.POST, FORMULA + DEACTIVATION)
             .hasRole(AccessRoles.ADMINISTRATOR)
             .requestMatchers(HttpMethod.POST, FORMULA + REACTIVATION)
-            .hasRole(AccessRoles.ADMINISTRATOR);
+            .hasRole(AccessRoles.ADMINISTRATOR)
+            // Pesagens (feature 005): as primeiras escritas do farm de qualquer responsavel (R-010 da 005)
+            .requestMatchers(HttpMethod.GET, WEIGHINGS)
+            .authenticated()
+            .requestMatchers(HttpMethod.POST, WEIGHINGS)
+            .authenticated()
+            .requestMatchers(HttpMethod.GET, WEIGHING)
+            .authenticated()
+            .requestMatchers(HttpMethod.PUT, WEIGHING)
+            .authenticated()
+            .requestMatchers(HttpMethod.POST, WEIGHING + "/voiding")
+            .authenticated();
     }
 }

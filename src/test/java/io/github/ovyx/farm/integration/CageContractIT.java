@@ -455,4 +455,28 @@ class CageContractIT extends IntegrationTestSupport {
         // then
         response.andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("SECTOR_INACTIVE"));
     }
+
+    // ---------------------------------------------------------------- última pesagem (005, US3)
+
+    @Test
+    @DisplayName("lists each cage with its last weighing, and without it when never weighed")
+    void givenWeighedAndUnweighedCages_whenSearching_thenAnswerTheLastWeighingOfEach() throws Exception {
+        // given
+        String a01 = registered("A", 1, 48);
+        registered("B", 7, 50);
+        send(post(a01 + "/weighings"), """
+                {"weighedOn": "2026-09-24", "averageWeight": "161,4"}
+                """).andExpect(status().isCreated());
+
+        // when
+        ResultActions response = mockMvc.perform(get(cagesPath).cookie(administrator));
+
+        // then
+        response.andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].code").value("A-01"))
+                .andExpect(jsonPath("$.content[0].lastWeighing.weighedOn").value("2026-09-24"))
+                .andExpect(jsonPath("$.content[0].lastWeighing.averageWeight").value(161.4))
+                .andExpect(jsonPath("$.content[1].code").value("B-07"))
+                .andExpect(jsonPath("$.content[1].lastWeighing").doesNotExist());
+    }
 }

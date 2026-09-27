@@ -24,7 +24,7 @@ class ListSectorsQueryHandlerTest {
     void givenNoStatus_whenListing_thenAskForTheActiveSectors() {
         // given
         SectorSummary galpao = new SectorSummary(
-                SectorId.generate(), "Codornas — Galpão 1", null, Status.ACTIVE, 48, 2400);
+                SectorId.generate(), "Codornas — Galpão 1", null, Status.ACTIVE, 48, 2400, null);
         directory.listing(galpao);
 
         // when

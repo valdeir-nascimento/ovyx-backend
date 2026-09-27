@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.ovyx.farm.domain.model.Sector;
 import io.github.ovyx.farm.domain.model.SectorId;
+import io.github.ovyx.farm.domain.valueobject.ReferenceWeight;
 import io.github.ovyx.farm.fixtures.InMemorySectorRepository;
 import io.github.ovyx.shared.application.ErrorType;
 import io.github.ovyx.shared.application.Result;
@@ -26,7 +27,7 @@ class RegisterSectorCommandHandlerTest {
     void givenValidNameAndDescription_whenRegistering_thenSaveTheSector() {
         // given
         RegisterSectorCommand command =
-                new RegisterSectorCommand("Codornas — Galpão 4", "Codornas japonesas em postura, baterias A e B");
+                new RegisterSectorCommand("Codornas — Galpão 4", "Codornas japonesas em postura, baterias A e B", null, null);
 
         // when
         Result<SectorId> result = handler.handle(command);
@@ -41,7 +42,7 @@ class RegisterSectorCommandHandlerTest {
     @DisplayName("fails as validation with every invalid field, and saves nothing")
     void givenShortNameAndLongDescription_whenRegistering_thenFailAsValidationWithEveryField() {
         // given
-        RegisterSectorCommand command = new RegisterSectorCommand("A", "d".repeat(501));
+        RegisterSectorCommand command = new RegisterSectorCommand("A", "d".repeat(501), null, null);
 
         // when
         Result<SectorId> result = handler.handle(command);
@@ -58,7 +59,7 @@ class RegisterSectorCommandHandlerTest {
     void givenNameOfAnotherActiveSector_whenRegistering_thenFailAsConflict() {
         // given
         repository.save(aSector().named("Codornas — Galpão 4").withRoster(repository).build());
-        RegisterSectorCommand command = new RegisterSectorCommand("CODORNAS — GALPÃO 4", null);
+        RegisterSectorCommand command = new RegisterSectorCommand("CODORNAS — GALPÃO 4", null, null, null);
 
         // when
         Result<SectorId> result = handler.handle(command);
@@ -69,5 +70,36 @@ class RegisterSectorCommandHandlerTest {
         assertThat(result.error().details())
                 .containsExactly(Map.entry("name", "Já existe um setor ativo com este nome."));
         assertThat(repository.saves()).isEqualTo(1);
+    }
+
+    // ---------------------------------------------------------------- faixa de peso de referência (005)
+
+    @Test
+    @DisplayName("registers the sector with the reference weight range")
+    void givenReferenceWeight_whenRegistering_thenSaveTheRange() {
+        // given
+        RegisterSectorCommand command = new RegisterSectorCommand("Codornas — Galpão 4", null, "155", "175");
+
+        // when
+        Result<SectorId> result = handler.handle(command);
+
+        // then
+        assertThat(repository.findById(result.value()).orElseThrow().referenceWeight())
+                .contains(new ReferenceWeight(155, 175));
+    }
+
+    @Test
+    @DisplayName("fails as validation with an incomplete range, in the missing field, and saves nothing")
+    void givenOnlyTheMinimum_whenRegistering_thenFailAsValidationInTheMaximumField() {
+        // given
+        RegisterSectorCommand command = new RegisterSectorCommand("Codornas — Galpão 4", null, "155", null);
+
+        // when
+        Result<SectorId> result = handler.handle(command);
+
+        // then
+        assertThat(result.error().type()).isEqualTo(ErrorType.VALIDATION);
+        assertThat(result.error().details()).containsOnly(Map.entry("maximumWeight", "Informe também o peso máximo."));
+        assertThat(repository.saves()).isZero();
     }
 }
