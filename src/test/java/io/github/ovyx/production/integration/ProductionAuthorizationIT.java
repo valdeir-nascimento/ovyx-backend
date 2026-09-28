@@ -94,14 +94,19 @@ class ProductionAuthorizationIT extends IntegrationTestSupport {
         return new Report(path, path + "/cages/" + JsonPath.read(opened, "$.cages[1].cageId"));
     }
 
-    /** As cinco leituras: a lista, a sugestão, o relatório, a gaiola e a proposta da ração. */
+    /**
+     * As sete leituras: a lista, a sugestão, o relatório, a gaiola e a proposta da ração, e as duas do painel
+     * (006): o cabeçalho e o painel do setor.
+     */
     private List<MockHttpServletRequestBuilder> readsOf(Report report) {
         return List.of(
                 get(reports()),
                 get(reports() + "/suggestion"),
                 get(report.path()),
                 get(report.b07()),
-                get(report.path() + "/feed-suggestion").queryParam("formulaId", formulaId.toString()));
+                get(report.path() + "/feed-suggestion").queryParam("formulaId", formulaId.toString()),
+                get("/api/v1/dashboard"),
+                get("/api/v1/sectors/" + sectorId + "/dashboard").queryParam("period", "LAST_7_DAYS"));
     }
 
     /**
@@ -123,7 +128,7 @@ class ProductionAuthorizationIT extends IntegrationTestSupport {
                         .content("{\"formulaId\": \"" + formulaId + "\", \"consumption\": 1250}"));
     }
 
-    /** As doze operações do contrato, as leituras antes das escritas. */
+    /** As catorze operações do contrato, as leituras antes das escritas. */
     private List<MockHttpServletRequestBuilder> operationsOf(Report report) {
         List<MockHttpServletRequestBuilder> operations = new ArrayList<>(readsOf(report));
         operations.addAll(writesOf(report));
@@ -144,8 +149,8 @@ class ProductionAuthorizationIT extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("lets a common user do the twelve operations")
-    void givenCommonUser_whenDoingTheTwelveOperations_thenLetThemThrough() throws Exception {
+    @DisplayName("lets a common user do the fourteen operations")
+    void givenCommonUser_whenDoingTheFourteenOperations_thenLetThemThrough() throws Exception {
         // given
         Cookie[] commonUser = sessions.commonUser().cookies();
         Report report = openedReport(commonUser);
@@ -156,12 +161,13 @@ class ProductionAuthorizationIT extends IntegrationTestSupport {
 
         // then
         assertThat(outcomes)
-                .containsExactly("200", "200", "200", "200", "200", "201", "200", "200", "200", "200", "200", "200");
+                .containsExactly(
+                        "200", "200", "200", "200", "200", "200", "200", "201", "200", "200", "200", "200", "200", "200");
     }
 
     @Test
-    @DisplayName("lets an administrator do the twelve operations")
-    void givenAdministrator_whenDoingTheTwelveOperations_thenLetThemThrough() throws Exception {
+    @DisplayName("lets an administrator do the fourteen operations")
+    void givenAdministrator_whenDoingTheFourteenOperations_thenLetThemThrough() throws Exception {
         // given
         Cookie[] administrator = sessions.administrator().cookies();
         Report report = openedReport(administrator);
@@ -172,12 +178,13 @@ class ProductionAuthorizationIT extends IntegrationTestSupport {
 
         // then
         assertThat(outcomes)
-                .containsExactly("200", "200", "200", "200", "200", "201", "200", "200", "200", "200", "200", "200");
+                .containsExactly(
+                        "200", "200", "200", "200", "200", "200", "200", "201", "200", "200", "200", "200", "200", "200");
     }
 
     @Test
-    @DisplayName("refuses a visitor without session on the twelve operations: 401")
-    void givenVisitorWithoutSession_whenDoingTheTwelveOperations_thenAnswerUnauthenticated() throws Exception {
+    @DisplayName("refuses a visitor without session on the fourteen operations: 401")
+    void givenVisitorWithoutSession_whenDoingTheFourteenOperations_thenAnswerUnauthenticated() throws Exception {
         // given
         Report report = openedReport(sessions.commonUser().cookies());
 
@@ -185,12 +192,12 @@ class ProductionAuthorizationIT extends IntegrationTestSupport {
         List<String> outcomes = outcomesOf(operationsOf(report), request -> request.with(sessions.csrf()));
 
         // then
-        assertThat(outcomes).hasSize(12).allMatch("401 UNAUTHENTICATED"::equals);
+        assertThat(outcomes).hasSize(14).allMatch("401 UNAUTHENTICATED"::equals);
     }
 
     @Test
-    @DisplayName("refuses whoever owes the password change on the twelve operations: 403")
-    void givenUserOwingThePasswordChange_whenDoingTheTwelveOperations_thenAnswerPasswordChangeRequired()
+    @DisplayName("refuses whoever owes the password change on the fourteen operations: 403")
+    void givenUserOwingThePasswordChange_whenDoingTheFourteenOperations_thenAnswerPasswordChangeRequired()
             throws Exception {
         // given
         Report report = openedReport(sessions.commonUser().cookies());
@@ -200,7 +207,7 @@ class ProductionAuthorizationIT extends IntegrationTestSupport {
         List<String> outcomes = outcomesOf(operationsOf(report), request -> request.with(sessions.csrf()).cookie(owing));
 
         // then
-        assertThat(outcomes).hasSize(12).allMatch("403 PASSWORD_CHANGE_REQUIRED"::equals);
+        assertThat(outcomes).hasSize(14).allMatch("403 PASSWORD_CHANGE_REQUIRED"::equals);
     }
 
     @Test
@@ -218,7 +225,7 @@ class ProductionAuthorizationIT extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("keeps the reports of an inactive sector for consultation only: the writes 409, the reads 200")
+    @DisplayName("keeps the reports and the dashboard of an inactive sector for consultation: the writes 409, the reads 200")
     void givenInactiveSector_whenReadingAndWriting_thenRefuseTheWritesAndAnswerTheReads() throws Exception {
         // given
         Cookie[] commonUser = sessions.commonUser().cookies();
@@ -232,6 +239,6 @@ class ProductionAuthorizationIT extends IntegrationTestSupport {
 
         // then
         assertThat(writes).hasSize(7).allMatch("409 SECTOR_INACTIVE"::equals);
-        assertThat(reads).containsExactly("200", "200", "200", "200", "200");
+        assertThat(reads).containsExactly("200", "200", "200", "200", "200", "200", "200");
     }
 }

@@ -13,6 +13,9 @@ import io.github.ovyx.production.application.dailyreport.RecordMortalityCommandH
 import io.github.ovyx.production.application.dailyreport.RecordProductionCommandHandler;
 import io.github.ovyx.production.application.dailyreport.SuggestDailyReportQueryHandler;
 import io.github.ovyx.production.application.dailyreport.SuggestFeedQueryHandler;
+import io.github.ovyx.production.application.dashboard.DashboardDirectory;
+import io.github.ovyx.production.application.dashboard.GetDashboardOverviewQueryHandler;
+import io.github.ovyx.production.application.dashboard.GetSectorDashboardQueryHandler;
 import io.github.ovyx.production.domain.port.DailyReportRepository;
 import io.github.ovyx.production.domain.port.FarmStructure;
 import io.github.ovyx.production.domain.port.FeedCatalog;
@@ -96,5 +99,17 @@ public class ProductionBeanConfiguration {
     SuggestDailyReportQueryHandler suggestDailyReportQueryHandler(
             DailyReportDirectory directory, FarmCalendar calendar) {
         return new SuggestDailyReportQueryHandler(directory, calendar);
+    }
+
+    @Bean
+    GetDashboardOverviewQueryHandler getDashboardOverviewQueryHandler(
+            DashboardDirectory directory, FarmCalendar calendar) {
+        return new GetDashboardOverviewQueryHandler(directory, calendar);
+    }
+
+    @Bean
+    GetSectorDashboardQueryHandler getSectorDashboardQueryHandler(
+            DashboardDirectory directory, FarmCalendar calendar) {
+        return new GetSectorDashboardQueryHandler(directory, calendar);
     }
 }

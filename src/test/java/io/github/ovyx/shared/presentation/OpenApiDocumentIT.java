@@ -37,8 +37,8 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * O documento da API ensina a usá-la sem ler o código (US5 da 001; FR-027 a FR-029, SC-007, SC-008;
- * FR-021 e R-012 da 002; FR-023 e R-013 da 003; FR-023 e R-009 da 004; FR-017 e R-011 da 005): um documento
- * só, com a união dos
+ * FR-021 e R-012 da 002; FR-023 e R-013 da 003; FR-023 e R-009 da 004; FR-017 e R-011 da 005; R-010 da 006):
+ * um documento só, com a união dos
  * contratos {@code identity-api.yaml}, {@code farm-api.yaml}, {@code feed-formulas-api.yaml} e
  * {@code production-api.yaml}, exemplo real em toda requisição e em toda resposta, nada que a interface
  * precise inventar, e uma interface que consegue chamar a API.
@@ -75,7 +75,9 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
      * prefixo {@code daily-report.} (R-013 da 003): as classificações, as mortes e os descartes valem
      * zero de verdade, e os totais do relatório recém-aberto também. Na 004, a ração pendente tem consumo e
      * custo zero, a gaiola que comeu o esperado tem desvio zero, e o relatório com a ração lançada, zero
-     * gaiolas pendentes de ração. Os das operações de pesagem (005) levam o prefixo {@code weighing.}.
+     * gaiolas pendentes de ração. Os das operações de pesagem (005) levam o prefixo {@code weighing.}. Os do
+     * painel (006) levam o prefixo {@code dashboard.}: o indicador sem dia pendente, a granja sem setor
+     * completo hoje e o relatório sem ave removida valem zero de verdade.
      */
     private static final Set<String> FIELDS_WITH_ZERO_OR_BOOLEAN_EXAMPLE = Set.of(
             "page",
@@ -104,7 +106,10 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
             "daily-report.consumption",
             "daily-report.cost",
             "daily-report.deviation",
-            "daily-report.feedPendingCages");
+            "daily-report.feedPendingCages",
+            "dashboard.incompleteDays",
+            "dashboard.completeToday",
+            "dashboard.removedBirds");
 
     private static final String IDENTITY_CONTRACT = "identity-api.yaml";
     private static final String FARM_CONTRACT = "farm-api.yaml";
@@ -116,7 +121,7 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
             IDENTITY_CONTRACT, Path.of("../specs/001-auth-foundation/contracts/identity-api.yaml"),
             FARM_CONTRACT, Path.of("../specs/005-bird-weighing/contracts/farm-api.yaml"),
             FEED_FORMULA_CONTRACT, Path.of("../specs/004-feed-formulas/contracts/feed-formulas-api.yaml"),
-            PRODUCTION_CONTRACT, Path.of("../specs/004-feed-formulas/contracts/production-api.yaml"));
+            PRODUCTION_CONTRACT, Path.of("../specs/006-production-dashboard/contracts/production-api.yaml"));
 
     /** O título do documento único (R-012 da 002): nenhum dos contratos é o documento inteiro. */
     private static final String PUBLISHED_TITLE = "Ovyx — API";
@@ -223,7 +228,9 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
                     collectZeroOrBoolean(path.getValue(), "", false, found);
                     String prefix = path.getKey().contains("/daily-reports")
                             ? "daily-report."
-                            : path.getKey().contains("/feed-formulas")
+                            : path.getKey().endsWith("/dashboard")
+                                    ? "dashboard."
+                                    : path.getKey().contains("/feed-formulas")
                                     ? "feed-formula."
                                     : path.getKey().contains("/weighings")
                                             ? "weighing."
@@ -262,7 +269,7 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
 
     /**
      * O que o documento publicado precisa conter: os quatro contratos — o da identidade, o do farm da 005, o
-     * das fórmulas e o da produção da 004 (T050 da 004). Do farm, só o que as histórias da 005 já entregaram.
+     * das fórmulas da 004 e o da produção da 006, com o painel.
      */
     private static List<Map<String, Object>> expectedContracts() throws Exception {
         return List.of(
@@ -361,7 +368,8 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
         // given
         // T112: as operações dos contratos, com os mesmos caminhos, métodos e códigos de resposta. Uma
         // resposta a mais ou a menos no código, sem o contrato saber, é o desvio que isto pega: as 9
-        // da identidade, as 17 do farm com as 5 de pesagem, as 6 das fórmulas e as 12 da produção.
+        // da identidade, as 17 do farm com as 5 de pesagem, as 6 das fórmulas e as 14 da produção, com as 2
+        // do painel (006).
         Map<String, List<String>> contract = new TreeMap<>();
         for (Map<String, Object> expected : expectedContracts()) {
             contract.putAll(operationsWithResponses(expected));
@@ -371,7 +379,7 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
         Map<String, List<String>> published = operationsWithResponses(published());
 
         // then
-        assertThat(contract).hasSize(9 + 17 + 6 + 12);
+        assertThat(contract).hasSize(9 + 17 + 6 + 14);
         assertThat(published).isEqualTo(contract);
     }
 
@@ -438,7 +446,7 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
         // do springdoc, e quatro parágrafos da introdução tinham ficado mais curtos que os do contrato.
         // R-012 da 002, R-013 da 003 e R-009 da 004: um documento só, com a introdução da identidade
         // seguida da do farm, das fórmulas e da produção, e as tags dos quatro contratos, na ordem deles:
-        // Setores, Gaiolas, Pesagens (005), Fórmulas de ração, Relatórios diários.
+        // Setores, Gaiolas, Pesagens (005), Fórmulas de ração, Painel (006), Relatórios diários.
         Map<String, Object> identity = contract(IDENTITY_CONTRACT);
         Map<String, Object> farm = contract(FARM_CONTRACT);
         Map<String, Object> feedFormulas = contract(FEED_FORMULA_CONTRACT);
