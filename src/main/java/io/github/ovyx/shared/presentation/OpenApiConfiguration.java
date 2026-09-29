@@ -128,7 +128,9 @@ public class OpenApiConfiguration {
                         lançamentos que já a usam continuam com o preço deles.
 
                         Relatórios diários dos setores (`DailyReport`): a produção, a ração e a mortalidade lançadas \
-                        por gaiola, um relatório por setor e por dia de coleta.
+                        por gaiola, um relatório por setor e por dia de coleta. E o painel do Início (`Dashboard`): os \
+                        indicadores consolidados de um setor num período, os gráficos dos últimos 7 dias, a \
+                        classificação dos ovos, os alertas e as pendências de hoje e os últimos relatórios.
 
                         **Perfis**: qualquer responsável autenticado — usuário comum ou administrador — abre, corrige, \
                         lança e consulta relatórios. Quem abriu e quem fez a última correção ficam registrados pela \
@@ -144,6 +146,10 @@ public class OpenApiConfiguration {
                         **Ração**: cada lançamento guarda o preço por quilo e o consumo esperado da fórmula no \
                         momento em que foi feito; mudar a fórmula depois não muda o custo dos lançamentos já feitos. \
                         A fórmula de um lançamento novo precisa estar ativa (API das Fórmulas de Ração).
+
+                        **Painel**: só leitura, o mesmo para os dois perfis. "Hoje" é o dia da granja, no fuso dela. \
+                        Os números são os mesmos dos relatórios; o custo considera só os dias com a ração completa, \
+                        e o dia sem relatório fica sem valor, e não com zero.
                         """))
             .tags(List.of(
                 new Tag()
@@ -171,6 +177,9 @@ public class OpenApiConfiguration {
                     .description(
                         "Cadastro, consulta, inativação e reativação das fórmulas de ração, com o preço por quilo"
                             + " e o consumo esperado"),
+                new Tag()
+                    .name("Painel")
+                    .description("Os indicadores consolidados da produção, a tela inicial depois do login"),
                 new Tag()
                     .name("Relatórios diários")
                     .description(

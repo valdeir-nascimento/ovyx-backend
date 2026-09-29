@@ -4,7 +4,9 @@ info:
   version: 1.0.0
   description: |
     Relatórios diários dos setores (`DailyReport`): a produção, a ração e a mortalidade lançadas por
-    gaiola, um relatório por setor e por dia de coleta.
+    gaiola, um relatório por setor e por dia de coleta. E o painel do Início (`Dashboard`): os
+    indicadores consolidados de um setor num período, os gráficos dos últimos 7 dias, a classificação
+    dos ovos, os alertas e as pendências de hoje e os últimos relatórios.
 
     **Sessão, erros e CSRF**: iguais aos da API de Identidade
     (`specs/001-auth-foundation/contracts/identity-api.yaml`). Toda operação exige o cookie de
@@ -24,13 +26,329 @@ info:
     **Ração**: cada lançamento guarda o preço por quilo e o consumo esperado da fórmula no momento em
     que foi feito; mudar a fórmula depois não muda o custo dos lançamentos já feitos. A fórmula de um
     lançamento novo precisa estar ativa (API das Fórmulas de Ração).
+
+    **Painel**: só leitura, o mesmo para os dois perfis. "Hoje" é o dia da granja, no fuso dela. Os
+    números são os mesmos dos relatórios; o custo considera só os dias com a ração completa, e o dia
+    sem relatório fica sem valor, e não com zero.
 servers:
 - url: http://localhost:8080
   description: Ambiente local
 tags:
+- name: Painel
+  description: Os indicadores consolidados da produção, a tela inicial depois do login
 - name: Relatórios diários
   description: Abertura, correção e consulta dos relatórios diários de um setor, com os lançamentos de produção, de ração e de mortalidade de cada gaiola
 paths:
+  /api/v1/dashboard:
+    get:
+      tags:
+      - Painel
+      summary: Consultar o cabeçalho do painel
+      description: O dia de hoje da granja, a parte do dia, quantos setores ativos têm o relatório de hoje completo e as abas do painel, que são os setores ativos com ao menos um relatório.
+      operationId: getDashboardOverview
+      responses:
+        '200':
+          description: Cabeçalho do painel
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardOverview'
+              examples:
+                granjaComSetores:
+                  summary: Três setores ativos, dois com o relatório de hoje completo
+                  value:
+                    today: '2026-09-24'
+                    partOfDay: MORNING
+                    activeSectors: 3
+                    completeToday: 2
+                    sectors:
+                    - id: 3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11
+                      name: Codornas — Galpão 1
+                    - id: 5c8d2e4f-6a1b-4c3d-9e7f-0a2b4c6d8e33
+                      name: Codornas — Galpão 4
+                    - id: 7e9a1c3e-5b7d-4f9a-8c1e-3b5d7f9a1c55
+                      name: Poedeiras — Galpão 2
+                granjaSemRelatorio:
+                  summary: Nenhum setor com relatório ainda
+                  value:
+                    today: '2026-09-24'
+                    partOfDay: AFTERNOON
+                    activeSectors: 1
+                    completeToday: 0
+                    sectors: []
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/TrocaDeSenhaPendente'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+  /api/v1/sectors/{sectorId}/dashboard:
+    parameters:
+    - $ref: '#/components/parameters/SectorId'
+    get:
+      tags:
+      - Painel
+      summary: Consultar o painel de um setor
+      description: Os indicadores do período, comparados com o período anterior; a série dos últimos 7 dias, para as tendências e os gráficos; a classificação dos ovos do período; os alertas e as pendências de hoje; e os 4 relatórios mais recentes. Um setor inativo continua consultável, mas não aparece nas abas.
+      operationId: getSectorDashboard
+      parameters:
+      - name: period
+        in: query
+        required: false
+        description: O período dos indicadores e da classificação. Sem ele, vale `TODAY`.
+        schema:
+          $ref: '#/components/schemas/DashboardPeriod'
+        example: TODAY
+      responses:
+        '200':
+          description: Painel do setor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SectorDashboard'
+              examples:
+                setorComAlertas:
+                  summary: Hoje, com o relatório completo e três alertas nas gaiolas
+                  value:
+                    sector:
+                      id: 3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11
+                      name: Codornas — Galpão 1
+                      status: ACTIVE
+                    period: TODAY
+                    from: '2026-09-24'
+                    to: '2026-09-24'
+                    todayReport:
+                      id: 6b1d3f5a-7c9e-4a2b-8d4f-1e3a5c7b9d55
+                      productionStatus: COMPLETE
+                      feedStatus: COMPLETE
+                      mortalityStatus: RECORDED
+                    indicators:
+                      production:
+                        value: 1740
+                        previous: 1700
+                        change: 2.4
+                        goodDirection: UP
+                        incompleteDays: 0
+                      layingRate:
+                        value: 87.00
+                        previous: 85.00
+                        change: 2.00
+                        goodDirection: UP
+                        incompleteDays: 0
+                      feedCost:
+                        value: 159.60
+                        previous: 157.25
+                        change: 1.5
+                        goodDirection: DOWN
+                        incompleteDays: 0
+                      costPerEgg:
+                        value: 0.092
+                        previous: 0.093
+                        change: -1.1
+                        goodDirection: DOWN
+                        incompleteDays: 0
+                    trend:
+                    - date: '2026-09-18'
+                      production: 1690
+                      layingRate: 84.50
+                      feedCost: 156.10
+                      costPerEgg: 0.092
+                    - date: '2026-09-19'
+                      production: 1702
+                      layingRate: 85.10
+                      feedCost: 157.02
+                      costPerEgg: 0.092
+                    - date: '2026-09-20'
+                      production: 1688
+                      layingRate: 84.40
+                      feedCost: 155.80
+                      costPerEgg: 0.092
+                    - date: '2026-09-21'
+                      production: 1715
+                      layingRate: 85.75
+                      feedCost: 158.30
+                      costPerEgg: 0.092
+                    - date: '2026-09-22'
+                      production: 1720
+                      layingRate: 86.00
+                      feedCost: 158.75
+                      costPerEgg: 0.092
+                    - date: '2026-09-23'
+                      production: 1700
+                      layingRate: 85.00
+                      feedCost: 157.25
+                      costPerEgg: 0.093
+                    - date: '2026-09-24'
+                      production: 1740
+                      layingRate: 87.00
+                      feedCost: 159.60
+                      costPerEgg: 0.092
+                    target: 85.00
+                    targetStatus: ABOVE
+                    grades:
+                      collected: 1740
+                      standard:
+                        grade: standard
+                        count: 1650
+                        percent: 94.8
+                      shares:
+                      - grade: small
+                        count: 30
+                        percent: 1.7
+                      - grade: jumbo
+                        count: 12
+                        percent: 0.7
+                      - grade: dirty
+                        count: 20
+                        percent: 1.1
+                      - grade: cracked
+                        count: 18
+                        percent: 1.0
+                      - grade: bloodSpot
+                        count: 6
+                        percent: 0.3
+                      - grade: abnormal
+                        count: 4
+                        percent: 0.2
+                    alerts:
+                    - kind: HIGH_MORTALITY
+                      tone: WARNING
+                      title: Mortalidade acima da média na gaiola B-07
+                      detail: 2 aves removidas hoje; a média do setor é 0,4 por gaiola ao dia.
+                      target:
+                        reportId: 6b1d3f5a-7c9e-4a2b-8d4f-1e3a5c7b9d55
+                        cageId: 9d2e4f6a-1b3c-4d5e-8f7a-2b4c6d8e0f44
+                        cageCode: B-07
+                    - kind: LOW_LAYING
+                      tone: WARNING
+                      title: Baixa postura na gaiola C-03
+                      detail: 76,0% nos últimos 3 relatórios, contra 87,0% no setor hoje.
+                      target:
+                        cageId: 1c3e5a7c-9e1a-4c3e-8a5c-7e9a1c3e5a88
+                        cageCode: C-03
+                    - kind: WEIGHT_OUT_OF_RANGE
+                      tone: WARNING
+                      title: Pesagem fora da faixa na gaiola A-02
+                      detail: 150,8 g em 24/09/2026; a faixa do setor é 155–175 g.
+                      target:
+                        cageId: 4b6d8f0b-2c4e-4a6c-9e0b-2d4f6a8c0e99
+                        cageCode: A-02
+                    openAlerts: 3
+                    latestReports:
+                    - id: 6b1d3f5a-7c9e-4a2b-8d4f-1e3a5c7b9d55
+                      collectionDate: '2026-09-24'
+                      collectionTime: 06:30
+                      openedBy:
+                        id: 1e3a5c7b-9d1f-4b3d-8e5a-7c9e1a3b5d77
+                        name: Marina Alves
+                      collectedEggs: 1740
+                      removedBirds: 3
+                      productionStatus: COMPLETE
+                      feedStatus: COMPLETE
+                      mortalityStatus: RECORDED
+                    - id: 8d2f4a6c-0e2a-4c6e-9a2c-4e6a8c0e2a11
+                      collectionDate: '2026-09-23'
+                      collectionTime: 06:40
+                      openedBy:
+                        id: 1e3a5c7b-9d1f-4b3d-8e5a-7c9e1a3b5d77
+                        name: Marina Alves
+                      collectedEggs: 1700
+                      removedBirds: 1
+                      productionStatus: COMPLETE
+                      feedStatus: COMPLETE
+                      mortalityStatus: RECORDED
+                    - id: 2e4a6c8e-0a2c-4e6a-8c0e-2a4c6e8a0c22
+                      collectionDate: '2026-09-22'
+                      collectionTime: 06:35
+                      openedBy:
+                        id: 5d7f9b1d-3f5a-4c7e-9a1b-3d5f7a9c1e88
+                        name: João Pereira
+                      collectedEggs: 1720
+                      removedBirds: 0
+                      productionStatus: COMPLETE
+                      feedStatus: COMPLETE
+                      mortalityStatus: RECORDED
+                    - id: 4a6c8e0a-2c4e-4a6c-8e0a-2c4e6a8c0e33
+                      collectionDate: '2026-09-21'
+                      collectionTime: 06:45
+                      openedBy:
+                        id: 5d7f9b1d-3f5a-4c7e-9a1b-3d5f7a9c1e88
+                        name: João Pereira
+                      collectedEggs: 1715
+                      removedBirds: 2
+                      productionStatus: COMPLETE
+                      feedStatus: COMPLETE
+                      mortalityStatus: RECORDED
+                hojeSemRelatorio:
+                  summary: Hoje ainda sem relatório, com o de ontem sem a ração
+                  value:
+                    sector:
+                      id: 7e9a1c3e-5b7d-4f9a-8c1e-3b5d7f9a1c55
+                      name: Poedeiras — Galpão 2
+                      status: ACTIVE
+                    period: TODAY
+                    from: '2026-09-24'
+                    to: '2026-09-24'
+                    indicators:
+                      production:
+                        previous: 912
+                        goodDirection: UP
+                        incompleteDays: 0
+                      layingRate:
+                        previous: 91.20
+                        goodDirection: UP
+                        incompleteDays: 0
+                      feedCost:
+                        goodDirection: DOWN
+                        incompleteDays: 0
+                      costPerEgg:
+                        goodDirection: DOWN
+                        incompleteDays: 0
+                    trend:
+                    - date: '2026-09-18'
+                    - date: '2026-09-19'
+                    - date: '2026-09-20'
+                    - date: '2026-09-21'
+                    - date: '2026-09-22'
+                    - date: '2026-09-23'
+                      production: 912
+                      layingRate: 91.20
+                    - date: '2026-09-24'
+                    target: 85.00
+                    targetStatus: ABOVE
+                    alerts:
+                    - kind: REPORT_NOT_OPENED
+                      tone: WARNING
+                      title: Relatório de hoje não aberto
+                      detail: Abra o relatório de 24/09 para lançar a produção, a ração e a mortalidade.
+                      target: {}
+                    openAlerts: 1
+                    latestReports:
+                    - id: 9f1b3d5f-7a9c-4e1b-8d3f-5a7c9e1b3d44
+                      collectionDate: '2026-09-23'
+                      collectionTime: 07:05
+                      openedBy:
+                        id: 1e3a5c7b-9d1f-4b3d-8e5a-7c9e1a3b5d77
+                        name: Marina Alves
+                      collectedEggs: 912
+                      removedBirds: 0
+                      productionStatus: COMPLETE
+                      feedStatus: PENDING
+                      mortalityStatus: RECORDED
+        '400':
+          $ref: '#/components/responses/PeriodoInvalido'
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/TrocaDeSenhaPendente'
+        '404':
+          $ref: '#/components/responses/SetorDoPainelNaoEncontrado'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
   /api/v1/sectors/{sectorId}/daily-reports:
     parameters:
     - $ref: '#/components/parameters/SectorId'
@@ -1425,6 +1743,38 @@ components:
                 instance: /api/v1/sectors/5c8d2e4f-6a1b-4c3d-9e7f-0a2b4c6d8e33/daily-reports
                 details:
                   parameter: collectionDate
+    PeriodoInvalido:
+      description: Período fora de `TODAY`, `YESTERDAY` e `LAST_7_DAYS` (`VALIDATION_FAILED`), com o nome do parâmetro em `details`.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            periodoInvalido:
+              summary: Período que não existe
+              value:
+                code: VALIDATION_FAILED
+                title: Dados inválidos
+                status: 400
+                detail: Valor inválido para o parâmetro 'period'.
+                instance: /api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/dashboard
+                details:
+                  parameter: period
+    SetorDoPainelNaoEncontrado:
+      description: Setor inexistente, ou identificador malformado (`SECTOR_NOT_FOUND`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            setorNaoEncontrado:
+              summary: Identificador que não é de nenhum setor
+              value:
+                code: SECTOR_NOT_FOUND
+                title: Não encontrado
+                status: 404
+                detail: Setor não encontrado.
+                instance: /api/v1/sectors/galpao-9/dashboard
     FormatoIndisponivel:
       description: Formato de resposta indisponível (`REQUEST_NOT_ACCEPTABLE`).
       content:
@@ -2138,5 +2488,353 @@ components:
             $ref: '#/components/schemas/SuggestedCageFeed'
         totals:
           $ref: '#/components/schemas/FeedTotals'
+    DashboardPeriod:
+      type: string
+      enum:
+      - TODAY
+      - YESTERDAY
+      - LAST_7_DAYS
+      description: '`TODAY` compara hoje com ontem; `YESTERDAY`, ontem com anteontem; `LAST_7_DAYS`, os 7 dias até hoje com os 7 anteriores.'
+    DashboardSector:
+      type: object
+      description: Uma aba do painel
+      required:
+      - id
+      - name
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11
+        name:
+          type: string
+          example: Codornas — Galpão 1
+    DashboardOverview:
+      type: object
+      description: O cabeçalho do painel e as abas
+      required:
+      - today
+      - partOfDay
+      - activeSectors
+      - completeToday
+      - sectors
+      properties:
+        today:
+          type: string
+          format: date
+          description: O dia de hoje da granja, no fuso dela
+          example: '2026-09-24'
+        partOfDay:
+          type: string
+          enum:
+          - MORNING
+          - AFTERNOON
+          - EVENING
+          description: A parte do dia no relógio da granja, para a saudação
+          example: MORNING
+        activeSectors:
+          type: integer
+          description: Quantos setores ativos existem
+          example: 3
+        completeToday:
+          type: integer
+          description: Quantos setores ativos têm o relatório de hoje com a produção, a ração e a mortalidade lançadas
+          example: 2
+        sectors:
+          type: array
+          description: Os setores ativos com ao menos um relatório, por nome
+          items:
+            $ref: '#/components/schemas/DashboardSector'
+    TodayReport:
+      type: object
+      description: O relatório de hoje do setor e a situação de cada lançamento
+      required:
+      - id
+      - productionStatus
+      - feedStatus
+      - mortalityStatus
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 6b1d3f5a-7c9e-4a2b-8d4f-1e3a5c7b9d55
+        productionStatus:
+          $ref: '#/components/schemas/ProductionStatus'
+        feedStatus:
+          $ref: '#/components/schemas/FeedStatus'
+        mortalityStatus:
+          $ref: '#/components/schemas/MortalityStatus'
+    Indicator:
+      type: object
+      description: Um indicador do período, comparado com o período anterior. Sem dado, o valor fica ausente, e não zero.
+      required:
+      - goodDirection
+      - incompleteDays
+      properties:
+        value:
+          type: number
+          description: O valor do período
+          example: 1740
+        previous:
+          type: number
+          description: O valor do período anterior
+          example: 1700
+        change:
+          type: number
+          description: A variação sobre o anterior, em porcentagem com uma casa (produção e custos) ou em pontos percentuais com duas casas (produtividade). Ausente sem os dois valores, ou com o anterior zero.
+          example: 2.4
+        goodDirection:
+          type: string
+          enum:
+          - UP
+          - DOWN
+          description: O sentido bom da variação
+          example: UP
+        incompleteDays:
+          type: integer
+          description: Os dias do período com o lançamento pendente (a produção, na produção e na produtividade; a ração, nos custos)
+          example: 0
+    Indicators:
+      type: object
+      description: Os quatro indicadores do painel
+      required:
+      - production
+      - layingRate
+      - feedCost
+      - costPerEgg
+      properties:
+        production:
+          $ref: '#/components/schemas/Indicator'
+        layingRate:
+          $ref: '#/components/schemas/Indicator'
+        feedCost:
+          $ref: '#/components/schemas/Indicator'
+        costPerEgg:
+          $ref: '#/components/schemas/Indicator'
+    DashboardDay:
+      type: object
+      description: Um dia da série dos últimos 7 dias. Sem relatório, os valores ficam ausentes; com a ração pendente, os custos ficam ausentes.
+      required:
+      - date
+      properties:
+        date:
+          type: string
+          format: date
+          example: '2026-09-24'
+        production:
+          type: integer
+          description: Ovos coletados
+          example: 1740
+        layingRate:
+          type: number
+          description: Produtividade, em porcentagem com duas casas
+          example: 87.00
+        feedCost:
+          type: number
+          description: Custo da ração, em reais com duas casas
+          example: 159.60
+        costPerEgg:
+          type: number
+          description: Custo por ovo, em reais com três casas
+          example: 0.092
+    EggGradeShare:
+      type: object
+      description: Uma classe de ovos, com a quantidade e a porcentagem sobre os coletados
+      required:
+      - grade
+      - count
+      - percent
+      properties:
+        grade:
+          type: string
+          enum:
+          - standard
+          - small
+          - jumbo
+          - dirty
+          - cracked
+          - bloodSpot
+          - abnormal
+          example: cracked
+        count:
+          type: integer
+          example: 18
+        percent:
+          type: number
+          description: A quantidade sobre os coletados, com uma casa
+          example: 1.0
+    EggGrading:
+      type: object
+      description: A classificação dos ovos do período
+      required:
+      - collected
+      - standard
+      - shares
+      properties:
+        collected:
+          type: integer
+          example: 1740
+        standard:
+          $ref: '#/components/schemas/EggGradeShare'
+        shares:
+          type: array
+          description: As seis classes fora do padrão, nesta ordem
+          items:
+            $ref: '#/components/schemas/EggGradeShare'
+    AlertTarget:
+      type: object
+      description: Para onde o alerta leva. Sem campo, é a abertura do relatório de hoje.
+      properties:
+        reportId:
+          type: string
+          format: uuid
+          description: O relatório de hoje, quando existe
+          example: 6b1d3f5a-7c9e-4a2b-8d4f-1e3a5c7b9d55
+        cageId:
+          type: string
+          format: uuid
+          description: A gaiola, nos alertas de gaiola
+          example: 9d2e4f6a-1b3c-4d5e-8f7a-2b4c6d8e0f44
+        cageCode:
+          type: string
+          example: B-07
+    DashboardAlert:
+      type: object
+      description: Um alerta ou uma pendência de hoje, com o que aconteceu e para onde leva
+      required:
+      - kind
+      - tone
+      - title
+      - detail
+      - target
+      properties:
+        kind:
+          type: string
+          enum:
+          - REPORT_NOT_OPENED
+          - PRODUCTION_PENDING
+          - FEED_PENDING
+          - MORTALITY_PENDING
+          - HIGH_MORTALITY
+          - LOW_LAYING
+          - WEIGHT_OUT_OF_RANGE
+          example: HIGH_MORTALITY
+        tone:
+          type: string
+          enum:
+          - WARNING
+          - INFO
+          example: WARNING
+        title:
+          type: string
+          example: Mortalidade acima da média na gaiola B-07
+        detail:
+          type: string
+          example: 2 aves removidas hoje; a média do setor é 0,4 por gaiola ao dia.
+        target:
+          $ref: '#/components/schemas/AlertTarget'
+    LatestReport:
+      type: object
+      description: Um dos relatórios mais recentes do setor
+      required:
+      - id
+      - collectionDate
+      - collectionTime
+      - openedBy
+      - collectedEggs
+      - removedBirds
+      - productionStatus
+      - feedStatus
+      - mortalityStatus
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 6b1d3f5a-7c9e-4a2b-8d4f-1e3a5c7b9d55
+        collectionDate:
+          type: string
+          format: date
+          example: '2026-09-24'
+        collectionTime:
+          type: string
+          pattern: ^\d{2}:\d{2}$
+          example: 06:30
+        openedBy:
+          $ref: '#/components/schemas/Actor'
+        collectedEggs:
+          type: integer
+          example: 1740
+        removedBirds:
+          type: integer
+          example: 3
+        productionStatus:
+          $ref: '#/components/schemas/ProductionStatus'
+        feedStatus:
+          $ref: '#/components/schemas/FeedStatus'
+        mortalityStatus:
+          $ref: '#/components/schemas/MortalityStatus'
+    SectorDashboard:
+      type: object
+      description: O painel de um setor num período
+      required:
+      - sector
+      - period
+      - from
+      - to
+      - indicators
+      - trend
+      - target
+      - alerts
+      - openAlerts
+      - latestReports
+      properties:
+        sector:
+          $ref: '#/components/schemas/ReportingSector'
+        period:
+          $ref: '#/components/schemas/DashboardPeriod'
+        from:
+          type: string
+          format: date
+          description: O primeiro dia do período
+          example: '2026-09-18'
+        to:
+          type: string
+          format: date
+          description: O último dia do período
+          example: '2026-09-24'
+        todayReport:
+          $ref: '#/components/schemas/TodayReport'
+        indicators:
+          $ref: '#/components/schemas/Indicators'
+        trend:
+          type: array
+          description: Os 7 dias de hoje − 6 até hoje, para as tendências e os gráficos
+          items:
+            $ref: '#/components/schemas/DashboardDay'
+        target:
+          type: number
+          description: A meta de produtividade, em porcentagem
+          example: 85.00
+        targetStatus:
+          type: string
+          enum:
+          - ABOVE
+          - BELOW
+          description: O último dia com relatório diante da meta; ausente sem dia com relatório
+          example: ABOVE
+        grades:
+          $ref: '#/components/schemas/EggGrading'
+        alerts:
+          type: array
+          items:
+            $ref: '#/components/schemas/DashboardAlert'
+        openAlerts:
+          type: integer
+          example: 3
+        latestReports:
+          type: array
+          description: Os 4 relatórios mais recentes, do mais novo para o mais antigo
+          items:
+            $ref: '#/components/schemas/LatestReport'
 security:
 - sessionCookie: []
