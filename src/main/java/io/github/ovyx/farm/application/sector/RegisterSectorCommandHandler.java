@@ -29,7 +29,13 @@ public class RegisterSectorCommandHandler implements CommandHandler<RegisterSect
     public Result<SectorId> handle(RegisterSectorCommand command) {
         Sector sector;
         try {
-            sector = Sector.register(command.name(), command.description(), sectorRepository, clock);
+            sector = Sector.register(
+                    command.name(),
+                    command.description(),
+                    command.minimumWeight(),
+                    command.maximumWeight(),
+                    sectorRepository,
+                    clock);
         } catch (DomainException refusal) {
             return Result.failure(FarmRefusals.from(refusal));
         }

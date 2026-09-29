@@ -16,7 +16,10 @@ public record SectorSummaryResponse(
         String description,
         @Schema(example = "ACTIVE") Status status,
         @Schema(description = "Quantidade de gaiolas ativas", example = "48") int activeCageCount,
-        @Schema(description = "Soma das aves das gaiolas ativas", example = "2400") int birdCount) {
+        @Schema(description = "Soma das aves das gaiolas ativas", example = "2400") int birdCount,
+        @Schema(description = "Faixa de peso de referência das aves, em gramas; ausente sem faixa")
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        ReferenceWeightResponse referenceWeight) {
 
     public static SectorSummaryResponse from(SectorSummary summary) {
         return new SectorSummaryResponse(
@@ -25,6 +28,7 @@ public record SectorSummaryResponse(
                 summary.description(),
                 summary.status(),
                 summary.activeCageCount(),
-                summary.birdCount());
+                summary.birdCount(),
+                ReferenceWeightResponse.from(summary.referenceWeight()));
     }
 }

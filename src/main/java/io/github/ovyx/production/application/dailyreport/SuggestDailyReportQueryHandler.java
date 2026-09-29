@@ -1,9 +1,9 @@
 package io.github.ovyx.production.application.dailyreport;
 
-import io.github.ovyx.production.application.common.FarmCalendar;
 import io.github.ovyx.production.application.common.ProductionRefusals;
 import io.github.ovyx.production.domain.model.SectorId;
 import io.github.ovyx.production.domain.valueobject.FlockAge;
+import io.github.ovyx.shared.application.FarmCalendar;
 import io.github.ovyx.shared.application.QueryHandler;
 import io.github.ovyx.shared.application.Result;
 import java.time.LocalDate;

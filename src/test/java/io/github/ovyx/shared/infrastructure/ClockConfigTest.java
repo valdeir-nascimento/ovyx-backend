@@ -2,7 +2,9 @@ package io.github.ovyx.shared.infrastructure;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.ovyx.shared.application.FarmCalendar;
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,5 +49,20 @@ class ClockConfigTest {
                 // then
                 .extracting(Clock::getZone)
                 .isEqualTo(ZoneId.of("America/Belem")));
+    }
+
+    @Test
+    @DisplayName("Tells the day in the farm timezone the environment asks for")
+    void givenFarmTimeZone_whenAskingToday_thenAnswerInThatZone() {
+        // given
+        // Kiritimati (UTC+14) e Pago Pago (UTC-11) distam 25 horas: o dia de uma sempre vem depois do da outra.
+        ApplicationContextRunner context = contexts.withPropertyValues("ovyx.farm.time-zone=Pacific/Kiritimati");
+
+        // when
+        context.run(started -> assertThat(started)
+                .getBean(FarmCalendar.class)
+                // then
+                .extracting(FarmCalendar::today)
+                .matches(today -> today.isAfter(LocalDate.now(ZoneId.of("Pacific/Pago_Pago")))));
     }
 }

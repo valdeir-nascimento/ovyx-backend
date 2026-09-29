@@ -21,8 +21,16 @@ import io.github.ovyx.farm.application.sector.ReactivateSectorCommandHandler;
 import io.github.ovyx.farm.application.sector.RegisterSectorCommandHandler;
 import io.github.ovyx.farm.application.sector.SectorDirectory;
 import io.github.ovyx.farm.application.sector.UpdateSectorCommandHandler;
+import io.github.ovyx.farm.application.weighing.CorrectWeighingCommandHandler;
+import io.github.ovyx.farm.application.weighing.FindWeighingQueryHandler;
+import io.github.ovyx.farm.application.weighing.GetWeighingOverviewQueryHandler;
+import io.github.ovyx.farm.application.weighing.RecordWeighingCommandHandler;
+import io.github.ovyx.farm.application.weighing.VoidWeighingCommandHandler;
+import io.github.ovyx.farm.application.weighing.WeighingDirectory;
 import io.github.ovyx.farm.domain.port.FeedFormulaRepository;
 import io.github.ovyx.farm.domain.port.SectorRepository;
+import io.github.ovyx.farm.domain.port.WeighingRepository;
+import io.github.ovyx.shared.application.FarmCalendar;
 import java.time.Clock;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -128,5 +136,39 @@ public class FarmBeanConfiguration {
     @Bean
     FindFeedFormulaQueryHandler findFeedFormulaQueryHandler(FeedFormulaDirectory formulaDirectory) {
         return new FindFeedFormulaQueryHandler(formulaDirectory);
+    }
+
+    @Bean
+    RecordWeighingCommandHandler recordWeighingCommandHandler(
+            SectorRepository sectorRepository,
+            WeighingRepository weighingRepository,
+            FarmCalendar calendar,
+            Clock clock) {
+        return new RecordWeighingCommandHandler(sectorRepository, weighingRepository, calendar, clock);
+    }
+
+    @Bean
+    GetWeighingOverviewQueryHandler getWeighingOverviewQueryHandler(WeighingDirectory weighingDirectory) {
+        return new GetWeighingOverviewQueryHandler(weighingDirectory);
+    }
+
+    @Bean
+    FindWeighingQueryHandler findWeighingQueryHandler(WeighingDirectory weighingDirectory) {
+        return new FindWeighingQueryHandler(weighingDirectory);
+    }
+
+    @Bean
+    CorrectWeighingCommandHandler correctWeighingCommandHandler(
+            SectorRepository sectorRepository,
+            WeighingRepository weighingRepository,
+            FarmCalendar calendar,
+            Clock clock) {
+        return new CorrectWeighingCommandHandler(sectorRepository, weighingRepository, calendar, clock);
+    }
+
+    @Bean
+    VoidWeighingCommandHandler voidWeighingCommandHandler(
+            SectorRepository sectorRepository, WeighingRepository weighingRepository, Clock clock) {
+        return new VoidWeighingCommandHandler(sectorRepository, weighingRepository, clock);
     }
 }

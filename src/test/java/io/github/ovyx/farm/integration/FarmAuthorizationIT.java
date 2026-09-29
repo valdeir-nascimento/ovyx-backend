@@ -24,6 +24,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpMethod;
@@ -128,11 +129,14 @@ class FarmAuthorizationIT extends IntegrationTestSupport {
         return route.replace("{cage}", cagePath).replace("{sector}", sectorPath).replace("{formula}", formulaPath);
     }
 
-    /** Um corpo que serve às escritas de setor, de gaiola e de fórmula: cada uma lê só os campos dela. */
+    /**
+     * Um corpo que serve às escritas de setor, de gaiola, de fórmula e de pesagem: cada uma lê só os campos
+     * dela.
+     */
     private static MockHttpServletRequestBuilder withBody(MockHttpServletRequestBuilder request) {
         return request.contentType(MediaType.APPLICATION_JSON).content("""
                 {"name": "Codornas — Galpão 9", "battery": "C", "number": 9, "birdCount": 50,
-                 "pricePerKg": "2,85", "expectedIntake": 28}
+                 "pricePerKg": "2,85", "expectedIntake": 28, "weighedOn": "2026-09-24", "averageWeight": 161}
                 """);
     }
 
@@ -207,9 +211,14 @@ class FarmAuthorizationIT extends IntegrationTestSupport {
         "POST, /api/v1/feed-formulas",
         "PUT, {formula}",
         "POST, {formula}/deactivation",
-        "POST, {formula}/reactivation"
+        "POST, {formula}/reactivation",
+        "GET, {cage}/weighings",
+        "POST, {cage}/weighings",
+        "GET, {cage}/weighings/7b9d1f3a-5c7e-4a9b-8d1f-3a5c7e9b1d77",
+        "PUT, {cage}/weighings/7b9d1f3a-5c7e-4a9b-8d1f-3a5c7e9b1d77",
+        "POST, {cage}/weighings/7b9d1f3a-5c7e-4a9b-8d1f-3a5c7e9b1d77/voiding"
     })
-    @DisplayName("requires a session on every sector, cage and formula route")
+    @DisplayName("requires a session on every sector, cage, formula and weighing route")
     void givenAnonymousVisitor_whenCallingAFarmRoute_thenRequireAuthentication(String method, String route)
             throws Exception {
         // given
@@ -402,6 +411,92 @@ class FarmAuthorizationIT extends IntegrationTestSupport {
 
         // then
         response.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("PASSWORD_CHANGE_REQUIRED"));
+    }
+
+    // ------------------------------------------------------------------ pesagens (005)
+
+    @Test
+    @DisplayName("lets a common user read the weighings of a cage")
+    void givenCommonUser_whenReadingTheWeighings_thenAnswerOk() throws Exception {
+        // given
+        MockHttpServletRequestBuilder request = get(cagePath + "/weighings");
+
+        // when
+        ResultActions response = mockMvc.perform(request.cookie(commonUser));
+
+        // then
+        response.andExpect(status().isOk());
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(booleans = {false, true})
+    @DisplayName("lets a common user and an administrator record a weighing, the first write of the farm open to both")
+    void givenAnyCaretaker_whenRecordingAWeighing_thenAnswerCreated(boolean administrator) throws Exception {
+        // given
+        Cookie[] session = administrator ? sessions.administrator().cookies() : commonUser;
+        String day = administrator ? "2026-09-17" : "2026-09-10";
+
+        // when
+        ResultActions response = mockMvc.perform(post(cagePath + "/weighings")
+                .with(sessions.csrf())
+                .cookie(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"weighedOn": "%s", "averageWeight": 158}
+                        """.formatted(day)));
+
+        // then
+        response.andExpect(status().isCreated());
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(booleans = {false, true})
+    @DisplayName("lets a common user and an administrator correct and void a weighing")
+    void givenAnyCaretaker_whenCorrectingAndVoidingAWeighing_thenAnswerOkAndNoContent(boolean administrator)
+            throws Exception {
+        // given
+        Cookie[] session = administrator ? sessions.administrator().cookies() : commonUser;
+        String day = administrator ? "2026-09-03" : "2026-08-27";
+        String created = mockMvc.perform(post(cagePath + "/weighings")
+                        .with(sessions.csrf())
+                        .cookie(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"weighedOn": "%s", "averageWeight": 150}
+                                """.formatted(day)))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String weighing = cagePath + "/weighings/" + JsonPath.read(created, "$.id");
+
+        // when
+        ResultActions found = mockMvc.perform(get(weighing).cookie(session));
+        ResultActions corrected = mockMvc.perform(put(weighing)
+                .with(sessions.csrf())
+                .cookie(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"weighedOn": "%s", "averageWeight": 151}
+                        """.formatted(day)));
+        ResultActions voided = mockMvc.perform(post(weighing + "/voiding").with(sessions.csrf()).cookie(session));
+
+        // then
+        found.andExpect(status().isOk());
+        corrected.andExpect(status().isOk());
+        voided.andExpect(status().isNoContent());
+    }
+
+    @Test
+    @DisplayName("refuses a weighing without the protection token")
+    void givenCommonUserWithoutTheCsrfToken_whenRecordingAWeighing_thenRefuseTheMissingToken() throws Exception {
+        // given
+        MockHttpServletRequestBuilder request = withBody(post(cagePath + "/weighings"));
+
+        // when
+        ResultActions response = mockMvc.perform(request.cookie(commonUser));
+
+        // then
+        response.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("CSRF_TOKEN_INVALID"));
     }
 
     @Test

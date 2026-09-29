@@ -66,15 +66,15 @@ class DatabaseMigrationIT extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("records the eight migrations as successfully applied")
-    void givenMigratedDatabase_whenReadingTheHistory_thenFindTheEightMigrationsApplied() {
+    @DisplayName("records the nine migrations as successfully applied")
+    void givenMigratedDatabase_whenReadingTheHistory_thenFindTheNineMigrationsApplied() {
         // given — o contentor compartilhado, migrado na subida
 
         // when
         List<String> versions = jdbc().queryForList(APPLIED_VERSIONS, String.class);
 
         // then
-        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8");
+        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9");
     }
 
     @ParameterizedTest
@@ -129,6 +129,7 @@ class DatabaseMigrationIT extends IntegrationTestSupport {
                         "daily_report",
                         "report_cage",
                         "feed_formula",
+                        "weighing",
                         "flyway_schema_history");
     }
 
@@ -145,5 +146,37 @@ class DatabaseMigrationIT extends IntegrationTestSupport {
         // then
         assertThat(columns)
                 .contains("feed_formula_id", "feed_price_per_kg", "feed_expected_intake", "feed_consumption");
+    }
+
+    @Test
+    @DisplayName("adds the reference weight columns to the sector")
+    void givenMigratedDatabase_whenListingSectorColumns_thenFindTheReferenceWeightColumns() {
+        // given
+        String table = "sector";
+
+        // when
+        List<String> columns = jdbc().queryForList(
+                "select column_name from information_schema.columns where table_name = ?", String.class, table);
+
+        // then
+        assertThat(columns).contains("reference_weight_min", "reference_weight_max");
+    }
+
+    @Test
+    @DisplayName("keeps one valid weighing per cage and day with a partial unique index")
+    void givenWeighingIndex_whenReadingItsDefinition_thenRestrictUniquenessToValidWeighings() {
+        // given
+        String index = "ux_weighing_cage_day";
+
+        // when
+        List<String> definitions = jdbc().queryForList(
+                "select indexdef from pg_indexes where indexname = ?", String.class, index);
+
+        // then
+        assertThat(definitions)
+                .singleElement(STRING)
+                .contains("UNIQUE")
+                .contains("(cage_id, weighed_on)")
+                .contains("WHERE ((status)::text = 'VALID'::text)");
     }
 }

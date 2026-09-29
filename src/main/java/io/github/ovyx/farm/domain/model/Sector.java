@@ -5,6 +5,7 @@ import io.github.ovyx.farm.domain.port.SectorRoster;
 import io.github.ovyx.farm.domain.valueobject.Battery;
 import io.github.ovyx.farm.domain.valueobject.BirdCount;
 import io.github.ovyx.farm.domain.valueobject.CageNumber;
+import io.github.ovyx.farm.domain.valueobject.ReferenceWeight;
 import io.github.ovyx.farm.domain.valueobject.SectorDescription;
 import io.github.ovyx.farm.domain.valueobject.SectorName;
 import io.github.ovyx.shared.domain.AggregateRoot;
@@ -34,6 +35,8 @@ import java.util.Optional;
  *       sozinho (FR-014, FR-015)
  *   <li>Nada e apagado: inativar o setor inativa junto as gaiolas ativas dele, e reativa-lo traz de
  *       volta exatamente essas (FR-012, FR-015, R-004)
+ *   <li>A faixa de peso de referencia, quando ha, tem os dois limites, com o minimo abaixo do maximo, e
+ *       as violacoes dela voltam junto das do nome e da descricao (FR-001 e R-006 da 005)
  * </ol>
  *
  * <p>O setor contem as gaiolas (R-003): toda escrita numa gaiola passa por ele, e muda o instante da
@@ -58,6 +61,7 @@ public final class Sector extends AggregateRoot<SectorId> {
 
     private SectorName name;
     private SectorDescription description;
+    private ReferenceWeight referenceWeight;
     private Status status;
     private Instant updatedAt;
 
@@ -65,6 +69,7 @@ public final class Sector extends AggregateRoot<SectorId> {
             SectorId id,
             SectorName name,
             SectorDescription description,
+            ReferenceWeight referenceWeight,
             Status status,
             List<Cage> cages,
             Instant createdAt,
@@ -72,6 +77,7 @@ public final class Sector extends AggregateRoot<SectorId> {
         super(id);
         this.name = name;
         this.description = description;
+        this.referenceWeight = referenceWeight;
         this.status = status;
         this.cages = new ArrayList<>(cages);
         this.createdAt = createdAt;
@@ -87,11 +93,14 @@ public final class Sector extends AggregateRoot<SectorId> {
      * @throws DomainException quando algum campo viola uma regra, ou quando outro setor ativo ja usa o
      *     nome
      */
-    public static Sector register(String rawName, String rawDescription, SectorRoster roster, Clock clock) {
-        Notification notification = new Notification();
-        SectorName.validate(rawName, notification);
-        SectorDescription.validate(rawDescription, notification);
-        notification.throwIfAny(FarmErrorCode.VALIDATION_FAILED);
+    public static Sector register(
+            String rawName,
+            String rawDescription,
+            String rawMinimumWeight,
+            String rawMaximumWeight,
+            SectorRoster roster,
+            Clock clock) {
+        validate(rawName, rawDescription, rawMinimumWeight, rawMaximumWeight);
 
         SectorId id = SectorId.generate();
         SectorName name = SectorName.of(rawName);
@@ -102,6 +111,7 @@ public final class Sector extends AggregateRoot<SectorId> {
                 id,
                 name,
                 SectorDescription.optionalOf(rawDescription).orElse(null),
+                ReferenceWeight.optionalOf(rawMinimumWeight, rawMaximumWeight).orElse(null),
                 Status.ACTIVE,
                 List.of(),
                 now,
@@ -115,38 +125,55 @@ public final class Sector extends AggregateRoot<SectorId> {
      * revalidar na leitura faria o sistema recusar registros legitimos apos uma mudanca de regra.
      *
      * @param description a descricao, ou {@code null} quando o setor nao tem
+     * @param referenceWeight a faixa de peso de referencia, ou {@code null} quando o setor nao tem
      * @param cages todas as gaiolas do setor, ativas e inativas
      */
     public static Sector restore(
             SectorId id,
             SectorName name,
             SectorDescription description,
+            ReferenceWeight referenceWeight,
             Status status,
             List<Cage> cages,
             Instant createdAt,
             Instant updatedAt) {
-        return new Sector(id, name, description, status, cages, createdAt, updatedAt);
+        return new Sector(id, name, description, referenceWeight, status, cages, createdAt, updatedAt);
     }
 
     /**
-     * Edita o nome e a descricao, com as mesmas regras do cadastro (FR-003). Recusada, a edicao nao
-     * altera nada.
+     * Edita o nome, a descricao e a faixa de peso de referencia, com as mesmas regras do cadastro (FR-003
+     * da 002; FR-001 da 005). Sem os dois limites, o setor fica sem faixa. Recusada, a edicao nao altera
+     * nada.
      *
      * @throws DomainException quando algum campo viola uma regra, ou quando outro setor ativo ja usa o
      *     nome
      */
-    public void update(String rawName, String rawDescription, SectorRoster roster, Clock clock) {
-        Notification notification = new Notification();
-        SectorName.validate(rawName, notification);
-        SectorDescription.validate(rawDescription, notification);
-        notification.throwIfAny(FarmErrorCode.VALIDATION_FAILED);
+    public void update(
+            String rawName,
+            String rawDescription,
+            String rawMinimumWeight,
+            String rawMaximumWeight,
+            SectorRoster roster,
+            Clock clock) {
+        validate(rawName, rawDescription, rawMinimumWeight, rawMaximumWeight);
 
         SectorName newName = SectorName.of(rawName);
         refuseIfNameInUse(newName, id(), roster);
 
         this.name = newName;
         this.description = SectorDescription.optionalOf(rawDescription).orElse(null);
+        this.referenceWeight = ReferenceWeight.optionalOf(rawMinimumWeight, rawMaximumWeight).orElse(null);
         touch(clock);
+    }
+
+    /** Os campos do setor, todas as violacoes de uma vez (FR-017 da 001). */
+    private static void validate(
+            String rawName, String rawDescription, String rawMinimumWeight, String rawMaximumWeight) {
+        Notification notification = new Notification();
+        SectorName.validate(rawName, notification);
+        SectorDescription.validate(rawDescription, notification);
+        ReferenceWeight.validate(rawMinimumWeight, rawMaximumWeight, notification);
+        notification.throwIfAny(FarmErrorCode.VALIDATION_FAILED);
     }
 
     /**
@@ -349,6 +376,11 @@ public final class Sector extends AggregateRoot<SectorId> {
 
     public SectorName name() {
         return name;
+    }
+
+    /** A faixa de peso de referencia das aves, quando o administrador a definiu (feature 005). */
+    public Optional<ReferenceWeight> referenceWeight() {
+        return Optional.ofNullable(referenceWeight);
     }
 
     public Optional<SectorDescription> description() {

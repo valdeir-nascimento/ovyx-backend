@@ -9,6 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
 import io.github.ovyx.farm.domain.FarmErrorCode;
+import io.github.ovyx.farm.domain.valueobject.ReferenceWeight;
 import io.github.ovyx.farm.domain.valueobject.SectorDescription;
 import io.github.ovyx.farm.fixtures.InMemorySectorRepository;
 import io.github.ovyx.shared.domain.FixedClock;
@@ -16,6 +17,7 @@ import io.github.ovyx.shared.domain.Violation;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -44,7 +46,7 @@ class SectorTest {
         String name = "Codornas — Galpão 4";
 
         // when
-        Sector sector = Sector.register(name, "Codornas japonesas em postura, baterias A e B", roster, clock);
+        Sector sector = Sector.register(name, "Codornas japonesas em postura, baterias A e B", null, null, roster, clock);
 
         // then
         assertThat(sector.name().value()).isEqualTo(name);
@@ -63,7 +65,7 @@ class SectorTest {
         String blank = "   ";
 
         // when
-        Sector sector = Sector.register("Codornas — Galpão 4", blank, roster, clock);
+        Sector sector = Sector.register("Codornas — Galpão 4", blank, null, null, roster, clock);
 
         // then
         assertThat(sector.description()).isEmpty();
@@ -77,7 +79,7 @@ class SectorTest {
         String longDescription = "d".repeat(501);
 
         // when
-        List<Violation> violations = violationsOf(() -> Sector.register(shortName, longDescription, roster, clock));
+        List<Violation> violations = violationsOf(() -> Sector.register(shortName, longDescription, null, null, roster, clock));
 
         // then
         assertThat(violations)
@@ -86,7 +88,7 @@ class SectorTest {
                         tuple("name", FarmErrorCode.SECTOR_NAME_TOO_SHORT),
                         tuple(
                                 "description", FarmErrorCode.SECTOR_DESCRIPTION_TOO_LONG));
-        assertThat(refusalCodeOf(() -> Sector.register(shortName, longDescription, roster, clock)))
+        assertThat(refusalCodeOf(() -> Sector.register(shortName, longDescription, null, null, roster, clock)))
                 .isEqualTo(FarmErrorCode.VALIDATION_FAILED);
     }
 
@@ -98,13 +100,13 @@ class SectorTest {
 
         // when
         Map<String, String> details =
-                detailsOf(() -> Sector.register(" codornas — galpão 4 ", null, roster, clock));
+                detailsOf(() -> Sector.register(" codornas — galpão 4 ", null, null, null, roster, clock));
 
         // then
         assertThat(details).containsExactly(Map.entry("name", NAME_IN_USE));
-        assertThat(refusalCodeOf(() -> Sector.register(" codornas — galpão 4 ", null, roster, clock)))
+        assertThat(refusalCodeOf(() -> Sector.register(" codornas — galpão 4 ", null, null, null, roster, clock)))
                 .isEqualTo(FarmErrorCode.SECTOR_NAME_IN_USE);
-        assertThat(refusalMessageOf(() -> Sector.register(" codornas — galpão 4 ", null, roster, clock)))
+        assertThat(refusalMessageOf(() -> Sector.register(" codornas — galpão 4 ", null, null, null, roster, clock)))
                 .isEqualTo(NAME_IN_USE);
     }
 
@@ -115,7 +117,7 @@ class SectorTest {
         saved(aSector().named("Codornas — Galpão 4").inactive());
 
         // when
-        Sector sector = Sector.register("Codornas — Galpão 4", null, roster, clock);
+        Sector sector = Sector.register("Codornas — Galpão 4", null, null, null, roster, clock);
 
         // then
         assertThat(sector.isActive()).isTrue();
@@ -131,7 +133,7 @@ class SectorTest {
 
         // when
         FarmErrorCode code = (FarmErrorCode)
-                refusalCodeOf(() -> Sector.register("Codornas — Galpão 4", longDescription, roster, clock));
+                refusalCodeOf(() -> Sector.register("Codornas — Galpão 4", longDescription, null, null, roster, clock));
 
         // then
         assertThat(code).isEqualTo(FarmErrorCode.VALIDATION_FAILED);
@@ -145,7 +147,7 @@ class SectorTest {
         clock.advance(Duration.ofHours(2));
 
         // when
-        sector.update("Codornas — Galpão 1 (norte)", "Baterias A a D, ala norte", roster, clock);
+        sector.update("Codornas — Galpão 1 (norte)", "Baterias A a D, ala norte", null, null, roster, clock);
 
         // then
         assertThat(sector.name().value()).isEqualTo("Codornas — Galpão 1 (norte)");
@@ -161,7 +163,7 @@ class SectorTest {
         Sector sector = saved(aSector().named("Codornas — Galpão 1"));
 
         // when
-        sector.update("CODORNAS — GALPÃO 1", null, roster, clock);
+        sector.update("CODORNAS — GALPÃO 1", null, null, null, roster, clock);
 
         // then
         assertThat(sector.name().value()).isEqualTo("CODORNAS — GALPÃO 1");
@@ -177,7 +179,7 @@ class SectorTest {
 
         // when
         FarmErrorCode code = (FarmErrorCode) refusalCodeOf(
-                () -> sector.update("poedeiras brancas — galpão 2", null, roster, clock));
+                () -> sector.update("poedeiras brancas — galpão 2", null, null, null, roster, clock));
 
         // then
         assertThat(code).isEqualTo(FarmErrorCode.SECTOR_NAME_IN_USE);
@@ -191,7 +193,7 @@ class SectorTest {
         Sector sector = saved(aSector());
 
         // when
-        Map<String, String> details = detailsOf(() -> sector.update("  ", "d".repeat(501), roster, clock));
+        Map<String, String> details = detailsOf(() -> sector.update("  ", "d".repeat(501), null, null, roster, clock));
 
         // then
         assertThat(details)
@@ -199,5 +201,65 @@ class SectorTest {
                         Map.entry("name", "Informe o nome do setor."),
                         Map.entry("description", "A descrição deve ter no máximo 500 caracteres."));
         assertThat(sector.name().value()).isEqualTo("Codornas — Galpão 1");
+    }
+
+    // ---------------------------------------------------------------- faixa de peso de referência (005)
+
+    @Test
+    @DisplayName("registers a sector with the reference weight range")
+    void givenReferenceWeight_whenRegistering_thenKeepTheRange() {
+        // given
+        String minimum = "155";
+
+        // when
+        Sector sector = Sector.register("Codornas — Galpão 4", null, minimum, "175", roster, clock);
+
+        // then
+        assertThat(sector.referenceWeight()).contains(new ReferenceWeight(155, 175));
+    }
+
+    @Test
+    @DisplayName("refuses an inverted range together with an invalid name, at once")
+    void givenInvertedRangeAndMissingName_whenRegistering_thenRefuseBothAtOnce() {
+        // given
+        String blankName = "  ";
+
+        // when
+        Map<String, String> details = detailsOf(() -> Sector.register(blankName, null, "180", "170", roster, clock));
+
+        // then
+        assertThat(details)
+                .containsOnly(
+                        Map.entry("name", "Informe o nome do setor."),
+                        Map.entry("minimumWeight", "O peso mínimo deve ser menor que o máximo."));
+    }
+
+    @Test
+    @DisplayName("sets the range on update, and clears it when both limits are left out")
+    void givenSector_whenUpdatingWithAndWithoutTheRange_thenSetAndClearIt() {
+        // given
+        Sector sector = saved(aSector());
+
+        // when
+        sector.update(sector.name().value(), null, "155", "175", roster, clock);
+        Optional<ReferenceWeight> set = sector.referenceWeight();
+        sector.update(sector.name().value(), null, null, null, roster, clock);
+
+        // then
+        assertThat(set).contains(new ReferenceWeight(155, 175));
+        assertThat(sector.referenceWeight()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("keeps the range when the update is refused")
+    void givenSectorWithRange_whenTheUpdateIsRefused_thenKeepTheRange() {
+        // given
+        Sector sector = saved(aSector().withReferenceWeight(155, 175));
+
+        // when
+        detailsOf(() -> sector.update(sector.name().value(), null, "155", null, roster, clock));
+
+        // then
+        assertThat(sector.referenceWeight()).contains(new ReferenceWeight(155, 175));
     }
 }

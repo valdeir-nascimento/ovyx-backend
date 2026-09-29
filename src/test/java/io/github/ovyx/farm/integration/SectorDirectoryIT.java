@@ -13,6 +13,7 @@ import io.github.ovyx.farm.domain.model.Sector;
 import io.github.ovyx.farm.domain.model.SectorId;
 import io.github.ovyx.farm.domain.model.Status;
 import io.github.ovyx.farm.domain.port.SectorRepository;
+import io.github.ovyx.farm.domain.valueobject.ReferenceWeight;
 import io.github.ovyx.shared.domain.FixedClock;
 import java.util.Arrays;
 import java.util.List;
@@ -214,5 +215,30 @@ class SectorDirectoryIT extends IntegrationTestSupport {
 
         // then
         assertThat(detail.batteries()).isEmpty();
+    }
+
+    // ---------------------------------------------------------------- faixa de peso de referência (005)
+
+    @Test
+    @DisplayName("reads the reference weight range in the list and in the detail, absent without range")
+    void givenSectorsWithAndWithoutRange_whenReadingThem_thenFindTheRangeOnlyWhereItExists() {
+        // given
+        Sector withRange = saved(aUniqueSector().withReferenceWeight(155, 175).withClock(clock).build());
+        Sector withoutRange = saved(aUniqueSector().withClock(clock).build());
+
+        // when
+        SectorDetail detail = directory.findDetail(withRange.id()).orElseThrow();
+        List<SectorSummary> listed = directory.list(StatusFilter.ACTIVE);
+
+        // then
+        assertThat(detail.referenceWeight()).isEqualTo(new ReferenceWeight(155, 175));
+        assertThat(listed)
+                .filteredOn(summary -> summary.id().equals(withoutRange.id()))
+                .singleElement()
+                .satisfies(summary -> assertThat(summary.referenceWeight()).isNull());
+        assertThat(listed)
+                .filteredOn(summary -> summary.id().equals(withRange.id()))
+                .singleElement()
+                .satisfies(summary -> assertThat(summary.referenceWeight()).isEqualTo(new ReferenceWeight(155, 175)));
     }
 }

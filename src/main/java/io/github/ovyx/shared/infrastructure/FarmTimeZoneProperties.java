@@ -1,4 +1,4 @@
-package io.github.ovyx.production.infrastructure;
+package io.github.ovyx.shared.infrastructure;
 
 import java.time.DateTimeException;
 import java.time.ZoneId;
@@ -6,21 +6,21 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /**
- * Configuracao do contexto production.
+ * O fuso da granja (R-006 da 003; R-004 da 005).
  *
- * @param timeZone o fuso da granja, do banco IANA (R-006): decide o que e "hoje" para a data da coleta.
- *     Sem configuracao, o horario de Brasilia.
+ * @param timeZone o fuso da granja, do banco IANA: decide o que e "hoje" para a data da coleta e para a data
+ *     da pesagem. Sem configuracao, o horario de Brasilia.
  */
-@ConfigurationProperties(prefix = "ovyx.production")
-public record ProductionProperties(@DefaultValue("America/Sao_Paulo") String timeZone) {
+@ConfigurationProperties(prefix = "ovyx.farm")
+public record FarmTimeZoneProperties(@DefaultValue("America/Sao_Paulo") String timeZone) {
 
-    public ProductionProperties {
+    public FarmTimeZoneProperties {
         try {
             ZoneId.of(timeZone);
         } catch (DateTimeException unknown) {
             // Sem encadear a causa: quem le a falha da subida precisa do nome da propriedade, e nao do fuso.
             throw new IllegalArgumentException(
-                    "ovyx.production.time-zone precisa ser um fuso do banco IANA, como America/Sao_Paulo: "
+                    "ovyx.farm.time-zone precisa ser um fuso do banco IANA, como America/Sao_Paulo: "
                             + timeZone);
         }
     }

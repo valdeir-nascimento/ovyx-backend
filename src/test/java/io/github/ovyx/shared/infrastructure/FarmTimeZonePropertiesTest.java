@@ -1,4 +1,4 @@
-package io.github.ovyx.production.infrastructure;
+package io.github.ovyx.shared.infrastructure;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -10,15 +10,15 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * O fuso da granja (R-006): decide o que é "hoje" para a data da coleta. Sem configuração, é o horário
- * de Brasília; um fuso que não existe derruba a subida com o nome da propriedade, em vez de deixar o
- * relatório com a data errada.
+ * O fuso da granja (R-006 da 003; R-004 da 005): decide o que é "hoje" para a data da coleta e para a
+ * data da pesagem. Sem configuração, é o horário de Brasília; um fuso que não existe derruba a subida com
+ * o nome da propriedade, em vez de deixar o relatório e a pesagem com a data errada.
  */
-@DisplayName("ProductionProperties")
-class ProductionPropertiesTest {
+@DisplayName("FarmTimeZoneProperties")
+class FarmTimeZonePropertiesTest {
 
     @Configuration(proxyBeanMethods = false)
-    @EnableConfigurationProperties(ProductionProperties.class)
+    @EnableConfigurationProperties(FarmTimeZoneProperties.class)
     static class Properties {}
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner().withUserConfiguration(Properties.class);
@@ -30,7 +30,7 @@ class ProductionPropertiesTest {
         ApplicationContextRunner withoutConfiguration = runner;
 
         // when / then
-        withoutConfiguration.run(context -> assertThat(context.getBean(ProductionProperties.class).zone())
+        withoutConfiguration.run(context -> assertThat(context.getBean(FarmTimeZoneProperties.class).zone())
                 .isEqualTo(ZoneId.of("America/Sao_Paulo")));
     }
 
@@ -38,10 +38,10 @@ class ProductionPropertiesTest {
     @DisplayName("takes the configured time zone")
     void givenConfiguredTimeZone_whenBinding_thenUseIt() {
         // given
-        ApplicationContextRunner lisbon = runner.withPropertyValues("ovyx.production.time-zone=Europe/Lisbon");
+        ApplicationContextRunner lisbon = runner.withPropertyValues("ovyx.farm.time-zone=Europe/Lisbon");
 
         // when / then
-        lisbon.run(context -> assertThat(context.getBean(ProductionProperties.class).zone())
+        lisbon.run(context -> assertThat(context.getBean(FarmTimeZoneProperties.class).zone())
                 .isEqualTo(ZoneId.of("Europe/Lisbon")));
     }
 
@@ -49,12 +49,12 @@ class ProductionPropertiesTest {
     @DisplayName("refuses to start with a time zone that does not exist, naming the property")
     void givenUnknownTimeZone_whenStarting_thenFailNamingTheProperty() {
         // given
-        ApplicationContextRunner unknown = runner.withPropertyValues("ovyx.production.time-zone=Marte/Olimpo");
+        ApplicationContextRunner unknown = runner.withPropertyValues("ovyx.farm.time-zone=Marte/Olimpo");
 
         // when / then
         unknown.run(context -> {
             assertThat(context).hasFailed();
-            assertThat(context.getStartupFailure()).rootCause().hasMessageContaining("ovyx.production.time-zone");
+            assertThat(context.getStartupFailure()).rootCause().hasMessageContaining("ovyx.farm.time-zone");
         });
     }
 }

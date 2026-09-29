@@ -111,7 +111,9 @@ public interface SectorApi {
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
                 schema = @Schema(implementation = SectorRequest.class),
                 examples = @ExampleObject(
-                    name = "novoSetor", summary = "Galpão de codornas", value = SectorExamples.NEW_SECTOR))))
+                    name = "novoSetor",
+                    summary = "Galpão de codornas, com a faixa de peso",
+                    value = SectorExamples.NEW_SECTOR))))
     @ApiResponse(
         responseCode = "201",
         description = "Setor cadastrado. O cabeçalho `Location` aponta para ele.",
@@ -136,6 +138,10 @@ public interface SectorApi {
                     name = "camposInvalidos",
                     summary = "Nome curto e descrição longa demais",
                     value = SectorExamples.REGISTER_FIELDS_INVALID),
+                @ExampleObject(
+                    name = "faixaInvertida",
+                    summary = "Faixa de peso com o mínimo acima do máximo",
+                    value = SectorExamples.REGISTER_RANGE_INVERTED),
                 @ExampleObject(name = "corpoIlegivel", value = SectorExamples.REGISTER_UNREADABLE_BODY)
             }))
     @ApiResponse(
@@ -252,8 +258,16 @@ public interface SectorApi {
             content = @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
                 schema = @Schema(implementation = SectorRequest.class),
-                examples = @ExampleObject(
-                    name = "edicao", summary = "Nome e descrição corrigidos", value = SectorExamples.EDIT))))
+                examples = {
+                    @ExampleObject(
+                        name = "edicao",
+                        summary = "Nome, descrição e faixa de peso corrigidos",
+                        value = SectorExamples.EDIT),
+                    @ExampleObject(
+                        name = "semFaixa",
+                        summary = "Faixa de peso retirada, sem os dois limites",
+                        value = SectorExamples.EDIT_WITHOUT_RANGE)
+                })))
     @ApiResponse(
         responseCode = "200",
         description = "Setor atualizado",

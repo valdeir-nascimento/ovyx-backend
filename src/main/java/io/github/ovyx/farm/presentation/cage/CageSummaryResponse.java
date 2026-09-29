@@ -1,7 +1,10 @@
 package io.github.ovyx.farm.presentation.cage;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import io.github.ovyx.farm.application.cage.CageLastWeighing;
 import io.github.ovyx.farm.application.cage.CageSummary;
 import io.github.ovyx.farm.domain.model.Status;
+import io.github.ovyx.farm.presentation.weighing.WeighingOverviewResponse.Point;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.UUID;
 
@@ -14,7 +17,10 @@ public record CageSummaryResponse(
         @Schema(example = "B") String battery,
         @Schema(example = "7") int number,
         @Schema(example = "50") int birdCount,
-        @Schema(example = "ACTIVE") Status status) {
+        @Schema(example = "ACTIVE") Status status,
+        @Schema(description = "A última pesagem válida da gaiola; ausente sem pesagem")
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        Point lastWeighing) {
 
     public static CageSummaryResponse from(CageSummary summary) {
         return new CageSummaryResponse(
@@ -24,6 +30,12 @@ public record CageSummaryResponse(
                 summary.battery(),
                 summary.number(),
                 summary.birdCount(),
-                summary.status());
+                summary.status(),
+                lastWeighingOf(summary.lastWeighing()));
+    }
+
+    /** A ultima pesagem valida, publicada como o ponto do grafico (`WeighingPoint`, feature 005). */
+    private static Point lastWeighingOf(CageLastWeighing last) {
+        return last == null ? null : new Point(last.weighedOn(), last.averageWeight());
     }
 }

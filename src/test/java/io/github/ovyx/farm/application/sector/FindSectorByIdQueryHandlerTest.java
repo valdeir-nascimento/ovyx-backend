@@ -31,7 +31,7 @@ class FindSectorByIdQueryHandlerTest {
                 2400,
                 List.of("A", "B", "C", "D"),
                 Instant.parse("2026-09-20T10:15:00Z"),
-                Instant.parse("2026-09-24T17:40:12Z"));
+                Instant.parse("2026-09-24T17:40:12Z"), null);
         directory.holding(galpao);
 
         // when

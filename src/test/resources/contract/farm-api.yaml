@@ -4,7 +4,8 @@ info:
   version: 1.0.0
   description: |
     Setores e gaiolas da granja (`Sector`, `Cage`): a estrutura produtiva onde as features
-    seguintes lançam produção, ração, mortalidade e peso.
+    seguintes lançam produção, ração, mortalidade e peso. Desde a feature 005, também a faixa de peso
+    de referência do setor e as pesagens de cada gaiola (`Weighing`).
 
     **Sessão, erros, CSRF e acesso negado**: iguais aos da API de Identidade
     (`specs/001-auth-foundation/contracts/identity-api.yaml`). Toda operação exige o cookie de
@@ -13,10 +14,12 @@ info:
 
     **Perfis**: qualquer responsável autenticado consulta setores e gaiolas. Cadastrar, editar,
     inativar e reativar é exclusivo do perfil Administrador; o usuário comum recebe o 403 `FORBIDDEN`
-    genérico, sem saber se o setor ou a gaiola existem.
+    genérico, sem saber se o setor ou a gaiola existem. As pesagens são de qualquer responsável:
+    registrar, corrigir e excluir.
 
     **Nada é apagado**: setores e gaiolas são inativados, e continuam consultáveis. Inativar um
     setor inativa junto as gaiolas ativas dele; reativá-lo traz de volta exatamente essas gaiolas.
+    A pesagem excluída fica guardada como anulada, com quem a anulou e quando, e sai das leituras.
 servers:
 - url: http://localhost:8080
   description: Ambiente local
@@ -25,6 +28,8 @@ tags:
   description: Cadastro, consulta, inativação e reativação de setores
 - name: Gaiolas
   description: Cadastro, consulta, inativação e reativação das gaiolas de um setor
+- name: Pesagens
+  description: O peso médio das aves de cada gaiola, semana a semana, e o acompanhamento diante da faixa do setor
 paths:
   /api/v1/sectors:
     get:
@@ -101,10 +106,12 @@ paths:
               $ref: '#/components/schemas/SectorRequest'
             examples:
               novoSetor:
-                summary: Galpão de codornas
+                summary: Galpão de codornas, com a faixa de peso
                 value:
                   name: Codornas — Galpão 4
                   description: Codornas japonesas em postura, baterias A e B
+                  minimumWeight: 155
+                  maximumWeight: 175
       responses:
         '201':
           description: Setor cadastrado. O cabeçalho `Location` aponta para ele.
@@ -127,6 +134,9 @@ paths:
                     status: ACTIVE
                     activeCageCount: 0
                     birdCount: 0
+                    referenceWeight:
+                      minimum: 155
+                      maximum: 175
                     batteries: []
                     createdAt: '2026-09-25T13:02:11Z'
                     updatedAt: '2026-09-25T13:02:11Z'
@@ -148,6 +158,16 @@ paths:
                     details:
                       name: O nome do setor deve ter ao menos 2 caracteres.
                       description: A descrição deve ter no máximo 500 caracteres.
+                faixaInvertida:
+                  summary: Faixa de peso com o mínimo acima do máximo
+                  value:
+                    code: VALIDATION_FAILED
+                    title: Dados inválidos
+                    status: 400
+                    detail: Dados inválidos.
+                    instance: /api/v1/sectors
+                    details:
+                      minimumWeight: O peso mínimo deve ser menor que o máximo.
         '401':
           $ref: '#/components/responses/SessaoInvalida'
         '403':
@@ -224,7 +244,14 @@ paths:
               $ref: '#/components/schemas/SectorRequest'
             examples:
               edicao:
-                summary: Nome e descrição corrigidos
+                summary: Nome, descrição e faixa de peso corrigidos
+                value:
+                  name: Codornas — Galpão 1 (norte)
+                  description: Codornas japonesas em postura, baterias A a D
+                  minimumWeight: 155
+                  maximumWeight: 175
+              semFaixa:
+                summary: Faixa de peso retirada, sem os dois limites
                 value:
                   name: Codornas — Galpão 1 (norte)
                   description: Codornas japonesas em postura, baterias A a D
@@ -659,6 +686,414 @@ paths:
                     instance: /api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/cages/9d2e4f6a-1b3c-4d5e-8f7a-2b4c6d8e0f44/reactivation
         '500':
           $ref: '#/components/responses/ErroInesperado'
+  /api/v1/sectors/{sectorId}/cages/{cageId}/weighings:
+    parameters:
+    - $ref: '#/components/parameters/SectorId'
+    - $ref: '#/components/parameters/CageId'
+    get:
+      tags: [Pesagens]
+      summary: Acompanhar o peso da gaiola
+      description: |
+        A tela Peso médio numa resposta só: a gaiola, o setor com a faixa, a última pesagem, a variação
+        em 4 semanas, a situação diante da faixa, as últimas 12 pesagens para o gráfico e o histórico
+        inteiro. Só as pesagens válidas entram; as anuladas não aparecem. Vale também para a gaiola e o
+        setor inativos.
+      operationId: getWeighingOverview
+      responses:
+        '200':
+          description: O acompanhamento da gaiola; sem pesagem, sem `latest`, `fourWeekChange` e `rangeStatus`, e com o gráfico e o histórico vazios
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeighingOverview'
+              examples:
+                dentroDaFaixa:
+                  summary: Cinco pesagens semanais, a última dentro da faixa
+                  value:
+                    cage:
+                      id: 2a4c6e8a-0b1d-4f3a-9c5e-7a9b1d3f5a66
+                      code: A-01
+                      battery: A
+                      number: 1
+                      birdCount: 48
+                      status: ACTIVE
+                    sector:
+                      id: 3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11
+                      name: Codornas — Galpão 1
+                      status: ACTIVE
+                      referenceWeight:
+                        minimum: 155
+                        maximum: 175
+                    latest:
+                      id: 7b9d1f3a-5c7e-4a9b-8d1f-3a5c7e9b1d77
+                      weighedOn: '2026-09-24'
+                      averageWeight: 161.0
+                    fourWeekChange:
+                      change: 11.0
+                      since: '2026-08-27'
+                    rangeStatus: WITHIN
+                    chart:
+                    - weighedOn: '2026-08-27'
+                      averageWeight: 150.0
+                    - weighedOn: '2026-09-03'
+                      averageWeight: 153.0
+                    - weighedOn: '2026-09-10'
+                      averageWeight: 156.0
+                    - weighedOn: '2026-09-17'
+                      averageWeight: 158.0
+                    - weighedOn: '2026-09-24'
+                      averageWeight: 161.0
+                    history:
+                    - id: 7b9d1f3a-5c7e-4a9b-8d1f-3a5c7e9b1d77
+                      weighedOn: '2026-09-24'
+                      averageWeight: 161.0
+                      change: 3.0
+                      recordedBy:
+                        id: 5e7a9c1e-3b5d-4f7a-9c1e-3b5d7f9a1c22
+                        name: Marina Alves
+                    - id: 6a8c0e2a-4b6d-4f8a-8c0e-2a4b6d8f0a66
+                      weighedOn: '2026-09-17'
+                      averageWeight: 158.0
+                      change: 2.0
+                      recordedBy:
+                        id: 5e7a9c1e-3b5d-4f7a-9c1e-3b5d7f9a1c22
+                        name: Marina Alves
+                      lastCorrectedBy:
+                        id: 1c3e5a7c-9d1f-4b3d-8e5a-7c9d1f3b5e88
+                        name: Administrador
+                    - id: 5f7b9d1f-3a5c-4e7b-9d1f-3a5c7e9b1d55
+                      weighedOn: '2026-09-10'
+                      averageWeight: 156.0
+                      change: 3.0
+                      recordedBy:
+                        id: 5e7a9c1e-3b5d-4f7a-9c1e-3b5d7f9a1c22
+                        name: Marina Alves
+                    - id: 4e6a8c0e-2b4d-4f6a-8c0e-2b4d6f8a0c44
+                      weighedOn: '2026-09-03'
+                      averageWeight: 153.0
+                      change: 3.0
+                      recordedBy:
+                        id: 5e7a9c1e-3b5d-4f7a-9c1e-3b5d7f9a1c22
+                        name: Marina Alves
+                    - id: 3d5f7b9d-1a3c-4e5f-8b9d-1a3c5e7f9b33
+                      weighedOn: '2026-08-27'
+                      averageWeight: 150.0
+                      recordedBy:
+                        id: 5e7a9c1e-3b5d-4f7a-9c1e-3b5d7f9a1c22
+                        name: Marina Alves
+                semPesagem:
+                  summary: Gaiola ainda não pesada, em setor sem faixa
+                  value:
+                    cage:
+                      id: 9d2e4f6a-1b3c-4d5e-8f7a-2b4c6d8e0f44
+                      code: B-07
+                      battery: B
+                      number: 7
+                      birdCount: 50
+                      status: ACTIVE
+                    sector:
+                      id: 3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11
+                      name: Codornas — Galpão 1
+                      status: ACTIVE
+                    chart: []
+                    history: []
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/TrocaDeSenhaPendente'
+        '404':
+          $ref: '#/components/responses/GaiolaNaoEncontrada'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+    post:
+      tags: [Pesagens]
+      summary: Registrar pesagem
+      description: |
+        Registra o peso médio de uma amostra de aves da gaiola numa data. Qualquer responsável registra.
+        O peso pode vir como número ou como texto, com vírgula ou ponto e até uma casa decimal. A data
+        não pode ser futura no fuso da granja, e cada gaiola tem no máximo uma pesagem válida por data.
+      operationId: recordWeighing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeighingRequest'
+            examples:
+              pesagemSemanal:
+                summary: Pesagem semanal da gaiola
+                value:
+                  weighedOn: '2026-09-24'
+                  averageWeight: '161,4'
+      responses:
+        '201':
+          description: Pesagem registrada. O cabeçalho `Location` aponta para ela.
+          headers:
+            Location:
+              schema:
+                type: string
+              example: /api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/cages/2a4c6e8a-0b1d-4f3a-9c5e-7a9b1d3f5a66/weighings/7b9d1f3a-5c7e-4a9b-8d1f-3a5c7e9b1d77
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Weighing'
+              examples:
+                pesagemRegistrada:
+                  summary: A pesagem nova
+                  value:
+                    id: 7b9d1f3a-5c7e-4a9b-8d1f-3a5c7e9b1d77
+                    weighedOn: '2026-09-24'
+                    averageWeight: 161.4
+                    recordedBy:
+                      id: 5e7a9c1e-3b5d-4f7a-9c1e-3b5d7f9a1c22
+                      name: Marina Alves
+                    recordedAt: '2026-09-24T10:12:40Z'
+        '400':
+          description: Campos inválidos, todos de uma vez (`VALIDATION_FAILED`), ou corpo ilegível.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                camposInvalidos:
+                  summary: Peso em branco e data de amanhã
+                  value:
+                    code: VALIDATION_FAILED
+                    title: Dados inválidos
+                    status: 400
+                    detail: Dados inválidos.
+                    instance: /api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/cages/2a4c6e8a-0b1d-4f3a-9c5e-7a9b1d3f5a66/weighings
+                    details:
+                      weighedOn: A data da pesagem não pode ser futura.
+                      averageWeight: Informe o peso médio em gramas.
+                pesoInvalido:
+                  summary: Peso com duas casas decimais
+                  value:
+                    code: VALIDATION_FAILED
+                    title: Dados inválidos
+                    status: 400
+                    detail: Dados inválidos.
+                    instance: /api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/cages/2a4c6e8a-0b1d-4f3a-9c5e-7a9b1d3f5a66/weighings
+                    details:
+                      averageWeight: Informe o peso em gramas, com até uma casa decimal.
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/TrocaDeSenhaPendente'
+        '404':
+          $ref: '#/components/responses/GaiolaNaoEncontrada'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '409':
+          description: A data já tem pesagem na gaiola (`WEIGHING_DATE_IN_USE`), ou a gaiola ou o setor estão inativos (`CAGE_INACTIVE`, `SECTOR_INACTIVE`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                dataOcupada:
+                  summary: Outra pesagem válida na mesma data
+                  value:
+                    code: WEIGHING_DATE_IN_USE
+                    title: Operação recusada
+                    status: 409
+                    detail: A gaiola já tem pesagem em 24/09/2026. Corrija a pesagem desse dia.
+                    instance: /api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/cages/2a4c6e8a-0b1d-4f3a-9c5e-7a9b1d3f5a66/weighings
+                    details:
+                      weighedOn: A gaiola já tem pesagem em 24/09/2026. Corrija a pesagem desse dia.
+                gaiolaInativa:
+                  summary: Pesagem de gaiola inativa
+                  value:
+                    code: CAGE_INACTIVE
+                    title: Operação recusada
+                    status: 409
+                    detail: A gaiola está inativa; as pesagens dela são só para consulta.
+                    instance: /api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/cages/2a4c6e8a-0b1d-4f3a-9c5e-7a9b1d3f5a66/weighings
+        '415':
+          $ref: '#/components/responses/RequisicaoNaoSuportada'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+  /api/v1/sectors/{sectorId}/cages/{cageId}/weighings/{weighingId}:
+    parameters:
+    - $ref: '#/components/parameters/SectorId'
+    - $ref: '#/components/parameters/CageId'
+    - $ref: '#/components/parameters/WeighingId'
+    get:
+      tags: [Pesagens]
+      summary: Consultar pesagem
+      description: Uma pesagem válida da gaiola, com quem a registrou e quem a corrigiu por último. A anulada responde 404.
+      operationId: findWeighing
+      responses:
+        '200':
+          description: Pesagem encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Weighing'
+              examples:
+                pesagemCorrigida:
+                  summary: Pesagem corrigida pelo administrador
+                  value:
+                    id: 6a8c0e2a-4b6d-4f8a-8c0e-2a4b6d8f0a66
+                    weighedOn: '2026-09-17'
+                    averageWeight: 158.0
+                    recordedBy:
+                      id: 5e7a9c1e-3b5d-4f7a-9c1e-3b5d7f9a1c22
+                      name: Marina Alves
+                    recordedAt: '2026-09-17T09:40:05Z'
+                    lastCorrectedBy:
+                      id: 1c3e5a7c-9d1f-4b3d-8e5a-7c9d1f3b5e88
+                      name: Administrador
+                    lastCorrectedAt: '2026-09-18T11:02:37Z'
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/TrocaDeSenhaPendente'
+        '404':
+          $ref: '#/components/responses/PesagemNaoEncontrada'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+    put:
+      tags: [Pesagens]
+      summary: Corrigir pesagem
+      description: Troca a data e o peso, com as regras do registro, e marca quem corrigiu e quando. A anulada não se corrige.
+      operationId: correctWeighing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeighingRequest'
+            examples:
+              pesoCorrigido:
+                summary: Peso digitado errado
+                value:
+                  weighedOn: '2026-09-24'
+                  averageWeight: 161
+      responses:
+        '200':
+          description: Pesagem corrigida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Weighing'
+              examples:
+                pesagemCorrigida:
+                  summary: O peso de 116 g corrigido para 161 g
+                  value:
+                    id: 7b9d1f3a-5c7e-4a9b-8d1f-3a5c7e9b1d77
+                    weighedOn: '2026-09-24'
+                    averageWeight: 161.0
+                    recordedBy:
+                      id: 5e7a9c1e-3b5d-4f7a-9c1e-3b5d7f9a1c22
+                      name: Marina Alves
+                    recordedAt: '2026-09-24T10:12:40Z'
+                    lastCorrectedBy:
+                      id: 5e7a9c1e-3b5d-4f7a-9c1e-3b5d7f9a1c22
+                      name: Marina Alves
+                    lastCorrectedAt: '2026-09-24T10:15:02Z'
+        '400':
+          description: Campos inválidos, todos de uma vez (`VALIDATION_FAILED`), ou corpo ilegível.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                pesoForaDaFaixa:
+                  summary: Peso acima de 10.000 g
+                  value:
+                    code: VALIDATION_FAILED
+                    title: Dados inválidos
+                    status: 400
+                    detail: Dados inválidos.
+                    instance: /api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/cages/2a4c6e8a-0b1d-4f3a-9c5e-7a9b1d3f5a66/weighings/7b9d1f3a-5c7e-4a9b-8d1f-3a5c7e9b1d77
+                    details:
+                      averageWeight: O peso médio deve ficar entre 1 e 10.000 gramas.
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/TrocaDeSenhaPendente'
+        '404':
+          $ref: '#/components/responses/PesagemNaoEncontrada'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '409':
+          description: A nova data já tem outra pesagem na gaiola (`WEIGHING_DATE_IN_USE`), ou a gaiola ou o setor estão inativos (`CAGE_INACTIVE`, `SECTOR_INACTIVE`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                setorInativo:
+                  summary: Correção em setor inativo
+                  value:
+                    code: SECTOR_INACTIVE
+                    title: Operação recusada
+                    status: 409
+                    detail: O setor está inativo; as pesagens dele são só para consulta.
+                    instance: /api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/cages/2a4c6e8a-0b1d-4f3a-9c5e-7a9b1d3f5a66/weighings/7b9d1f3a-5c7e-4a9b-8d1f-3a5c7e9b1d77
+        '415':
+          $ref: '#/components/responses/RequisicaoNaoSuportada'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+  /api/v1/sectors/{sectorId}/cages/{cageId}/weighings/{weighingId}/voiding:
+    parameters:
+    - $ref: '#/components/parameters/SectorId'
+    - $ref: '#/components/parameters/CageId'
+    - $ref: '#/components/parameters/WeighingId'
+    post:
+      tags: [Pesagens]
+      summary: Excluir pesagem
+      description: |
+        A pesagem sai do histórico, do gráfico e da última pesagem da gaiola, mas não é apagada: fica
+        guardada como anulada, com quem a anulou e quando. A data dela fica livre para uma nova pesagem.
+        Anular de novo uma pesagem já anulada não muda nada.
+      operationId: voidWeighing
+      responses:
+        '204':
+          description: Pesagem anulada
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/TrocaDeSenhaPendente'
+        '404':
+          description: Setor, gaiola ou pesagem inexistente, pesagem de outra gaiola, ou identificador malformado (`SECTOR_NOT_FOUND`, `CAGE_NOT_FOUND`, `WEIGHING_NOT_FOUND`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                pesagemNaoEncontrada:
+                  summary: Pesagem que não é desta gaiola
+                  value:
+                    code: WEIGHING_NOT_FOUND
+                    title: Não encontrado
+                    status: 404
+                    detail: Pesagem não encontrada.
+                    instance: /api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/cages/2a4c6e8a-0b1d-4f3a-9c5e-7a9b1d3f5a66/weighings/pesagem-24-09/voiding
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '409':
+          description: A gaiola ou o setor estão inativos (`CAGE_INACTIVE`, `SECTOR_INACTIVE`), e as pesagens só se consultam.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                gaiolaInativa:
+                  summary: Exclusão em gaiola inativa
+                  value:
+                    code: CAGE_INACTIVE
+                    title: Operação recusada
+                    status: 409
+                    detail: A gaiola está inativa; as pesagens dela são só para consulta.
+                    instance: /api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/cages/2a4c6e8a-0b1d-4f3a-9c5e-7a9b1d3f5a66/weighings/7b9d1f3a-5c7e-4a9b-8d1f-3a5c7e9b1d77/voiding
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
 components:
   securitySchemes:
     sessionCookie:
@@ -685,6 +1120,15 @@ components:
         type: string
         format: uuid
       example: 9d2e4f6a-1b3c-4d5e-8f7a-2b4c6d8e0f44
+    WeighingId:
+      name: weighingId
+      in: path
+      required: true
+      description: Identificador da pesagem.
+      schema:
+        type: string
+        format: uuid
+      example: 7b9d1f3a-5c7e-4a9b-8d1f-3a5c7e9b1d77
   responses:
     SessaoInvalida:
       description: Sem sessão válida (`UNAUTHENTICATED`), ou responsável inativado com a sessão aberta (`CARETAKER_UNAVAILABLE`).
@@ -769,6 +1213,21 @@ components:
                 status: 404
                 detail: Gaiola não encontrada.
                 instance: /api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/cages/b-07
+    PesagemNaoEncontrada:
+      description: Setor, gaiola ou pesagem inexistente, pesagem anulada ou de outra gaiola, ou identificador malformado (`SECTOR_NOT_FOUND`, `CAGE_NOT_FOUND`, `WEIGHING_NOT_FOUND`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            pesagemNaoEncontrada:
+              summary: Pesagem anulada
+              value:
+                code: WEIGHING_NOT_FOUND
+                title: Não encontrado
+                status: 404
+                detail: Pesagem não encontrada.
+                instance: /api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/cages/2a4c6e8a-0b1d-4f3a-9c5e-7a9b1d3f5a66/weighings/7b9d1f3a-5c7e-4a9b-8d1f-3a5c7e9b1d77
     FiltroInvalido:
       description: Página fora do permitido ou situação desconhecida (`VALIDATION_FAILED`). Situação desconhecida traz o nome do parâmetro em `details`.
       content:
@@ -840,6 +1299,18 @@ components:
           maxLength: 500
           description: Espécie, linhagem, galpão ou o que ajude a reconhecer o setor
           example: Codornas japonesas em postura, baterias A e B
+        minimumWeight:
+          type: integer
+          minimum: 1
+          maximum: 10000
+          description: Peso mínimo de referência das aves, em gramas. Vai junto do máximo; sem os dois, o setor fica sem faixa.
+          example: 155
+        maximumWeight:
+          type: integer
+          minimum: 1
+          maximum: 10000
+          description: Peso máximo de referência das aves, em gramas, maior que o mínimo
+          example: 175
     SectorSummary:
       type: object
       description: Setor na lista, com os totais das gaiolas ativas
@@ -865,6 +1336,8 @@ components:
           type: integer
           description: Soma das aves das gaiolas ativas
           example: 2400
+        referenceWeight:
+          $ref: '#/components/schemas/ReferenceWeight'
     SectorDetail:
       allOf:
       - $ref: '#/components/schemas/SectorSummary'
@@ -936,6 +1409,8 @@ components:
           example: 50
         status:
           $ref: '#/components/schemas/Status'
+        lastWeighing:
+          $ref: '#/components/schemas/WeighingPoint'
     CageDetail:
       allOf:
       - $ref: '#/components/schemas/CageSummary'
@@ -971,6 +1446,201 @@ components:
         totalPages:
           type: integer
           example: 3
+    ReferenceWeight:
+      type: object
+      description: Faixa de peso de referência das aves do setor, em gramas, com os limites incluídos; ausente sem faixa
+      required: [minimum, maximum]
+      properties:
+        minimum:
+          type: integer
+          example: 155
+        maximum:
+          type: integer
+          example: 175
+    WeightRangeStatus:
+      type: string
+      enum: [WITHIN, OUTSIDE, NO_RANGE]
+      description: A última pesagem diante da faixa do setor; `NO_RANGE` quando o setor não tem faixa.
+    Actor:
+      type: object
+      description: Quem fez a operação, como estava na sessão
+      required: [id, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 5e7a9c1e-3b5d-4f7a-9c1e-3b5d7f9a1c22
+        name:
+          type: string
+          example: Marina Alves
+    WeighingRequest:
+      type: object
+      description: Registro ou correção de pesagem. O peso pode vir como número ou como texto, com vírgula ou ponto.
+      required: [weighedOn, averageWeight]
+      properties:
+        weighedOn:
+          type: string
+          format: date
+          description: Dia da pesagem, não futuro no fuso da granja
+          example: '2026-09-24'
+        averageWeight:
+          type: number
+          minimum: 1
+          maximum: 10000
+          description: Peso médio da amostra, em gramas, com até uma casa decimal
+          example: 161.4
+    WeighingPoint:
+      type: object
+      description: Uma pesagem resumida à data e ao peso
+      required: [weighedOn, averageWeight]
+      properties:
+        weighedOn:
+          type: string
+          format: date
+          example: '2026-09-24'
+        averageWeight:
+          type: number
+          description: Peso médio, em gramas, com uma casa
+          example: 161.0
+    Weighing:
+      type: object
+      description: Uma pesagem válida da gaiola
+      required: [id, weighedOn, averageWeight, recordedBy, recordedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 7b9d1f3a-5c7e-4a9b-8d1f-3a5c7e9b1d77
+        weighedOn:
+          type: string
+          format: date
+          example: '2026-09-24'
+        averageWeight:
+          type: number
+          description: Peso médio da amostra, em gramas, com uma casa
+          example: 161.4
+        recordedBy:
+          $ref: '#/components/schemas/Actor'
+        recordedAt:
+          type: string
+          format: date-time
+          example: '2026-09-24T10:12:40Z'
+        lastCorrectedBy:
+          $ref: '#/components/schemas/Actor'
+        lastCorrectedAt:
+          type: string
+          format: date-time
+          example: '2026-09-24T10:15:02Z'
+    WeighingHistoryEntry:
+      type: object
+      description: Uma pesagem no histórico, com a variação sobre a anterior
+      required: [id, weighedOn, averageWeight, recordedBy]
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 7b9d1f3a-5c7e-4a9b-8d1f-3a5c7e9b1d77
+        weighedOn:
+          type: string
+          format: date
+          example: '2026-09-24'
+        averageWeight:
+          type: number
+          example: 161.0
+        change:
+          type: number
+          description: Peso desta pesagem menos o da anterior, em gramas, com uma casa; ausente na primeira
+          example: 3.0
+        recordedBy:
+          $ref: '#/components/schemas/Actor'
+        lastCorrectedBy:
+          $ref: '#/components/schemas/Actor'
+    FourWeekChange:
+      type: object
+      description: A última pesagem menos a pesagem mais recente feita até 28 dias antes dela
+      required: [change, since]
+      properties:
+        change:
+          type: number
+          description: A variação, em gramas, com uma casa
+          example: 11.0
+        since:
+          type: string
+          format: date
+          description: O dia da pesagem de referência
+          example: '2026-08-27'
+    WeighingOverview:
+      type: object
+      description: O acompanhamento do peso da gaiola, para a tela Peso médio
+      required: [cage, sector, chart, history]
+      properties:
+        cage:
+          type: object
+          required: [id, code, battery, number, birdCount, status]
+          properties:
+            id:
+              type: string
+              format: uuid
+              example: 2a4c6e8a-0b1d-4f3a-9c5e-7a9b1d3f5a66
+            code:
+              type: string
+              example: A-01
+            battery:
+              type: string
+              example: A
+            number:
+              type: integer
+              example: 1
+            birdCount:
+              type: integer
+              example: 48
+            status:
+              $ref: '#/components/schemas/Status'
+        sector:
+          type: object
+          required: [id, name, status]
+          properties:
+            id:
+              type: string
+              format: uuid
+              example: 3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11
+            name:
+              type: string
+              example: Codornas — Galpão 1
+            status:
+              $ref: '#/components/schemas/Status'
+            referenceWeight:
+              $ref: '#/components/schemas/ReferenceWeight'
+        latest:
+          type: object
+          description: A última pesagem válida; ausente sem pesagem
+          required: [id, weighedOn, averageWeight]
+          properties:
+            id:
+              type: string
+              format: uuid
+              example: 7b9d1f3a-5c7e-4a9b-8d1f-3a5c7e9b1d77
+            weighedOn:
+              type: string
+              format: date
+              example: '2026-09-24'
+            averageWeight:
+              type: number
+              example: 161.0
+        fourWeekChange:
+          $ref: '#/components/schemas/FourWeekChange'
+        rangeStatus:
+          $ref: '#/components/schemas/WeightRangeStatus'
+        chart:
+          type: array
+          description: As últimas 12 pesagens válidas, da mais antiga para a mais recente
+          items:
+            $ref: '#/components/schemas/WeighingPoint'
+        history:
+          type: array
+          description: Todas as pesagens válidas, da mais recente para a mais antiga
+          items:
+            $ref: '#/components/schemas/WeighingHistoryEntry'
     Problem:
       type: object
       description: RFC 9457 Problem Details, com a extensão `code` do erro de aplicação. Igual ao da API de Identidade.

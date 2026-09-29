@@ -26,7 +26,8 @@ public final class FarmRefusals {
             return ErrorType.VALIDATION;
         }
         if (FarmErrorCode.SECTOR_NOT_FOUND.equals(refusal.errorCode())
-                || FarmErrorCode.CAGE_NOT_FOUND.equals(refusal.errorCode())) {
+                || FarmErrorCode.CAGE_NOT_FOUND.equals(refusal.errorCode())
+                || FarmErrorCode.WEIGHING_NOT_FOUND.equals(refusal.errorCode())) {
             return ErrorType.NOT_FOUND;
         }
         return ErrorType.CONFLICT;
@@ -36,6 +37,15 @@ public final class FarmRefusals {
     public static ApplicationError sectorNotFound() {
         return ApplicationError.of(
                 ErrorType.NOT_FOUND, FarmErrorCode.SECTOR_NOT_FOUND.code(), "Setor não encontrado.");
+    }
+
+    /**
+     * O mesmo para a pesagem que nao existe, a de outra gaiola, a anulada e o identificador malformado
+     * (feature 005).
+     */
+    public static ApplicationError weighingNotFound() {
+        return ApplicationError.of(
+                ErrorType.NOT_FOUND, FarmErrorCode.WEIGHING_NOT_FOUND.code(), "Pesagem não encontrada.");
     }
 
     /** O mesmo para a gaiola que nao existe, a de outro setor e o identificador malformado. */

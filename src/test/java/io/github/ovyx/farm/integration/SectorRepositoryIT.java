@@ -10,6 +10,7 @@ import io.github.ovyx.farm.domain.model.CageId;
 import io.github.ovyx.farm.domain.model.Sector;
 import io.github.ovyx.farm.domain.model.SectorId;
 import io.github.ovyx.farm.domain.port.SectorRepository;
+import io.github.ovyx.farm.domain.valueobject.ReferenceWeight;
 import io.github.ovyx.farm.domain.valueobject.SectorDescription;
 import io.github.ovyx.farm.domain.valueobject.SectorName;
 import io.github.ovyx.shared.domain.FixedClock;
@@ -93,7 +94,7 @@ class SectorRepositoryIT extends IntegrationTestSupport {
         Sector sector = saved(aUniqueSector().withRoster(repository).withClock(clock).build());
         long before = (long) rowOf(sector.id()).get("version");
         Sector loaded = repository.findById(sector.id()).orElseThrow();
-        loaded.update(loaded.name().value() + " (norte)", null, repository, clock);
+        loaded.update(loaded.name().value() + " (norte)", null, null, null, repository, clock);
 
         // when
         repository.save(loaded);
@@ -224,5 +225,28 @@ class SectorRepositoryIT extends IntegrationTestSupport {
 
         // then
         assertThatThrownBy(savingTheSecond).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    // ---------------------------------------------------------------- faixa de peso de referência (005)
+
+    @Test
+    @DisplayName("saves the reference weight range and reads it back, and clears it as two nulls")
+    void givenSectorWithRange_whenSavingClearingAndReadingBack_thenKeepAndClearTheRange() {
+        // given
+        Sector sector = saved(aUniqueSector().withReferenceWeight(155, 175).withRoster(repository).withClock(clock).build());
+        ReferenceWeight kept = repository.findById(sector.id()).orElseThrow().referenceWeight().orElseThrow();
+
+        // when
+        Sector read = repository.findById(sector.id()).orElseThrow();
+        read.update(read.name().value(), null, null, null, repository, clock);
+        repository.save(read);
+
+        // then
+        assertThat(kept).isEqualTo(new ReferenceWeight(155, 175));
+        assertThat(repository.findById(sector.id()).orElseThrow().referenceWeight()).isEmpty();
+        assertThat(jdbc.queryForMap(
+                        "select reference_weight_min, reference_weight_max from sector where id = ?", sector.id().value()))
+                .containsEntry("reference_weight_min", null)
+                .containsEntry("reference_weight_max", null);
     }
 }

@@ -453,7 +453,12 @@ class ManagementPortIT extends IntegrationTestSupport {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {SIGN_OUT + "/responses/204", PASSWORD + "/responses/204"})
+    @ValueSource(
+            strings = {
+                SIGN_OUT + "/responses/204",
+                PASSWORD + "/responses/204",
+                "/paths/~1api~1v1~1sectors~1{sectorId}~1cages~1{cageId}~1weighings~1{weighingId}~1voiding/post/responses/204"
+            })
     @DisplayName("no operation announces a body where there is none")
     void givenPublishedDocument_whenReadingA204Response_thenAnnounceNoBody(String pointer) throws Exception {
         // given

@@ -7,6 +7,7 @@ import io.github.ovyx.farm.domain.model.SectorId;
 import io.github.ovyx.farm.domain.valueobject.Battery;
 import io.github.ovyx.farm.domain.valueobject.BirdCount;
 import io.github.ovyx.farm.domain.valueobject.CageNumber;
+import io.github.ovyx.farm.domain.valueobject.ReferenceWeight;
 import io.github.ovyx.farm.domain.valueobject.SectorDescription;
 import io.github.ovyx.farm.domain.valueobject.SectorName;
 import java.util.Map;
@@ -30,6 +31,8 @@ final class SectorRecordMapper {
                 sector.id().value(),
                 sector.name().value(),
                 descriptionOf(sector),
+                minimumOf(sector),
+                maximumOf(sector),
                 sector.status(),
                 sector.createdAt(),
                 sector.updatedAt());
@@ -46,9 +49,17 @@ final class SectorRecordMapper {
     static boolean applyTo(SectorRecord record, Sector sector) {
         boolean sectorChanged = !Objects.equals(record.getName(), sector.name().value())
                 || !Objects.equals(record.getDescription(), descriptionOf(sector))
+                || !Objects.equals(record.getReferenceWeightMin(), minimumOf(sector))
+                || !Objects.equals(record.getReferenceWeightMax(), maximumOf(sector))
                 || record.getStatus() != sector.status()
                 || !Objects.equals(record.getUpdatedAt(), sector.updatedAt());
-        record.apply(sector.name().value(), descriptionOf(sector), sector.status(), sector.updatedAt());
+        record.apply(
+                sector.name().value(),
+                descriptionOf(sector),
+                minimumOf(sector),
+                maximumOf(sector),
+                sector.status(),
+                sector.updatedAt());
 
         Map<UUID, CageRecord> stored =
                 record.getCages().stream().collect(Collectors.toMap(CageRecord::getId, Function.identity()));
@@ -76,10 +87,21 @@ final class SectorRecordMapper {
                 SectorId.of(record.getId()),
                 new SectorName(record.getName()),
                 record.getDescription() == null ? null : new SectorDescription(record.getDescription()),
+                record.getReferenceWeightMin() == null
+                        ? null
+                        : new ReferenceWeight(record.getReferenceWeightMin(), record.getReferenceWeightMax()),
                 record.getStatus(),
                 record.getCages().stream().map(SectorRecordMapper::toDomain).toList(),
                 record.getCreatedAt(),
                 record.getUpdatedAt());
+    }
+
+    private static Integer minimumOf(Sector sector) {
+        return sector.referenceWeight().map(ReferenceWeight::minimum).orElse(null);
+    }
+
+    private static Integer maximumOf(Sector sector) {
+        return sector.referenceWeight().map(ReferenceWeight::maximum).orElse(null);
     }
 
     private static CageRecord toRecord(Cage cage) {

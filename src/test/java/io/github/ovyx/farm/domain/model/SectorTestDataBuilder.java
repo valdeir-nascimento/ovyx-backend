@@ -4,6 +4,7 @@ import io.github.ovyx.farm.domain.port.SectorRoster;
 import io.github.ovyx.farm.domain.valueobject.Battery;
 import io.github.ovyx.farm.domain.valueobject.BirdCount;
 import io.github.ovyx.farm.domain.valueobject.CageNumber;
+import io.github.ovyx.farm.domain.valueobject.ReferenceWeight;
 import io.github.ovyx.farm.domain.valueobject.SectorDescription;
 import io.github.ovyx.farm.domain.valueobject.SectorName;
 import io.github.ovyx.shared.domain.FixedClock;
@@ -30,6 +31,8 @@ public final class SectorTestDataBuilder {
     private String name = "Codornas — Galpão 1";
     private String description = "Codornas japonesas em postura, baterias A a D";
     private boolean inactive;
+    private Integer minimumWeight;
+    private Integer maximumWeight;
     private final List<CageSpec> cages = new ArrayList<>();
     private SectorRoster roster = EMPTY_ROSTER;
     private Clock clock = FixedClock.at("2026-09-20T10:15:00Z");
@@ -52,6 +55,13 @@ public final class SectorTestDataBuilder {
 
     public SectorTestDataBuilder describedAs(String description) {
         this.description = description;
+        return this;
+    }
+
+    /** A faixa de peso de referência, em gramas (feature 005). */
+    public SectorTestDataBuilder withReferenceWeight(int minimum, int maximum) {
+        this.minimumWeight = minimum;
+        this.maximumWeight = maximum;
         return this;
     }
 
@@ -84,16 +94,21 @@ public final class SectorTestDataBuilder {
 
     public Sector build() {
         if (!inactive && cages.isEmpty()) {
-            return Sector.register(name, description, roster, clock);
+            return Sector.register(name, description, textOf(minimumWeight), textOf(maximumWeight), roster, clock);
         }
         return Sector.restore(
                 SectorId.generate(),
                 SectorName.of(name),
                 SectorDescription.optionalOf(description).orElse(null),
+                minimumWeight == null ? null : new ReferenceWeight(minimumWeight, maximumWeight),
                 inactive ? Status.INACTIVE : Status.ACTIVE,
                 cages.stream().map(this::restored).toList(),
                 clock.instant(),
                 clock.instant());
+    }
+
+    private static String textOf(Integer grams) {
+        return grams == null ? null : String.valueOf(grams);
     }
 
     private Cage restored(CageSpec spec) {
