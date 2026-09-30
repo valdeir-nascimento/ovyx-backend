@@ -30,6 +30,12 @@ info:
     **Painel**: só leitura, o mesmo para os dois perfis. "Hoje" é o dia da granja, no fuso dela. Os
     números são os mesmos dos relatórios; o custo considera só os dias com a ração completa, e o dia
     sem relatório fica sem valor, e não com zero.
+
+    **Planilhas**: o painel de um setor e os relatórios de um intervalo também saem como planilha do
+    Excel (.xlsx), com os mesmos números da tela. Quantidades, valores em reais, porcentagens e datas
+    são números e datas na planilha, e não texto; o valor sem dados fica em branco. Texto digitado por
+    alguém sai sempre como texto, nunca como fórmula. A recusa de uma exportação é a mesma de qualquer
+    operação: `application/problem+json`, e não uma planilha.
 servers:
 - url: http://localhost:8080
   description: Ambiente local
@@ -349,6 +355,49 @@ paths:
           $ref: '#/components/responses/FormatoIndisponivel'
         '500':
           $ref: '#/components/responses/ErroInesperado'
+  /api/v1/sectors/{sectorId}/dashboard/export:
+    parameters:
+    - $ref: '#/components/parameters/SectorId'
+    get:
+      tags:
+      - Painel
+      summary: Exportar o painel de um setor para planilha
+      description: 'O painel do setor no período, como planilha do Excel: os quatro indicadores com o valor, o anterior e a variação; os 7 dias do gráfico; a classificação dos ovos; os alertas e as pendências abertos; e os 4 relatórios mais recentes. Os números são os da consulta do painel. O arquivo se chama `painel-<setor>-<data de hoje da granja>.xlsx`.'
+      operationId: exportSectorDashboard
+      parameters:
+      - name: period
+        in: query
+        required: false
+        description: O período do painel exportado. Sem ele, vale `TODAY`.
+        schema:
+          $ref: '#/components/schemas/DashboardPeriod'
+        example: LAST_7_DAYS
+      responses:
+        '200':
+          description: Planilha do painel
+          headers:
+            Content-Disposition:
+              description: O nome do arquivo, para salvar. O nome do setor sai simplificado, sem acento e com hífens.
+              schema:
+                type: string
+              example: attachment; filename="painel-codornas-galpao-1-28-09-2026.xlsx"
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/PeriodoInvalido'
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/TrocaDeSenhaPendente'
+        '404':
+          $ref: '#/components/responses/SetorDoPainelNaoEncontrado'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
   /api/v1/sectors/{sectorId}/daily-reports:
     parameters:
     - $ref: '#/components/parameters/SectorId'
@@ -598,6 +647,58 @@ paths:
                     instance: /api/v1/sectors/5c8d2e4f-6a1b-4c3d-9e7f-0a2b4c6d8e33/daily-reports
         '415':
           $ref: '#/components/responses/RequisicaoNaoSuportada'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+  /api/v1/sectors/{sectorId}/daily-reports/export:
+    parameters:
+    - $ref: '#/components/parameters/SectorId'
+    get:
+      tags:
+      - Relatórios diários
+      summary: Exportar os relatórios de um intervalo para planilha
+      description: 'Os relatórios do setor com a data de coleta entre `from` e `to`, inclusive, como planilha do Excel. A aba "Relatórios" tem uma linha por relatório, do mais antigo para o mais novo, e a linha de totais do intervalo; a aba "Gaiolas", uma linha por gaiola de cada relatório. Sem relatório no intervalo, a planilha sai com o cabeçalho e o aviso. Setor inativo continua exportável. O arquivo se chama `relatorios-<setor>-<de>-a-<ate>.xlsx`.'
+      operationId: exportDailyReports
+      parameters:
+      - name: from
+        in: query
+        required: true
+        description: O primeiro dia de coleta do intervalo, inclusive.
+        schema:
+          type: string
+          format: date
+        example: '2026-09-01'
+      - name: to
+        in: query
+        required: true
+        description: O último dia de coleta do intervalo, inclusive. O intervalo tem no máximo 366 dias.
+        schema:
+          type: string
+          format: date
+        example: '2026-09-28'
+      responses:
+        '200':
+          description: Planilha dos relatórios do intervalo
+          headers:
+            Content-Disposition:
+              description: O nome do arquivo, para salvar. O nome do setor sai simplificado, sem acento e com hífens.
+              schema:
+                type: string
+              example: attachment; filename="relatorios-codornas-galpao-1-01-09-2026-a-28-09-2026.xlsx"
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/IntervaloInvalido'
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/TrocaDeSenhaPendente'
+        '404':
+          $ref: '#/components/responses/SetorNaoEncontrado'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
         '500':
           $ref: '#/components/responses/ErroInesperado'
   /api/v1/sectors/{sectorId}/daily-reports/suggestion:
@@ -1743,6 +1844,54 @@ components:
                 instance: /api/v1/sectors/5c8d2e4f-6a1b-4c3d-9e7f-0a2b4c6d8e33/daily-reports
                 details:
                   parameter: collectionDate
+    IntervaloInvalido:
+      description: Intervalo recusado (`VALIDATION_FAILED`). As falhas das duas datas vêm todas de uma vez em `details`; data fora do formato AAAA-MM-DD traz o nome do parâmetro.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            datasFaltando:
+              summary: Sem as duas datas
+              value:
+                code: VALIDATION_FAILED
+                title: Dados inválidos
+                status: 400
+                detail: A requisição contém campos inválidos.
+                instance: /api/v1/sectors/5c8d2e4f-6a1b-4c3d-9e7f-0a2b4c6d8e33/daily-reports/export
+                details:
+                  from: Informe a data inicial.
+                  to: Informe a data final.
+            datasInvertidas:
+              summary: A data inicial depois da final
+              value:
+                code: VALIDATION_FAILED
+                title: Dados inválidos
+                status: 400
+                detail: A requisição contém campos inválidos.
+                instance: /api/v1/sectors/5c8d2e4f-6a1b-4c3d-9e7f-0a2b4c6d8e33/daily-reports/export
+                details:
+                  to: A data final deve ser igual ou posterior à inicial.
+            intervaloLongo:
+              summary: Mais de 366 dias
+              value:
+                code: VALIDATION_FAILED
+                title: Dados inválidos
+                status: 400
+                detail: A requisição contém campos inválidos.
+                instance: /api/v1/sectors/5c8d2e4f-6a1b-4c3d-9e7f-0a2b4c6d8e33/daily-reports/export
+                details:
+                  to: O intervalo deve ter no máximo 366 dias.
+            dataInvalida:
+              summary: Data fora do formato AAAA-MM-DD
+              value:
+                code: VALIDATION_FAILED
+                title: Dados inválidos
+                status: 400
+                detail: Valor inválido para o parâmetro 'from'.
+                instance: /api/v1/sectors/5c8d2e4f-6a1b-4c3d-9e7f-0a2b4c6d8e33/daily-reports/export
+                details:
+                  parameter: from
     PeriodoInvalido:
       description: Período fora de `TODAY`, `YESTERDAY` e `LAST_7_DAYS` (`VALIDATION_FAILED`), com o nome do parâmetro em `details`.
       content:

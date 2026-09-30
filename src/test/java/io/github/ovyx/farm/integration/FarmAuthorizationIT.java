@@ -199,6 +199,7 @@ class FarmAuthorizationIT extends IntegrationTestSupport {
         "POST, /api/v1/sectors",
         "PUT, {sector}",
         "GET, {sector}/cages",
+        "GET, {sector}/cages/export",
         "GET, {cage}",
         "POST, {sector}/cages",
         "PUT, {cage}",
@@ -232,8 +233,8 @@ class FarmAuthorizationIT extends IntegrationTestSupport {
     }
 
     @ParameterizedTest(name = "{0}")
-    @CsvSource({"{sector}/cages", "{cage}"})
-    @DisplayName("lets a common user search and find the cages of a sector")
+    @CsvSource({"{sector}/cages", "{sector}/cages/export", "{cage}"})
+    @DisplayName("lets a common user search, export and find the cages of a sector")
     void givenCommonUser_whenReadingTheCages_thenAnswerOk(String route) throws Exception {
         // given
         MockHttpServletRequestBuilder request = request(HttpMethod.GET, route);
@@ -398,6 +399,19 @@ class FarmAuthorizationIT extends IntegrationTestSupport {
                 .containsEntry("title", "Acesso negado")
                 .containsEntry("detail", "Você não tem permissão para executar esta operação.")
                 .containsEntry("instance", path);
+    }
+
+    @Test
+    @DisplayName("holds a common user who owes the provisional password before the export of the cages (007)")
+    void givenCommonUserOwingThePasswordChange_whenExportingTheCages_thenRequireThePasswordChange() throws Exception {
+        // given
+        Cookie[] owing = sessions.commonUserOwingThePasswordChange().cookies();
+
+        // when
+        ResultActions response = mockMvc.perform(request(HttpMethod.GET, "{sector}/cages/export").cookie(owing));
+
+        // then
+        response.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("PASSWORD_CHANGE_REQUIRED"));
     }
 
     @Test

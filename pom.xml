@@ -31,6 +31,7 @@
         <bouncycastle.version>1.86</bouncycastle.version>
         <archunit.version>1.5.0</archunit.version>
         <spotless.version>3.10.2</spotless.version>
+        <fastexcel.version>0.20.2</fastexcel.version>
     </properties>
 
     <dependencies>
@@ -101,6 +102,13 @@
             <version>${bouncycastle.version}</version>
         </dependency>
 
+        <!-- Planilhas do Excel (.xlsx) das exportacoes, atras da porta SpreadsheetWriter -->
+        <dependency>
+            <groupId>org.dhatim</groupId>
+            <artifactId>fastexcel</artifactId>
+            <version>${fastexcel.version}</version>
+        </dependency>
+
         <!-- ============================ Testes ============================ -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -121,6 +129,13 @@
             <groupId>com.tngtech.archunit</groupId>
             <artifactId>archunit-junit5</artifactId>
             <version>${archunit.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- Le de volta as planilhas geradas, nos testes -->
+        <dependency>
+            <groupId>org.dhatim</groupId>
+            <artifactId>fastexcel-reader</artifactId>
+            <version>${fastexcel.version}</version>
             <scope>test</scope>
         </dependency>
         <!--

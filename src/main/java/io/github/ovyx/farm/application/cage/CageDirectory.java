@@ -5,6 +5,7 @@ import io.github.ovyx.farm.domain.model.CageId;
 import io.github.ovyx.farm.domain.model.SectorId;
 import io.github.ovyx.shared.application.PageResponse;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -24,6 +25,12 @@ public interface CageDirectory {
      * @param battery a bateria exata, em maiusculas; {@code null} nao filtra
      */
     PageResponse<CageSummary> search(SectorId sectorId, String code, String battery, StatusFilter status, int page, int size);
+
+    /**
+     * Todas as gaiolas do setor com os mesmos filtros e a mesma ordem da {@link #search}, sem pagina, com a
+     * ultima pesagem valida de cada uma (R-009 da 007).
+     */
+    List<CageSummary> searchAll(SectorId sectorId, String code, String battery, StatusFilter status);
 
     /**
      * A gaiola, se for deste setor.

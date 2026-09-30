@@ -3,6 +3,7 @@ package io.github.ovyx.production.presentation.dailyreport;
 import io.github.ovyx.production.application.dailyreport.ConfirmNoMortalityCommand;
 import io.github.ovyx.production.application.dailyreport.CorrectDailyReportCommand;
 import io.github.ovyx.production.application.dailyreport.DailyReportDetail;
+import io.github.ovyx.production.application.dailyreport.ExportDailyReportsQuery;
 import io.github.ovyx.production.application.dailyreport.FindDailyReportQuery;
 import io.github.ovyx.production.application.dailyreport.FindReportCageQuery;
 import io.github.ovyx.production.application.dailyreport.ListDailyReportsQuery;
@@ -18,8 +19,10 @@ import io.github.ovyx.production.domain.model.CageId;
 import io.github.ovyx.production.domain.model.DailyReportId;
 import io.github.ovyx.shared.application.Dispatcher;
 import io.github.ovyx.shared.application.Result;
+import io.github.ovyx.shared.application.spreadsheet.SpreadsheetFile;
 import io.github.ovyx.shared.presentation.AuthenticatedUser;
 import io.github.ovyx.shared.presentation.ResultHttpMapper;
+import io.github.ovyx.shared.presentation.SpreadsheetResponses;
 import java.net.URI;
 import java.time.LocalDate;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -64,6 +67,22 @@ public class DailyReportController implements DailyReportApi {
         return resultHttpMapper.ok(dispatcher
             .ask(new ListDailyReportsQuery(sectorId, collectionDate, page, size))
             .map(DailyReportPageResponse::from));
+    }
+
+    /**
+     * A planilha dos relatorios do intervalo (US1 da 007). As datas chegam opcionais para a recusa das duas
+     * vir de uma vez do handler; o sucesso e o arquivo, e a recusa, o Problem Details de sempre.
+     */
+    @Override
+    @GetMapping(path = "/export")
+    public ResponseEntity<?> exportDailyReports(
+        @PathVariable String sectorId,
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        Result<SpreadsheetFile> exported = dispatcher.ask(new ExportDailyReportsQuery(sectorId, from, to));
+        return exported.isSuccess()
+            ? SpreadsheetResponses.of(exported.value())
+            : resultHttpMapper.problem(exported.error());
     }
 
     @Override

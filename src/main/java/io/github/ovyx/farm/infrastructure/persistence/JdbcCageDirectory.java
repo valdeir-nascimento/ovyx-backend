@@ -54,6 +54,9 @@ public class JdbcCageDirectory implements CageDirectory {
                     + " from weighing w where w.cage_id = cage.id and w.status = 'VALID'"
                     + " order by w.weighed_on desc limit 1) last on true";
 
+    /** A ordem da lista: bateria e numero, e o id desempata as gaiolas de mesmo codigo. */
+    private static final String ORDER = " order by battery, number, id";
+
     private final JdbcClient jdbcClient;
 
     JdbcCageDirectory(JdbcClient jdbcClient) {
@@ -72,6 +75,49 @@ public class JdbcCageDirectory implements CageDirectory {
     @Override
     public PageResponse<CageSummary> search(
             SectorId sectorId, String code, String battery, StatusFilter status, int page, int size) {
+        Filter filter = filterOf(sectorId, code, battery, status);
+
+        long total = jdbcClient
+                .sql("select count(*) from cage" + filter.where())
+                .params(filter.parameters())
+                .query(Long.class)
+                .single();
+
+        List<CageSummary> content = jdbcClient
+                .sql("select " + COLUMNS + ", last.last_weighed_on, last.last_average_weight from cage"
+                        + LAST_WEIGHING
+                        + filter.where()
+                        // O id desempata a gaiola ativa e as inativas de mesmo codigo: sem ele, a mesma
+                        // gaiola podia aparecer em duas paginas, ou em nenhuma.
+                        + ORDER
+                        + " limit :size offset :offset")
+                .params(filter.parameters())
+                .param("size", size)
+                .param("offset", (long) page * size)
+                .query((rs, rowNumber) -> summaryOf(rs, lastWeighingOf(rs)))
+                .list();
+
+        return PageResponse.of(content, page, size, total);
+    }
+
+    /** As gaiolas dos mesmos filtros e da mesma ordem da pesquisa, sem pagina (R-009 da 007). */
+    @Override
+    public List<CageSummary> searchAll(SectorId sectorId, String code, String battery, StatusFilter status) {
+        Filter filter = filterOf(sectorId, code, battery, status);
+        return jdbcClient
+                .sql("select " + COLUMNS + ", last.last_weighed_on, last.last_average_weight from cage"
+                        + LAST_WEIGHING
+                        + filter.where()
+                        + ORDER)
+                .params(filter.parameters())
+                .query((rs, rowNumber) -> summaryOf(rs, lastWeighingOf(rs)))
+                .list();
+    }
+
+    /** O trecho {@code where} e os parametros de uma pesquisa, iguais na pagina e na exportacao. */
+    private record Filter(String where, Map<String, Object> parameters) {}
+
+    private static Filter filterOf(SectorId sectorId, String code, String battery, StatusFilter status) {
         // So entram na consulta os filtros informados: um parametro nulo chega ao PostgreSQL sem tipo.
         List<String> conditions = new ArrayList<>(List.of("sector_id = :sectorId"));
         Map<String, Object> parameters = new LinkedHashMap<>(Map.of("sectorId", sectorId.value()));
@@ -88,28 +134,7 @@ public class JdbcCageDirectory implements CageDirectory {
                     + ") ilike :pattern escape '\\')");
             parameters.put("pattern", "%" + literal(code) + "%");
         }
-        String where = " where " + String.join(" and ", conditions);
-
-        long total = jdbcClient
-                .sql("select count(*) from cage" + where)
-                .params(parameters)
-                .query(Long.class)
-                .single();
-
-        List<CageSummary> content = jdbcClient
-                .sql("select " + COLUMNS + ", last.last_weighed_on, last.last_average_weight from cage"
-                        + LAST_WEIGHING
-                        + where
-                        // O id desempata a gaiola ativa e as inativas de mesmo codigo: sem ele, a mesma
-                        // gaiola podia aparecer em duas paginas, ou em nenhuma.
-                        + " order by battery, number, id limit :size offset :offset")
-                .params(parameters)
-                .param("size", size)
-                .param("offset", (long) page * size)
-                .query((rs, rowNumber) -> summaryOf(rs, lastWeighingOf(rs)))
-                .list();
-
-        return PageResponse.of(content, page, size, total);
+        return new Filter(" where " + String.join(" and ", conditions), parameters);
     }
 
     @Override

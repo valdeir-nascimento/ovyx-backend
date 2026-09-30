@@ -5,6 +5,7 @@ import io.github.ovyx.production.domain.model.DailyReportId;
 import io.github.ovyx.production.domain.model.SectorId;
 import io.github.ovyx.shared.application.PageResponse;
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +31,9 @@ final class RecordingDailyReportDirectory implements DailyReportDirectory {
     SectorId cageSector;
     DailyReportId cageReport;
     CageId cageAsked;
+    SectorId betweenSector;
+    LocalDate betweenFrom;
+    LocalDate betweenTo;
 
     void knowSector(ReportingSector sector) {
         sectors.put(SectorId.of(sector.id()), sector);
@@ -67,6 +71,18 @@ final class RecordingDailyReportDirectory implements DailyReportDirectory {
         this.detailReport = reportId;
         return Optional.ofNullable(details.get(reportId))
                 .filter(detail -> detail.sector().id().equals(sectorId.value()));
+    }
+
+    @Override
+    public List<DailyReportDetail> detailsBetween(SectorId sectorId, LocalDate from, LocalDate to) {
+        this.betweenSector = sectorId;
+        this.betweenFrom = from;
+        this.betweenTo = to;
+        return details.values().stream()
+                .filter(detail -> detail.sector().id().equals(sectorId.value()))
+                .filter(detail -> !detail.collectionDate().isBefore(from) && !detail.collectionDate().isAfter(to))
+                .sorted(Comparator.comparing(DailyReportDetail::collectionDate))
+                .toList();
     }
 
     @Override

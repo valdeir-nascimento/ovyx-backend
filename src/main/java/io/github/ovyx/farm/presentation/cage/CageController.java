@@ -1,17 +1,20 @@
 package io.github.ovyx.farm.presentation.cage;
 
-import io.github.ovyx.farm.application.common.StatusFilter;
 import io.github.ovyx.farm.application.cage.CageDetail;
 import io.github.ovyx.farm.application.cage.DeactivateCageCommand;
+import io.github.ovyx.farm.application.cage.ExportCagesQuery;
 import io.github.ovyx.farm.application.cage.FindCageByIdQuery;
 import io.github.ovyx.farm.application.cage.ReactivateCageCommand;
 import io.github.ovyx.farm.application.cage.RegisterCageCommand;
 import io.github.ovyx.farm.application.cage.SearchCagesQuery;
 import io.github.ovyx.farm.application.cage.UpdateCageCommand;
+import io.github.ovyx.farm.application.common.StatusFilter;
 import io.github.ovyx.farm.domain.model.CageId;
 import io.github.ovyx.shared.application.Dispatcher;
 import io.github.ovyx.shared.application.Result;
+import io.github.ovyx.shared.application.spreadsheet.SpreadsheetFile;
 import io.github.ovyx.shared.presentation.ResultHttpMapper;
+import io.github.ovyx.shared.presentation.SpreadsheetResponses;
 import java.net.URI;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -56,6 +59,23 @@ public class CageController implements CageApi {
         return resultHttpMapper.ok(dispatcher
                 .ask(new SearchCagesQuery(sectorId, code, battery, status, page, size))
                 .map(CagePageResponse::from));
+    }
+
+    /**
+     * A planilha das gaiolas com a busca e os filtros da lista, de todas as paginas (US3 da 007): o arquivo no
+     * sucesso, o Problem Details na recusa.
+     */
+    @Override
+    @GetMapping(path = "/export")
+    public ResponseEntity<?> exportCages(
+            @PathVariable String sectorId,
+            @RequestParam(required = false) String code,
+            @RequestParam(required = false) String battery,
+            @RequestParam(required = false) StatusFilter status) {
+        Result<SpreadsheetFile> exported = dispatcher.ask(new ExportCagesQuery(sectorId, code, battery, status));
+        return exported.isSuccess()
+                ? SpreadsheetResponses.of(exported.value())
+                : resultHttpMapper.problem(exported.error());
     }
 
     @Override

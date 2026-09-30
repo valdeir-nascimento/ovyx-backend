@@ -50,6 +50,9 @@ public class FarmRouteAuthorization implements RouteAuthorization {
             // Gaiolas (US2)
             .requestMatchers(HttpMethod.GET, CAGES)
             .authenticated()
+            // A planilha das gaiolas (US3 da 007): leitura, de qualquer responsavel, antes da regra da gaiola.
+            .requestMatchers(HttpMethod.GET, CAGES + "/export")
+            .authenticated()
             .requestMatchers(HttpMethod.GET, CAGE)
             .authenticated()
             .requestMatchers(HttpMethod.POST, CAGES)

@@ -2,6 +2,7 @@ package io.github.ovyx.farm.presentation.cage;
 
 import io.github.ovyx.farm.application.common.StatusFilter;
 import io.github.ovyx.shared.presentation.ProblemResponse;
+import io.github.ovyx.shared.presentation.SpreadsheetResponses;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.headers.Header;
@@ -24,6 +25,11 @@ public interface CageApi {
 
     /** Tipo de midia do corpo de erro, comum a todas as operacoes. */
     String PROBLEM_JSON = "application/problem+json";
+
+    /** O setor do endereco, nas operacoes que a 007 acrescentou. */
+    String SECTOR_ID = "Identificador do setor.";
+
+    String SECTOR_ID_EXAMPLE = "3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11";
 
     String SESSION_REFUSED = "Sem sessão válida (`UNAUTHENTICATED`), ou responsável inativado com a sessão aberta"
             + " (`CARETAKER_UNAVAILABLE`), caso em que a sessão é encerrada.";
@@ -501,4 +507,70 @@ public interface CageApi {
                     example = "9d2e4f6a-1b3c-4d5e-8f7a-2b4c6d8e0f44",
                     schema = @Schema(type = "string", format = "uuid"))
             String cageId);
+
+    @Operation(
+        summary = "Exportar as gaiolas do setor para planilha",
+        description = "As gaiolas do setor com a busca e os filtros da lista, de todas as páginas, como planilha "
+            + "do Excel: o código, a bateria, o número, as aves, a situação, a última pesagem válida e a "
+            + "situação dela diante da faixa de peso do setor. O cabeçalho traz a faixa, os filtros e os "
+            + "totais de gaiolas ativas e de aves. O arquivo se chama `gaiolas-<setor>.xlsx`.")
+    @ApiResponse(
+        responseCode = "200",
+        description = "Planilha das gaiolas",
+        headers = @Header(
+            name = "Content-Disposition",
+            description = "O nome do arquivo, para salvar. O nome do setor sai simplificado, sem acento e com hífens.",
+            schema = @Schema(type = "string", example = "attachment; filename=\"gaiolas-codornas-galpao-1.xlsx\"")),
+        content = @Content(
+            mediaType = SpreadsheetResponses.SPREADSHEET,
+            schema = @Schema(type = "string", format = "binary")))
+    @ApiResponse(
+        responseCode = "400",
+        description = "Situação desconhecida (`VALIDATION_FAILED`), com o nome do parâmetro em `details`.",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(name = "situacaoInvalida", summary = "Situação fora da lista", value = CageExamples.EXPORT_400_SITUACAO_INVALIDA)))
+    @ApiResponse(
+        responseCode = "401",
+        description = "Sem sessão válida (`UNAUTHENTICATED`), ou responsável inativado com a sessão aberta "
+            + "(`CARETAKER_UNAVAILABLE`).",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(name = "semSessao", summary = "Sem sessão", value = CageExamples.EXPORT_401_SEM_SESSAO)))
+    @ApiResponse(
+        responseCode = "403",
+        description = "Troca de senha pendente (`PASSWORD_CHANGE_REQUIRED`).",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(name = "trocaDeSenhaPendente", summary = "Senha provisória ainda não trocada", value = CageExamples.EXPORT_403_TROCA_DE_SENHA_PENDENTE)))
+    @ApiResponse(
+        responseCode = "404",
+        description = "Setor inexistente, ou identificador malformado (`SECTOR_NOT_FOUND`).",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(name = "setorNaoEncontrado", summary = "Identificador que não é de nenhum setor", value = CageExamples.EXPORT_404_SETOR_NAO_ENCONTRADO)))
+    @ApiResponse(
+        responseCode = "406",
+        description = "Formato de resposta indisponível (`REQUEST_NOT_ACCEPTABLE`).",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(value = CageExamples.EXPORT_406)))
+    @ApiResponse(
+        responseCode = "500",
+        description = "Falha inesperada (`INTERNAL_ERROR`), sem detalhe da causa.",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(value = CageExamples.EXPORT_500)))
+    ResponseEntity<?> exportCages(
+            @Parameter(description = SECTOR_ID, example = SECTOR_ID_EXAMPLE, schema = @Schema(type = "string", format = "uuid"))
+            String sectorId,
+            @Parameter(description = "Trecho do código, sem distinguir maiúsculas, como na pesquisa.", example = "B-0") String code,
+            @Parameter(description = "Só as gaiolas desta bateria.", example = "B") String battery,
+            @Parameter(description = "Situação das gaiolas — ativas, inativas ou todas (`ALL`); ausente, só as ativas.", example = "ACTIVE") StatusFilter status);
 }

@@ -1,5 +1,6 @@
 package io.github.ovyx.production.application.dashboard;
 
+import io.github.ovyx.production.application.dailyreport.PeriodDay;
 import io.github.ovyx.production.domain.model.FeedStatus;
 import io.github.ovyx.production.domain.model.MortalityStatus;
 import io.github.ovyx.production.domain.model.ProductionStatus;
@@ -46,6 +47,11 @@ public record ReportDay(
 
     public MortalityStatus mortalityStatus() {
         return MortalityStatus.of(noMortalityConfirmed, removedBirds);
+    }
+
+    /** O dia no que as contas de um periodo precisam ({@link PeriodDay}, R-007 da 007). */
+    public PeriodDay periodDay() {
+        return new PeriodDay(openingBirdCount, eggs, exactFeedCost, feedStatus() == FeedStatus.COMPLETE);
     }
 
     /** Os ovos classificados fora do padrao. */

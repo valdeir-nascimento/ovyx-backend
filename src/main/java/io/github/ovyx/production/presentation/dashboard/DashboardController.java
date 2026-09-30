@@ -1,10 +1,14 @@
 package io.github.ovyx.production.presentation.dashboard;
 
 import io.github.ovyx.production.application.dashboard.DashboardPeriod;
+import io.github.ovyx.production.application.dashboard.ExportSectorDashboardQuery;
 import io.github.ovyx.production.application.dashboard.GetDashboardOverviewQuery;
 import io.github.ovyx.production.application.dashboard.GetSectorDashboardQuery;
 import io.github.ovyx.shared.application.Dispatcher;
+import io.github.ovyx.shared.application.Result;
+import io.github.ovyx.shared.application.spreadsheet.SpreadsheetFile;
 import io.github.ovyx.shared.presentation.ResultHttpMapper;
+import io.github.ovyx.shared.presentation.SpreadsheetResponses;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -41,5 +45,16 @@ public class DashboardController implements DashboardApi {
         return resultHttpMapper.ok(dispatcher
                 .ask(new GetSectorDashboardQuery(sectorId, period))
                 .map(SectorDashboardResponse::from));
+    }
+
+    /** A planilha do painel do setor no periodo (US2 da 007): o arquivo no sucesso, o Problem Details na recusa. */
+    @Override
+    @GetMapping(path = "/api/v1/sectors/{sectorId}/dashboard/export")
+    public ResponseEntity<?> exportSectorDashboard(
+            @PathVariable String sectorId, @RequestParam(required = false) DashboardPeriod period) {
+        Result<SpreadsheetFile> exported = dispatcher.ask(new ExportSectorDashboardQuery(sectorId, period));
+        return exported.isSuccess()
+                ? SpreadsheetResponses.of(exported.value())
+                : resultHttpMapper.problem(exported.error());
     }
 }

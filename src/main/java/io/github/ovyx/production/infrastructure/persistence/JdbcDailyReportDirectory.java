@@ -25,11 +25,14 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -100,6 +103,39 @@ public class JdbcDailyReportDirectory implements DailyReportDirectory {
                 .query((row, index) -> summaryOf(row))
                 .list();
         return PageResponse.of(content, page, size, total);
+    }
+
+    @Override
+    public List<DailyReportDetail> detailsBetween(SectorId sectorId, LocalDate from, LocalDate to) {
+        Optional<ReportingSector> sector = sectorOf(sectorId);
+        if (sector.isEmpty()) {
+            return List.of();
+        }
+        // Duas consultas, e nao uma por relatorio (R-006 da 007): as gaiolas de todos os relatorios do intervalo,
+        // e depois os relatorios. As gaiolas vem antes, como no findDetail, para nao abrir uma consulta dentro
+        // da outra; e os totais saem do DailyReportTotals, como no detalhe.
+        Map<UUID, List<ReportCageDetail>> cages = new HashMap<>();
+        jdbcClient
+                .sql(CAGE_COLUMNS
+                        + " join daily_report r on r.id = c.report_id"
+                        + " where r.sector_id = :sectorId and r.collection_date between :from and :to"
+                        + " order by c.battery, c.number")
+                .param("sectorId", sectorId.value())
+                .param("from", from)
+                .param("to", to)
+                .query((RowCallbackHandler) row -> cages
+                        .computeIfAbsent(row.getObject("report_id", UUID.class), report -> new ArrayList<>())
+                        .add(cageOf(row)));
+        return jdbcClient
+                .sql("select * from daily_report"
+                        + " where sector_id = :sectorId and collection_date between :from and :to"
+                        + " order by collection_date")
+                .param("sectorId", sectorId.value())
+                .param("from", from)
+                .param("to", to)
+                .query((row, index) -> detailOf(
+                        row, sector.get(), cages.getOrDefault(row.getObject("id", UUID.class), List.of())))
+                .list();
     }
 
     @Override

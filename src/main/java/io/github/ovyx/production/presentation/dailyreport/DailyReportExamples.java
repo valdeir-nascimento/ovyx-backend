@@ -1682,4 +1682,109 @@ public final class DailyReportExamples {
               "detail": "Não foi possível concluir a operação. Tente novamente em instantes.",
               "instance": "/api/v1/sectors/5c8d2e4f-6a1b-4c3d-9e7f-0a2b4c6d8e33/daily-reports/6b1d3f5a-7c9e-4a2b-8d4f-1e3a5c7b9d55/cages/9d2e4f6a-1b3c-4d5e-8f7a-2b4c6d8e0f44/feed"
             }""";
+
+    // ---------------------------------------------------------------- exportDailyReports (007)
+
+    public static final String EXPORT_400_DATAS_FALTANDO =
+            """
+            {
+              "code": "VALIDATION_FAILED",
+              "title": "Dados inválidos",
+              "status": 400,
+              "detail": "A requisição contém campos inválidos.",
+              "instance": "/api/v1/sectors/5c8d2e4f-6a1b-4c3d-9e7f-0a2b4c6d8e33/daily-reports/export",
+              "details": {
+                "from": "Informe a data inicial.",
+                "to": "Informe a data final."
+              }
+            }""";
+
+    public static final String EXPORT_400_DATAS_INVERTIDAS =
+            """
+            {
+              "code": "VALIDATION_FAILED",
+              "title": "Dados inválidos",
+              "status": 400,
+              "detail": "A requisição contém campos inválidos.",
+              "instance": "/api/v1/sectors/5c8d2e4f-6a1b-4c3d-9e7f-0a2b4c6d8e33/daily-reports/export",
+              "details": {
+                "to": "A data final deve ser igual ou posterior à inicial."
+              }
+            }""";
+
+    public static final String EXPORT_400_INTERVALO_LONGO =
+            """
+            {
+              "code": "VALIDATION_FAILED",
+              "title": "Dados inválidos",
+              "status": 400,
+              "detail": "A requisição contém campos inválidos.",
+              "instance": "/api/v1/sectors/5c8d2e4f-6a1b-4c3d-9e7f-0a2b4c6d8e33/daily-reports/export",
+              "details": {
+                "to": "O intervalo deve ter no máximo 366 dias."
+              }
+            }""";
+
+    public static final String EXPORT_400_DATA_INVALIDA =
+            """
+            {
+              "code": "VALIDATION_FAILED",
+              "title": "Dados inválidos",
+              "status": 400,
+              "detail": "Valor inválido para o parâmetro 'from'.",
+              "instance": "/api/v1/sectors/5c8d2e4f-6a1b-4c3d-9e7f-0a2b4c6d8e33/daily-reports/export",
+              "details": {
+                "parameter": "from"
+              }
+            }""";
+
+    public static final String EXPORT_401_SEM_SESSAO =
+            """
+            {
+              "code": "UNAUTHENTICATED",
+              "title": "Não autenticado",
+              "status": 401,
+              "detail": "Sua sessão expirou. Entre novamente para continuar.",
+              "instance": "/api/v1/sectors/5c8d2e4f-6a1b-4c3d-9e7f-0a2b4c6d8e33/daily-reports/export"
+            }""";
+
+    public static final String EXPORT_403_TROCA_DE_SENHA_PENDENTE =
+            """
+            {
+              "code": "PASSWORD_CHANGE_REQUIRED",
+              "title": "Troca de senha obrigatória",
+              "status": 403,
+              "detail": "É necessário trocar a senha antes de executar qualquer outra operação.",
+              "instance": "/api/v1/sectors/5c8d2e4f-6a1b-4c3d-9e7f-0a2b4c6d8e33/daily-reports/export"
+            }""";
+
+    public static final String EXPORT_404_SETOR_NAO_ENCONTRADO =
+            """
+            {
+              "code": "SECTOR_NOT_FOUND",
+              "title": "Não encontrado",
+              "status": 404,
+              "detail": "Setor não encontrado.",
+              "instance": "/api/v1/sectors/5c8d2e4f-6a1b-4c3d-9e7f-0a2b4c6d8e33/daily-reports/export"
+            }""";
+
+    public static final String EXPORT_406 =
+            """
+            {
+              "code": "REQUEST_NOT_ACCEPTABLE",
+              "title": "Requisição não suportada",
+              "status": 406,
+              "detail": "A requisição não é suportada por este endereço.",
+              "instance": "/api/v1/sectors/5c8d2e4f-6a1b-4c3d-9e7f-0a2b4c6d8e33/daily-reports/export"
+            }""";
+
+    public static final String EXPORT_500 =
+            """
+            {
+              "code": "INTERNAL_ERROR",
+              "title": "Erro inesperado",
+              "status": 500,
+              "detail": "Não foi possível concluir a operação. Tente novamente em instantes.",
+              "instance": "/api/v1/sectors/5c8d2e4f-6a1b-4c3d-9e7f-0a2b4c6d8e33/daily-reports/export"
+            }""";
 }

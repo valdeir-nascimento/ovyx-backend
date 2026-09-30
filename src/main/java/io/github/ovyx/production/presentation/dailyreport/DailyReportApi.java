@@ -2,8 +2,10 @@ package io.github.ovyx.production.presentation.dailyreport;
 
 import io.github.ovyx.shared.presentation.AuthenticatedUser;
 import io.github.ovyx.shared.presentation.ProblemResponse;
+import io.github.ovyx.shared.presentation.SpreadsheetResponses;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -1025,4 +1027,76 @@ public interface DailyReportApi {
             String cageId,
             FeedRequest body,
             @Parameter(hidden = true) AuthenticatedUser user);
+
+    @Operation(
+        summary = "Exportar os relatórios de um intervalo para planilha",
+        description = "Os relatórios do setor com a data de coleta entre `from` e `to`, inclusive, como planilha "
+            + "do Excel. A aba \"Relatórios\" tem uma linha por relatório, do mais antigo para o mais novo, "
+            + "e a linha de totais do intervalo; a aba \"Gaiolas\", uma linha por gaiola de cada relatório. "
+            + "Sem relatório no intervalo, a planilha sai com o cabeçalho e o aviso. Setor inativo "
+            + "continua exportável. O arquivo se chama `relatorios-<setor>-<de>-a-<ate>.xlsx`.")
+    @ApiResponse(
+        responseCode = "200",
+        description = "Planilha dos relatórios do intervalo",
+        headers = @Header(
+            name = "Content-Disposition",
+            description = "O nome do arquivo, para salvar. O nome do setor sai simplificado, sem acento e com hífens.",
+            schema = @Schema(type = "string", example = "attachment; filename=\"relatorios-codornas-galpao-1-01-09-2026-a-28-09-2026.xlsx\"")),
+        content = @Content(
+            mediaType = SpreadsheetResponses.SPREADSHEET,
+            schema = @Schema(type = "string", format = "binary")))
+    @ApiResponse(
+        responseCode = "400",
+        description = "Intervalo recusado (`VALIDATION_FAILED`). As falhas das duas datas vêm todas de uma vez em "
+            + "`details`; data fora do formato AAAA-MM-DD traz o nome do parâmetro.",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = {
+                @ExampleObject(name = "datasFaltando", summary = "Sem as duas datas", value = DailyReportExamples.EXPORT_400_DATAS_FALTANDO),
+                @ExampleObject(name = "datasInvertidas", summary = "A data inicial depois da final", value = DailyReportExamples.EXPORT_400_DATAS_INVERTIDAS),
+                @ExampleObject(name = "intervaloLongo", summary = "Mais de 366 dias", value = DailyReportExamples.EXPORT_400_INTERVALO_LONGO),
+                @ExampleObject(name = "dataInvalida", summary = "Data fora do formato AAAA-MM-DD", value = DailyReportExamples.EXPORT_400_DATA_INVALIDA)
+            }))
+    @ApiResponse(
+        responseCode = "401",
+        description = "Sem sessão válida (`UNAUTHENTICATED`), ou responsável inativado com a sessão aberta "
+            + "(`CARETAKER_UNAVAILABLE`).",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(name = "semSessao", summary = "Sem sessão", value = DailyReportExamples.EXPORT_401_SEM_SESSAO)))
+    @ApiResponse(
+        responseCode = "403",
+        description = "Troca de senha pendente (`PASSWORD_CHANGE_REQUIRED`).",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(name = "trocaDeSenhaPendente", summary = "Senha provisória ainda não trocada", value = DailyReportExamples.EXPORT_403_TROCA_DE_SENHA_PENDENTE)))
+    @ApiResponse(
+        responseCode = "404",
+        description = "Setor inexistente, ou identificador malformado (`SECTOR_NOT_FOUND`).",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(name = "setorNaoEncontrado", summary = "Identificador que não é de nenhum setor", value = DailyReportExamples.EXPORT_404_SETOR_NAO_ENCONTRADO)))
+    @ApiResponse(
+        responseCode = "406",
+        description = "Formato de resposta indisponível (`REQUEST_NOT_ACCEPTABLE`).",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(value = DailyReportExamples.EXPORT_406)))
+    @ApiResponse(
+        responseCode = "500",
+        description = "Falha inesperada (`INTERNAL_ERROR`), sem detalhe da causa.",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(value = DailyReportExamples.EXPORT_500)))
+    ResponseEntity<?> exportDailyReports(
+            @Parameter(description = SECTOR_ID, example = SECTOR_ID_EXAMPLE, schema = @Schema(type = "string", format = "uuid"))
+            String sectorId,
+            @Parameter(description = "O primeiro dia de coleta do intervalo, inclusive.", required = true, example = "2026-09-01") LocalDate from,
+            @Parameter(description = "O último dia de coleta do intervalo, inclusive. O intervalo tem no máximo 366 dias.", required = true, example = "2026-09-28") LocalDate to);
 }

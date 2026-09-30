@@ -9,8 +9,10 @@ import com.tngtech.archunit.lang.EvaluationResult;
 import io.github.ovyx.architecture.sample.domain.SignalController;
 import io.github.ovyx.architecture.violation.crosscontext.farm.HouseUsingShared;
 import io.github.ovyx.architecture.violation.crosscontext.shared.Label;
+import io.github.ovyx.architecture.violation.application.SpreadsheetInApplication;
 import io.github.ovyx.architecture.violation.application.SwaggerInApplication;
 import io.github.ovyx.architecture.violation.presentation.DocumentedController;
+import io.github.ovyx.architecture.violation.presentation.SpreadsheetInPresentation;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.RepeatedTest;
@@ -26,7 +28,7 @@ import ovyxarchviolation.presentation.AnnotatedResource;
  * <p>Uma suite de arquitetura que nunca reprovou nada pode estar apenas mal escrita: regra com
  * pacote errado passa silenciosamente para sempre. Este teste submete classes com violacoes
  * deliberadas as <strong>mesmas</strong> regras de {@link ArchitectureRulesTest} e exige que
- * <strong>cada uma</strong> das treze as reprove.
+ * <strong>cada uma</strong> das catorze as reprove.
  *
  * <p>Cada caso exige que o relatorio cite a violacao esperada. Aceitar qualquer
  * {@link AssertionError} nao bastava: a regra que deixa de casar com a classe tambem falha, com
@@ -130,6 +132,16 @@ class ArchitectureRulesSelfCheckTest {
                         ArchitectureRules.DOMAIN_AND_APPLICATION_MUST_BE_FRAMEWORK_FREE,
                         only(SwaggerInApplication.class),
                         "io.swagger"),
+                Arguments.of(
+                        "the spreadsheet library inside the application layer",
+                        ArchitectureRules.DOMAIN_AND_APPLICATION_MUST_BE_FRAMEWORK_FREE,
+                        only(SpreadsheetInApplication.class),
+                        "org.dhatim"),
+                Arguments.of(
+                        "the spreadsheet library outside the shared writer",
+                        ArchitectureRules.ONLY_THE_SHARED_WRITER_USES_THE_SPREADSHEET_LIBRARY,
+                        only(SpreadsheetInPresentation.class),
+                        "SpreadsheetInPresentation"),
                 Arguments.of(
                         "an outbound port declared as a concrete class",
                         ArchitectureRules.PORTS_MUST_BE_INTERFACES,

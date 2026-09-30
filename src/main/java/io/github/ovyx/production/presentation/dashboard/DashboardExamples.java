@@ -464,4 +464,69 @@ public final class DashboardExamples {
               "detail": "Não foi possível concluir a operação. Tente novamente em instantes.",
               "instance": "/api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/dashboard"
             }""";
+
+    // ---------------------------------------------------------------- exportSectorDashboard (007)
+
+    public static final String EXPORT_400_PERIODO_INVALIDO =
+            """
+            {
+              "code": "VALIDATION_FAILED",
+              "title": "Dados inválidos",
+              "status": 400,
+              "detail": "Valor inválido para o parâmetro 'period'.",
+              "instance": "/api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/dashboard/export",
+              "details": {
+                "parameter": "period"
+              }
+            }""";
+
+    public static final String EXPORT_401_SEM_SESSAO =
+            """
+            {
+              "code": "UNAUTHENTICATED",
+              "title": "Não autenticado",
+              "status": 401,
+              "detail": "Sua sessão expirou. Entre novamente para continuar.",
+              "instance": "/api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/dashboard/export"
+            }""";
+
+    public static final String EXPORT_403_TROCA_DE_SENHA_PENDENTE =
+            """
+            {
+              "code": "PASSWORD_CHANGE_REQUIRED",
+              "title": "Troca de senha obrigatória",
+              "status": 403,
+              "detail": "É necessário trocar a senha antes de executar qualquer outra operação.",
+              "instance": "/api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/dashboard/export"
+            }""";
+
+    public static final String EXPORT_404_SETOR_NAO_ENCONTRADO =
+            """
+            {
+              "code": "SECTOR_NOT_FOUND",
+              "title": "Não encontrado",
+              "status": 404,
+              "detail": "Setor não encontrado.",
+              "instance": "/api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/dashboard/export"
+            }""";
+
+    public static final String EXPORT_406 =
+            """
+            {
+              "code": "REQUEST_NOT_ACCEPTABLE",
+              "title": "Requisição não suportada",
+              "status": 406,
+              "detail": "A requisição não é suportada por este endereço.",
+              "instance": "/api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/dashboard/export"
+            }""";
+
+    public static final String EXPORT_500 =
+            """
+            {
+              "code": "INTERNAL_ERROR",
+              "title": "Erro inesperado",
+              "status": 500,
+              "detail": "Não foi possível concluir a operação. Tente novamente em instantes.",
+              "instance": "/api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/dashboard/export"
+            }""";
 }

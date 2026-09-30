@@ -23,9 +23,14 @@ final class RecordingCageDirectory implements CageDirectory {
     /** Uma pesquisa, como o tratador a pediu. */
     record Search(SectorId sectorId, String code, String battery, StatusFilter status, int page, int size) {}
 
+    /** Um pedido de todas as gaiolas dos filtros, sem pagina, como o tratador da exportacao o fez (007). */
+    record All(SectorId sectorId, String code, String battery, StatusFilter status) {}
+
     private final Set<SectorId> sectors = new HashSet<>();
     private final Map<CageId, CageDetail> details = new HashMap<>();
     private final List<Search> searches = new ArrayList<>();
+    private final List<All> everyCage = new ArrayList<>();
+    private List<CageSummary> answer = List.of();
 
     RecordingCageDirectory withSector(SectorId sectorId) {
         sectors.add(sectorId);
@@ -48,6 +53,21 @@ final class RecordingCageDirectory implements CageDirectory {
             SectorId sectorId, String code, String battery, StatusFilter status, int page, int size) {
         searches.add(new Search(sectorId, code, battery, status, page, size));
         return PageResponse.of(List.of(), page, size, 0);
+    }
+
+    @Override
+    public List<CageSummary> searchAll(SectorId sectorId, String code, String battery, StatusFilter status) {
+        everyCage.add(new All(sectorId, code, battery, status));
+        return answer;
+    }
+
+    RecordingCageDirectory answering(List<CageSummary> cages) {
+        this.answer = List.copyOf(cages);
+        return this;
+    }
+
+    List<All> everyCageAsked() {
+        return List.copyOf(everyCage);
     }
 
     @Override
