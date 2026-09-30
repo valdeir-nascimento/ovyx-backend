@@ -41,6 +41,9 @@ class ArchitectureRulesTest {
                 Arguments.of(
                         "domain and application do not depend on any framework",
                         ArchitectureRules.DOMAIN_AND_APPLICATION_MUST_BE_FRAMEWORK_FREE),
+                Arguments.of(
+                        "only the shared writer uses the spreadsheet library",
+                        ArchitectureRules.ONLY_THE_SHARED_WRITER_USES_THE_SPREADSHEET_LIBRARY),
                 Arguments.of("every outbound port is an interface", ArchitectureRules.PORTS_MUST_BE_INTERFACES),
                 Arguments.of(
                         "no handler serves a command and a query at the same time",

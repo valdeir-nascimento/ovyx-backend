@@ -56,7 +56,12 @@ public final class ArchitectureRules {
         "org.flywaydb..",
         // Anotacoes do OpenAPI descrevem o contrato HTTP: pertencem a apresentacao (A13).
         "io.swagger..",
+        // A biblioteca de planilha fica atras da porta SpreadsheetWriter (R-003 da 007).
+        "org.dhatim..",
     };
+
+    /** O unico lugar que grava a planilha com a biblioteca: o escritor do nucleo compartilhado. */
+    private static final String SPREADSHEET_WRITER_PACKAGE = "io.github.ovyx.shared.infrastructure..";
 
     /** Principio I: a regra de dependencia aponta para dentro; o dominio nao conhece nenhuma outra camada. */
     public static final ArchRule DOMAIN_MUST_NOT_DEPEND_ON_OTHER_LAYERS = noClasses()
@@ -84,6 +89,19 @@ public final class ArchitectureRules {
             .dependOnClassesThat()
             .resideInAnyPackage(FRAMEWORK_PACKAGES)
             .because("dominio e aplicacao nao podem depender de framework (principio I e restricoes tecnologicas)");
+
+    /**
+     * Principio I: a biblioteca de planilha e detalhe de infraestrutura, usado so pelo escritor do nucleo
+     * compartilhado (R-003 da 007). O conteudo de cada planilha e montado no modelo sem biblioteca e gravado
+     * pela porta {@code SpreadsheetWriter}.
+     */
+    public static final ArchRule ONLY_THE_SHARED_WRITER_USES_THE_SPREADSHEET_LIBRARY = noClasses()
+            .that()
+            .resideOutsideOfPackage(SPREADSHEET_WRITER_PACKAGE)
+            .should()
+            .dependOnClassesThat()
+            .resideInAPackage("org.dhatim..")
+            .because("a planilha e gravada so pela porta SpreadsheetWriter, no shared.infrastructure (R-003 da 007)");
 
     /** Principio II: toda porta de saida do dominio e uma interface. */
     public static final ArchRule PORTS_MUST_BE_INTERFACES = classes()
