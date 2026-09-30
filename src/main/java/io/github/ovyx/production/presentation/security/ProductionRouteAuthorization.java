@@ -27,6 +27,9 @@ public class ProductionRouteAuthorization implements RouteAuthorization {
             .authenticated()
             .requestMatchers(HttpMethod.GET, REPORTS + "/suggestion")
             .authenticated()
+            // A planilha dos relatorios de um intervalo (US1 da 007): leitura, de qualquer responsavel.
+            .requestMatchers(HttpMethod.GET, REPORTS + "/export")
+            .authenticated()
             .requestMatchers(HttpMethod.POST, REPORTS)
             .authenticated()
             // Consulta e lancamento da producao (US2)
@@ -54,6 +57,9 @@ public class ProductionRouteAuthorization implements RouteAuthorization {
             .authenticated()
             // Painel do Inicio (006): o cabecalho e o painel de um setor, os mesmos para os dois perfis
             .requestMatchers(HttpMethod.GET, "/api/v1/dashboard")
+            .authenticated()
+            // A planilha do painel (US2 da 007): leitura, de qualquer responsavel.
+            .requestMatchers(HttpMethod.GET, "/api/v1/sectors/*/dashboard/export")
             .authenticated()
             .requestMatchers(HttpMethod.GET, "/api/v1/sectors/*/dashboard")
             .authenticated();

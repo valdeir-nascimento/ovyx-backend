@@ -2,6 +2,7 @@ package io.github.ovyx.farm.infrastructure;
 
 import io.github.ovyx.farm.application.cage.CageDirectory;
 import io.github.ovyx.farm.application.cage.DeactivateCageCommandHandler;
+import io.github.ovyx.farm.application.cage.ExportCagesQueryHandler;
 import io.github.ovyx.farm.application.cage.FindCageByIdQueryHandler;
 import io.github.ovyx.farm.application.cage.ReactivateCageCommandHandler;
 import io.github.ovyx.farm.application.cage.RegisterCageCommandHandler;
@@ -31,6 +32,7 @@ import io.github.ovyx.farm.domain.port.FeedFormulaRepository;
 import io.github.ovyx.farm.domain.port.SectorRepository;
 import io.github.ovyx.farm.domain.port.WeighingRepository;
 import io.github.ovyx.shared.application.FarmCalendar;
+import io.github.ovyx.shared.application.spreadsheet.SpreadsheetWriter;
 import java.time.Clock;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -97,6 +99,15 @@ public class FarmBeanConfiguration {
     @Bean
     SearchCagesQueryHandler searchCagesQueryHandler(CageDirectory cageDirectory) {
         return new SearchCagesQueryHandler(cageDirectory);
+    }
+
+    @Bean
+    ExportCagesQueryHandler exportCagesQueryHandler(
+            CageDirectory cageDirectory,
+            SectorDirectory sectorDirectory,
+            SpreadsheetWriter writer,
+            FarmCalendar calendar) {
+        return new ExportCagesQueryHandler(cageDirectory, sectorDirectory, writer, calendar);
     }
 
     @Bean

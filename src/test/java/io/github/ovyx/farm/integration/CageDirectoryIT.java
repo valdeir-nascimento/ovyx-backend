@@ -266,4 +266,70 @@ class CageDirectoryIT extends IntegrationTestSupport {
         assertThat(last.weighedOn()).isEqualTo(LocalDate.of(2026, 9, 24));
         assertThat(last.averageWeight()).isEqualByComparingTo("161.4");
     }
+
+    // ---------------------------------------------------------------- todas as gaiolas dos filtros (007, US3)
+
+    @Test
+    @DisplayName("reads every cage of the filters, beyond one page, in the order of the search")
+    void givenMoreCagesThanAPage_whenReadingEveryCage_thenFindThemAllInOrder() {
+        // given
+        SectorTestDataBuilder builder = aUniqueSector();
+        for (int number = 1; number <= 120; number++) {
+            builder.withCage(number <= 60 ? "B" : "A", number, 50);
+        }
+        Sector sector = saved(builder);
+        saved(aUniqueSector().withCage("A", 1, 50));
+
+        // when
+        List<CageSummary> cages = directory.searchAll(sector.id(), null, null, StatusFilter.ACTIVE);
+
+        // then
+        assertThat(cages).hasSize(120);
+        assertThat(cages.getFirst().code()).isEqualTo("A-61");
+        assertThat(cages.getLast().code()).isEqualTo("B-60");
+        assertThat(cages).allSatisfy(cage -> assertThat(cage.sectorId()).isEqualTo(sector.id()));
+    }
+
+    @Test
+    @DisplayName("reads, for the same filters, exactly the cages of every page of the search")
+    void givenFilters_whenReadingEveryCage_thenFindTheSameCagesOfThePagesOfTheSearch() {
+        // given
+        Sector sector = sectorWithTwoBatteries();
+        saved(aUniqueSector().withCage("B", 7, 50).withCage("A", 7, 50));
+
+        // when
+        List<CageSummary> every = directory.searchAll(sector.id(), "07", null, StatusFilter.ALL);
+        List<CageSummary> byBattery = directory.searchAll(sector.id(), null, "B", StatusFilter.INACTIVE);
+
+        // then
+        assertThat(every)
+                .extracting(CageSummary::code)
+                .containsExactlyElementsOf(codesOf(directory.search(sector.id(), "07", null, StatusFilter.ALL, 0, 100)));
+        assertThat(byBattery).extracting(CageSummary::code).containsExactly("B-07");
+        assertThat(byBattery.getFirst().status()).isEqualTo(Status.INACTIVE);
+    }
+
+    @Test
+    @DisplayName("reads the last valid weighing of each cage, as the search does")
+    void givenWeighedCages_whenReadingEveryCage_thenBringTheLastValidWeighing() {
+        // given
+        Sector sector = saved(aUniqueSector().withCage("A", 1, 48).withCage("B", 7, 50));
+        CageId a01 = sector.cages().get(0).id();
+        weighed(sector, a01, "2026-09-17", "158");
+        weighed(sector, a01, "2026-09-24", "150,8");
+        jdbc.update(
+                "update weighing set status = 'VOIDED', voided_by_id = ?, voided_by_name = 'Marina Alves',"
+                        + " voided_at = now() where cage_id = ? and weighed_on = ?",
+                UUID.randomUUID(),
+                a01.value(),
+                LocalDate.of(2026, 9, 24));
+
+        // when
+        List<CageSummary> cages = directory.searchAll(sector.id(), null, null, StatusFilter.ACTIVE);
+
+        // then
+        assertThat(cages.get(0).lastWeighing().weighedOn()).isEqualTo(LocalDate.of(2026, 9, 17));
+        assertThat(cages.get(0).lastWeighing().averageWeight()).isEqualByComparingTo("158.0");
+        assertThat(cages.get(1).lastWeighing()).isNull();
+    }
 }

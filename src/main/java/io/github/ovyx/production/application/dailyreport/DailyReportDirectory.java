@@ -5,6 +5,7 @@ import io.github.ovyx.production.domain.model.DailyReportId;
 import io.github.ovyx.production.domain.model.SectorId;
 import io.github.ovyx.shared.application.PageResponse;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -25,6 +26,12 @@ public interface DailyReportDirectory {
 
     /** O relatorio, se for deste setor, com as gaiolas e os totais. */
     Optional<DailyReportDetail> findDetail(SectorId sectorId, DailyReportId reportId);
+
+    /**
+     * Os relatorios do setor com a data de coleta entre as duas datas, inclusive, do mais antigo para o mais
+     * novo, cada um lido como o {@link #findDetail}: as gaiolas, os lancamentos e os totais (R-006 da 007).
+     */
+    List<DailyReportDetail> detailsBetween(SectorId sectorId, LocalDate from, LocalDate to);
 
     /** Se o relatorio existe e e deste setor. */
     boolean reportExists(SectorId sectorId, DailyReportId reportId);

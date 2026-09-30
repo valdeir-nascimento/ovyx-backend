@@ -1,8 +1,8 @@
 package io.github.ovyx.production.application.dashboard;
 
 import io.github.ovyx.production.application.dailyreport.DailyReportTotals;
+import io.github.ovyx.production.application.dailyreport.PeriodTotals;
 import io.github.ovyx.production.application.dailyreport.ReportingSector;
-import io.github.ovyx.production.domain.model.FeedStatus;
 import io.github.ovyx.production.domain.model.ProductionStatus;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -46,7 +46,6 @@ public record SectorDashboard(
         int openAlerts,
         List<LatestReport> latestReports) {
 
-    private static final BigDecimal GRAMS_PER_KILOGRAM = BigDecimal.valueOf(1000);
     private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
     private static final int TREND_DAYS = 7;
 
@@ -66,12 +65,13 @@ public record SectorDashboard(
         List<ReportDay> current = within(days, period.from(today), period.to(today));
         List<ReportDay> previous = within(days, period.previousFrom(today), period.previousTo(today));
         int productionPending = pending(current, day -> day.productionStatus() == ProductionStatus.PENDING);
-        int feedPending = pending(current, day -> day.feedStatus() == FeedStatus.PENDING);
+        PeriodTotals now = totals(current);
+        PeriodTotals before = totals(previous);
         Indicators indicators = new Indicators(
-                inPercent(production(current), production(previous), GoodDirection.UP, productionPending),
-                inPoints(layingRate(current), layingRate(previous), productionPending),
-                inPercent(feedCost(current), feedCost(previous), GoodDirection.DOWN, feedPending),
-                inPercent(costPerEgg(current), costPerEgg(previous), GoodDirection.DOWN, feedPending));
+                inPercent(now.production(), before.production(), GoodDirection.UP, productionPending),
+                inPoints(now.layingRate(), before.layingRate(), productionPending),
+                inPercent(now.feedCost(), before.feedCost(), GoodDirection.DOWN, now.incompleteDays()),
+                inPercent(now.costPerEgg(), before.costPerEgg(), GoodDirection.DOWN, now.incompleteDays()));
         TodayReport todayReport = dayOf(days, today).map(TodayReport::of).orElse(null);
         List<DashboardDay> trend = trend(days, today);
         return new SectorDashboard(
@@ -138,44 +138,9 @@ public record SectorDashboard(
 
     // ---------------------------------------------------------------- contas de um conjunto de dias
 
-    private static BigDecimal production(List<ReportDay> days) {
-        return days.isEmpty() ? null : BigDecimal.valueOf(eggs(days));
-    }
-
-    private static BigDecimal layingRate(List<ReportDay> days) {
-        int birds = days.stream().mapToInt(ReportDay::openingBirdCount).sum();
-        return days.isEmpty() || birds == 0 ? null : DailyReportTotals.percent(eggs(days), birds);
-    }
-
-    /** O custo dos dias com a racao completa, com duas casas, arredondado so no fim. */
-    private static BigDecimal feedCost(List<ReportDay> days) {
-        List<ReportDay> fed = fed(days);
-        return fed.isEmpty() ? null : exactCost(fed).setScale(2, RoundingMode.HALF_UP);
-    }
-
-    /** O custo exato dos dias com a racao completa sobre os ovos desses dias, com tres casas. */
-    private static BigDecimal costPerEgg(List<ReportDay> days) {
-        List<ReportDay> fed = fed(days);
-        int eggs = eggs(fed);
-        return fed.isEmpty() || eggs == 0
-                ? null
-                : exactCost(fed).divide(BigDecimal.valueOf(eggs), 3, RoundingMode.HALF_UP);
-    }
-
-    private static List<ReportDay> fed(List<ReportDay> days) {
-        return days.stream().filter(day -> day.feedStatus() == FeedStatus.COMPLETE).toList();
-    }
-
-    private static int eggs(List<ReportDay> days) {
-        return days.stream().mapToInt(ReportDay::eggs).sum();
-    }
-
-    /** A soma de consumo vezes preco, dividida por 1.000 so aqui, como o {@link DailyReportTotals#feed}. */
-    private static BigDecimal exactCost(List<ReportDay> days) {
-        return days.stream()
-                .map(ReportDay::exactFeedCost)
-                .reduce(BigDecimal.ZERO, BigDecimal::add)
-                .divide(GRAMS_PER_KILOGRAM);
+    /** As contas de um conjunto de dias, as mesmas da linha de totais da planilha (R-007 da 007). */
+    private static PeriodTotals totals(List<ReportDay> days) {
+        return PeriodTotals.of(days.stream().map(ReportDay::periodDay).toList());
     }
 
     private static int pending(List<ReportDay> days, Predicate<ReportDay> isPending) {
@@ -218,7 +183,8 @@ public record SectorDashboard(
     }
 
     private static DashboardDay dashboardDay(List<ReportDay> day, LocalDate date) {
-        return new DashboardDay(date, eggs(day), layingRate(day), feedCost(day), costPerEgg(day));
+        PeriodTotals totals = totals(day);
+        return new DashboardDay(date, totals.eggs(), totals.layingRate(), totals.feedCost(), totals.costPerEgg());
     }
 
     private static Optional<ReportDay> dayOf(List<ReportDay> days, LocalDate date) {

@@ -32,6 +32,7 @@ import io.github.ovyx.shared.application.PageResponse;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -661,5 +662,108 @@ class DailyReportDirectoryIT extends IntegrationTestSupport {
         // then
         assertThat(detail.feed().cost()).isEqualByComparingTo("7.82");
         assertThat(detail.feed().costPerEgg()).isNull();
+    }
+
+    // ------------------------------------------------------------------ relatórios de um intervalo (feature 007)
+
+    /** Um relatório completo no dia: as duas gaiolas com produção, uma morte na A-01 e a ração pela sugestão. */
+    private DailyReport savedCompleteOn(FarmSector sector, String date, UUID formulaId) {
+        DailyReport report = aDailyReport().in(sector).on(date).withRoster(repository).build();
+        report.recordProduction(
+                sector, cageOf(report, 0), "44", new EggGrades.Raw("1", "2", "1", "1", null, null), JOAO, RECORDED_AT);
+        report.recordProduction(sector, cageOf(report, 1), "45", NO_GRADES, JOAO, RECORDED_AT);
+        report.recordMortality(sector, cageOf(report, 0), "1", "0", "Bicada.", JOAO, RECORDED_AT);
+        report.recordFeedBySuggestion(
+                sector, FeedFormulaChoice.lookup(formulaId.toString(), feedCatalog), JOAO, RECORDED_AT);
+        repository.save(report);
+        return report;
+    }
+
+    @Test
+    @DisplayName("reads the reports of the interval, both ends included, from the oldest")
+    void givenReportsAroundTheInterval_whenReadingTheInterval_thenFindOnlyTheDaysInsideItFromTheOldest() {
+        // given
+        FarmSector sector = sectorWithTwoCages();
+        UUID formula = fixtures.posturaPlus();
+        savedOn(sector, "2026-09-21");
+        savedCompleteOn(sector, "2026-09-24", formula);
+        savedOn(sector, "2026-09-22");
+        savedCompleteOn(sector, "2026-09-23", formula);
+        savedOn(sector, "2026-09-25");
+        savedOn(sectorWithTwoCages(), "2026-09-23");
+
+        // when
+        List<DailyReportDetail> details =
+                directory.detailsBetween(sector.id(), LocalDate.of(2026, 9, 22), LocalDate.of(2026, 9, 24));
+
+        // then
+        assertThat(details)
+                .extracting(DailyReportDetail::collectionDate)
+                .containsExactly(LocalDate.of(2026, 9, 22), LocalDate.of(2026, 9, 23), LocalDate.of(2026, 9, 24));
+        assertThat(details).allSatisfy(detail -> assertThat(detail.sector().id()).isEqualTo(sector.id().value()));
+    }
+
+    @Test
+    @DisplayName("reads each report of the interval as the detail reads it, cages, entries and totals")
+    void givenCompleteAndEmptyReports_whenReadingTheInterval_thenFindTheSameDetailOfEachOne() {
+        // given
+        FarmSector sector = sectorWithTwoCages();
+        UUID formula = fixtures.posturaPlus();
+        DailyReport empty = savedOn(sector, "2026-09-22");
+        DailyReport complete = savedCompleteOn(sector, "2026-09-23", formula);
+
+        // when
+        List<DailyReportDetail> details =
+                directory.detailsBetween(sector.id(), LocalDate.of(2026, 9, 22), LocalDate.of(2026, 9, 23));
+
+        // then
+        assertThat(details).hasSize(2);
+        assertThat(details.get(0)).isEqualTo(directory.findDetail(sector.id(), empty.id()).orElseThrow());
+        assertThat(details.get(1)).isEqualTo(directory.findDetail(sector.id(), complete.id()).orElseThrow());
+        assertThat(details.get(1).cages())
+                .extracting(ReportCageDetail::code)
+                .containsExactly("A-01", "B-07");
+        assertThat(details.get(0).cages())
+                .allSatisfy(cage -> {
+                    assertThat(cage.production()).isNull();
+                    assertThat(cage.mortality()).isNull();
+                    assertThat(cage.feed()).isNull();
+                });
+        assertThat(details.get(1).feed().status()).isEqualTo(FeedStatus.COMPLETE);
+        assertThat(details.get(1).production().collectedEggs()).isEqualTo(89);
+        assertThat(details.get(1).mortality().deaths()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("reads nothing from an interval without reports")
+    void givenNoReportInTheInterval_whenReadingTheInterval_thenFindNothing() {
+        // given
+        FarmSector sector = sectorWithTwoCages();
+        savedOn(sector, "2026-09-21");
+
+        // when
+        List<DailyReportDetail> details =
+                directory.detailsBetween(sector.id(), LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31));
+
+        // then
+        assertThat(details).isEmpty();
+    }
+
+    @Test
+    @DisplayName("reads the cages of each report of the interval by battery and then by number")
+    void givenCagesWhoseNumbersGoAgainstTheBatteries_whenReadingTheInterval_thenOrderByBatteryFirst() {
+        // given
+        UUID sectorId = fixtures.activeSector();
+        fixtures.activeCage(sectorId, "B", 1, 50);
+        fixtures.activeCage(sectorId, "A", 7, 48);
+        FarmSector sector = farmStructure.sectorOf(SectorId.of(sectorId)).orElseThrow();
+        savedOn(sector, "2026-09-22");
+
+        // when
+        List<DailyReportDetail> details =
+                directory.detailsBetween(sector.id(), LocalDate.of(2026, 9, 22), LocalDate.of(2026, 9, 22));
+
+        // then
+        assertThat(details.getFirst().cages()).extracting(ReportCageDetail::code).containsExactly("A-07", "B-01");
     }
 }

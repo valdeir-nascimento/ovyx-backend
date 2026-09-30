@@ -2,8 +2,10 @@ package io.github.ovyx.production.presentation.dashboard;
 
 import io.github.ovyx.production.application.dashboard.DashboardPeriod;
 import io.github.ovyx.shared.presentation.ProblemResponse;
+import io.github.ovyx.shared.presentation.SpreadsheetResponses;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -136,4 +138,69 @@ public interface DashboardApi {
             @Parameter(description = SECTOR_ID, example = SECTOR_ID_EXAMPLE, schema = @Schema(type = "string", format = "uuid"))
             String sectorId,
             @Parameter(description = PERIOD, example = "TODAY") DashboardPeriod period);
+
+    @Operation(
+        summary = "Exportar o painel de um setor para planilha",
+        description = "O painel do setor no período, como planilha do Excel: os quatro indicadores com o valor, o "
+            + "anterior e a variação; os 7 dias do gráfico; a classificação dos ovos; os alertas e as "
+            + "pendências abertos; e os 4 relatórios mais recentes. Os números são os da consulta do "
+            + "painel. O arquivo se chama `painel-<setor>-<data de hoje da granja>.xlsx`.")
+    @ApiResponse(
+        responseCode = "200",
+        description = "Planilha do painel",
+        headers = @Header(
+            name = "Content-Disposition",
+            description = "O nome do arquivo, para salvar. O nome do setor sai simplificado, sem acento e com hífens.",
+            schema = @Schema(type = "string", example = "attachment; filename=\"painel-codornas-galpao-1-28-09-2026.xlsx\"")),
+        content = @Content(
+            mediaType = SpreadsheetResponses.SPREADSHEET,
+            schema = @Schema(type = "string", format = "binary")))
+    @ApiResponse(
+        responseCode = "400",
+        description = "Período fora de `TODAY`, `YESTERDAY` e `LAST_7_DAYS` (`VALIDATION_FAILED`), com o nome do "
+            + "parâmetro em `details`.",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(name = "periodoInvalido", summary = "Período que não existe", value = DashboardExamples.EXPORT_400_PERIODO_INVALIDO)))
+    @ApiResponse(
+        responseCode = "401",
+        description = "Sem sessão válida (`UNAUTHENTICATED`), ou responsável inativado com a sessão aberta "
+            + "(`CARETAKER_UNAVAILABLE`).",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(name = "semSessao", summary = "Sem sessão", value = DashboardExamples.EXPORT_401_SEM_SESSAO)))
+    @ApiResponse(
+        responseCode = "403",
+        description = "Troca de senha pendente (`PASSWORD_CHANGE_REQUIRED`).",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(name = "trocaDeSenhaPendente", summary = "Senha provisória ainda não trocada", value = DashboardExamples.EXPORT_403_TROCA_DE_SENHA_PENDENTE)))
+    @ApiResponse(
+        responseCode = "404",
+        description = "Setor inexistente, ou identificador malformado (`SECTOR_NOT_FOUND`).",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(name = "setorNaoEncontrado", summary = "Identificador que não é de nenhum setor", value = DashboardExamples.EXPORT_404_SETOR_NAO_ENCONTRADO)))
+    @ApiResponse(
+        responseCode = "406",
+        description = "Formato de resposta indisponível (`REQUEST_NOT_ACCEPTABLE`).",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(value = DashboardExamples.EXPORT_406)))
+    @ApiResponse(
+        responseCode = "500",
+        description = "Falha inesperada (`INTERNAL_ERROR`), sem detalhe da causa.",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(value = DashboardExamples.EXPORT_500)))
+    ResponseEntity<?> exportSectorDashboard(
+            @Parameter(description = SECTOR_ID, example = SECTOR_ID_EXAMPLE, schema = @Schema(type = "string", format = "uuid"))
+            String sectorId,
+            @Parameter(description = "O período do painel exportado. Sem ele, vale `TODAY`.", example = "LAST_7_DAYS") DashboardPeriod period);
 }

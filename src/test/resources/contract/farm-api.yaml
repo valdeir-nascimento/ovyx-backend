@@ -20,6 +20,11 @@ info:
     **Nada é apagado**: setores e gaiolas são inativados, e continuam consultáveis. Inativar um
     setor inativa junto as gaiolas ativas dele; reativá-lo traz de volta exatamente essas gaiolas.
     A pesagem excluída fica guardada como anulada, com quem a anulou e quando, e sai das leituras.
+
+    **Planilhas**: a lista de gaiolas de um setor também sai como planilha do Excel (.xlsx), com a
+    busca e os filtros da tela e todas as páginas. Quantidades, pesos e datas são números e datas na
+    planilha, e não texto; a gaiola nunca pesada fica com o peso em branco. A recusa de uma exportação
+    é a mesma de qualquer operação: `application/problem+json`, e não uma planilha.
 servers:
 - url: http://localhost:8080
   description: Ambiente local
@@ -544,6 +549,61 @@ paths:
                     instance: /api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/cages
         '415':
           $ref: '#/components/responses/RequisicaoNaoSuportada'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+  /api/v1/sectors/{sectorId}/cages/export:
+    parameters:
+    - $ref: '#/components/parameters/SectorId'
+    get:
+      tags: [Gaiolas]
+      summary: Exportar as gaiolas do setor para planilha
+      description: 'As gaiolas do setor com a busca e os filtros da lista, de todas as páginas, como planilha do Excel: o código, a bateria, o número, as aves, a situação, a última pesagem válida e a situação dela diante da faixa de peso do setor. O cabeçalho traz a faixa, os filtros e os totais de gaiolas ativas e de aves. O arquivo se chama `gaiolas-<setor>.xlsx`.'
+      operationId: exportCages
+      parameters:
+      - name: code
+        in: query
+        description: Trecho do código, sem distinguir maiúsculas, como na pesquisa.
+        schema:
+          type: string
+          maxLength: 10
+        example: B-0
+      - name: battery
+        in: query
+        description: Só as gaiolas desta bateria.
+        schema:
+          type: string
+          maxLength: 3
+        example: B
+      - name: status
+        in: query
+        description: Situação das gaiolas — ativas, inativas ou todas (`ALL`); ausente, só as ativas.
+        schema:
+          $ref: '#/components/schemas/StatusFilter'
+        example: ACTIVE
+      responses:
+        '200':
+          description: Planilha das gaiolas
+          headers:
+            Content-Disposition:
+              description: O nome do arquivo, para salvar. O nome do setor sai simplificado, sem acento e com hífens.
+              schema:
+                type: string
+              example: attachment; filename="gaiolas-codornas-galpao-1.xlsx"
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/FiltroDaExportacaoInvalido'
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/TrocaDeSenhaPendente'
+        '404':
+          $ref: '#/components/responses/SetorNaoEncontrado'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
         '500':
           $ref: '#/components/responses/ErroInesperado'
   /api/v1/sectors/{sectorId}/cages/{cageId}:
@@ -1253,6 +1313,23 @@ components:
                 status: 400
                 detail: Valor inválido para o parâmetro 'status'.
                 instance: /api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/cages
+                details:
+                  parameter: status
+    FiltroDaExportacaoInvalido:
+      description: Situação desconhecida (`VALIDATION_FAILED`), com o nome do parâmetro em `details`.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            situacaoInvalida:
+              summary: Situação fora da lista
+              value:
+                code: VALIDATION_FAILED
+                title: Dados inválidos
+                status: 400
+                detail: Valor inválido para o parâmetro 'status'.
+                instance: /api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/cages/export
                 details:
                   parameter: status
     FormatoIndisponivel:

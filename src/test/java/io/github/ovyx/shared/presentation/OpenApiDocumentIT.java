@@ -119,9 +119,12 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
     /** Os contratos originais, fora do repositório; existem na máquina de quem mantém as specs. */
     private static final Map<String, Path> SPEC_CONTRACTS = Map.of(
             IDENTITY_CONTRACT, Path.of("../specs/001-auth-foundation/contracts/identity-api.yaml"),
-            FARM_CONTRACT, Path.of("../specs/005-bird-weighing/contracts/farm-api.yaml"),
+            FARM_CONTRACT, Path.of("../specs/007-spreadsheet-export/contracts/farm-api.yaml"),
             FEED_FORMULA_CONTRACT, Path.of("../specs/004-feed-formulas/contracts/feed-formulas-api.yaml"),
-            PRODUCTION_CONTRACT, Path.of("../specs/006-production-dashboard/contracts/production-api.yaml"));
+            PRODUCTION_CONTRACT, Path.of("../specs/007-spreadsheet-export/contracts/production-api.yaml"));
+
+    /** O tipo das planilhas das exportações (R-004 da 007). */
+    private static final String SPREADSHEET = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
     /** O título do documento único (R-012 da 002): nenhum dos contratos é o documento inteiro. */
     private static final String PUBLISHED_TITLE = "Ovyx — API";
@@ -368,8 +371,8 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
         // given
         // T112: as operações dos contratos, com os mesmos caminhos, métodos e códigos de resposta. Uma
         // resposta a mais ou a menos no código, sem o contrato saber, é o desvio que isto pega: as 9
-        // da identidade, as 17 do farm com as 5 de pesagem, as 6 das fórmulas e as 14 da produção, com as 2
-        // do painel (006).
+        // da identidade, as 18 do farm com as 5 de pesagem e a exportação das gaiolas (007), as 6 das fórmulas e as
+        // 16 da produção, com as 2 do painel (006) e as 2 exportações (007).
         Map<String, List<String>> contract = new TreeMap<>();
         for (Map<String, Object> expected : expectedContracts()) {
             contract.putAll(operationsWithResponses(expected));
@@ -379,7 +382,7 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
         Map<String, List<String>> published = operationsWithResponses(published());
 
         // then
-        assertThat(contract).hasSize(9 + 17 + 6 + 14);
+        assertThat(contract).hasSize(9 + 18 + 6 + 16);
         assertThat(published).isEqualTo(contract);
     }
 
@@ -536,15 +539,32 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
         operations(document).forEach(operation -> operation.node().path("responses").properties().stream()
                 .filter(response -> response.getKey().startsWith("2"))
                 .filter(response -> response.getValue().has("content"))
-                .forEach(response -> successes.add(Map.entry(
-                        operation.label() + " " + response.getKey(),
-                        response.getValue().at("/content/application~1json/schema")))));
+                .forEach(response -> successes.add(
+                        Map.entry(operation.label() + " " + response.getKey(), response.getValue()))));
 
         // then
         assertThat(successes).as("respostas de sucesso com corpo").hasSize(successesWithBodyInTheContracts());
         return successes.stream().map(success -> DynamicTest.dynamicTest(
-                success.getKey(),
-                () -> assertThat(fieldsWithoutExample(document, success.getValue(), "body")).isEmpty()));
+                success.getKey(), () -> assertRealExampleOf(document, success.getValue())));
+    }
+
+    /**
+     * O exemplo real de uma resposta de sucesso. Em JSON, um exemplo em cada campo. Numa planilha (R-016 da
+     * 007), o corpo é binário e não cabe exemplo: o exemplo real é o tipo do .xlsx, o esquema binário e o nome
+     * do arquivo no cabeçalho {@code Content-Disposition}.
+     */
+    private static void assertRealExampleOf(JsonNode document, JsonNode response) {
+        JsonNode spreadsheet = response.path("content").path(SPREADSHEET);
+        if (spreadsheet.isMissingNode()) {
+            assertThat(fieldsWithoutExample(document, response.at("/content/application~1json/schema"), "body"))
+                    .isEmpty();
+            return;
+        }
+        assertThat(spreadsheet.at("/schema/type").asString("")).isEqualTo("string");
+        assertThat(spreadsheet.at("/schema/format").asString("")).isEqualTo("binary");
+        JsonNode disposition = response.at("/headers/Content-Disposition");
+        String example = disposition.path("example").asString(disposition.at("/schema/example").asString(""));
+        assertThat(example).startsWith("attachment; filename=\"").endsWith(".xlsx\"");
     }
 
     /** As respostas 2xx com corpo, nas operações que o documento publicado precisa conter hoje. */

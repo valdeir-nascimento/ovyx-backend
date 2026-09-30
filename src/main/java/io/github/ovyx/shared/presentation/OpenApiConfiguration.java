@@ -117,6 +117,11 @@ public class OpenApiConfiguration {
                         setor inativa junto as gaiolas ativas dele; reativá-lo traz de volta exatamente essas gaiolas. \
                         A pesagem excluída fica guardada como anulada, com quem a anulou e quando, e sai das leituras.
 
+                        **Planilhas**: a lista de gaiolas de um setor também sai como planilha do Excel (.xlsx), com a \
+                        busca e os filtros da tela e todas as páginas. Quantidades, pesos e datas são números e datas \
+                        na planilha, e não texto; a gaiola nunca pesada fica com o peso em branco. A recusa de uma \
+                        exportação é a mesma de qualquer operação: `application/problem+json`, e não uma planilha.
+
                         Fórmulas de ração da granja (`FeedFormula`): o preço por quilo e o consumo esperado por ave ao \
                         dia, a base do custo da ração e do custo por ovo dos relatórios diários.
 
@@ -150,6 +155,12 @@ public class OpenApiConfiguration {
                         **Painel**: só leitura, o mesmo para os dois perfis. "Hoje" é o dia da granja, no fuso dela. \
                         Os números são os mesmos dos relatórios; o custo considera só os dias com a ração completa, \
                         e o dia sem relatório fica sem valor, e não com zero.
+
+                        **Planilhas**: o painel de um setor e os relatórios de um intervalo também saem como planilha \
+                        do Excel (.xlsx), com os mesmos números da tela. Quantidades, valores em reais, porcentagens e \
+                        datas são números e datas na planilha, e não texto; o valor sem dados fica em branco. Texto \
+                        digitado por alguém sai sempre como texto, nunca como fórmula. A recusa de uma exportação é a \
+                        mesma de qualquer operação: `application/problem+json`, e não uma planilha.
                         """))
             .tags(List.of(
                 new Tag()

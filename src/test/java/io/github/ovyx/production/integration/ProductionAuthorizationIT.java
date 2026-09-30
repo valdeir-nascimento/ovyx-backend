@@ -14,6 +14,7 @@ import io.github.ovyx.identity.domain.port.PasswordHasher;
 import jakarta.servlet.http.Cookie;
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.UnaryOperator;
@@ -95,8 +96,8 @@ class ProductionAuthorizationIT extends IntegrationTestSupport {
     }
 
     /**
-     * As sete leituras: a lista, a sugestão, o relatório, a gaiola e a proposta da ração, e as duas do painel
-     * (006): o cabeçalho e o painel do setor.
+     * As leituras: a lista, a sugestão, o relatório, a gaiola e a proposta da ração; as duas do painel (006), o
+     * cabeçalho e o painel do setor; e as exportações para planilha (007).
      */
     private List<MockHttpServletRequestBuilder> readsOf(Report report) {
         return List.of(
@@ -106,7 +107,9 @@ class ProductionAuthorizationIT extends IntegrationTestSupport {
                 get(report.b07()),
                 get(report.path() + "/feed-suggestion").queryParam("formulaId", formulaId.toString()),
                 get("/api/v1/dashboard"),
-                get("/api/v1/sectors/" + sectorId + "/dashboard").queryParam("period", "LAST_7_DAYS"));
+                get("/api/v1/sectors/" + sectorId + "/dashboard").queryParam("period", "LAST_7_DAYS"),
+                get(reports() + "/export").queryParam("from", "2026-09-01").queryParam("to", "2026-09-28"),
+                get("/api/v1/sectors/" + sectorId + "/dashboard/export").queryParam("period", "LAST_7_DAYS"));
     }
 
     /**
@@ -128,11 +131,19 @@ class ProductionAuthorizationIT extends IntegrationTestSupport {
                         .content("{\"formulaId\": \"" + formulaId + "\", \"consumption\": 1250}"));
     }
 
-    /** As catorze operações do contrato, as leituras antes das escritas. */
+    /** As operações do contrato, as leituras antes das escritas. */
     private List<MockHttpServletRequestBuilder> operationsOf(Report report) {
         List<MockHttpServletRequestBuilder> operations = new ArrayList<>(readsOf(report));
         operations.addAll(writesOf(report));
         return operations;
+    }
+
+    /** O que o usuário comum e o administrador recebem: 200 nas leituras, 201 na abertura e 200 nas demais escritas. */
+    private List<String> letThrough(Report report) {
+        List<String> expected = new ArrayList<>(Collections.nCopies(readsOf(report).size(), "200"));
+        expected.add("201");
+        expected.addAll(Collections.nCopies(writesOf(report).size() - 1, "200"));
+        return expected;
     }
 
     /** O status e o código de cada resposta, na ordem das requisições, cada uma ajustada por {@code as}. */
@@ -149,8 +160,8 @@ class ProductionAuthorizationIT extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("lets a common user do the fourteen operations")
-    void givenCommonUser_whenDoingTheFourteenOperations_thenLetThemThrough() throws Exception {
+    @DisplayName("lets a common user do every operation")
+    void givenCommonUser_whenDoingEveryOperation_thenLetThemThrough() throws Exception {
         // given
         Cookie[] commonUser = sessions.commonUser().cookies();
         Report report = openedReport(commonUser);
@@ -160,14 +171,12 @@ class ProductionAuthorizationIT extends IntegrationTestSupport {
                 outcomesOf(operationsOf(report), request -> request.with(sessions.csrf()).cookie(commonUser));
 
         // then
-        assertThat(outcomes)
-                .containsExactly(
-                        "200", "200", "200", "200", "200", "200", "200", "201", "200", "200", "200", "200", "200", "200");
+        assertThat(outcomes).containsExactlyElementsOf(letThrough(report));
     }
 
     @Test
-    @DisplayName("lets an administrator do the fourteen operations")
-    void givenAdministrator_whenDoingTheFourteenOperations_thenLetThemThrough() throws Exception {
+    @DisplayName("lets an administrator do every operation")
+    void givenAdministrator_whenDoingEveryOperation_thenLetThemThrough() throws Exception {
         // given
         Cookie[] administrator = sessions.administrator().cookies();
         Report report = openedReport(administrator);
@@ -177,14 +186,12 @@ class ProductionAuthorizationIT extends IntegrationTestSupport {
                 outcomesOf(operationsOf(report), request -> request.with(sessions.csrf()).cookie(administrator));
 
         // then
-        assertThat(outcomes)
-                .containsExactly(
-                        "200", "200", "200", "200", "200", "200", "200", "201", "200", "200", "200", "200", "200", "200");
+        assertThat(outcomes).containsExactlyElementsOf(letThrough(report));
     }
 
     @Test
-    @DisplayName("refuses a visitor without session on the fourteen operations: 401")
-    void givenVisitorWithoutSession_whenDoingTheFourteenOperations_thenAnswerUnauthenticated() throws Exception {
+    @DisplayName("refuses a visitor without session on every operation: 401")
+    void givenVisitorWithoutSession_whenDoingEveryOperation_thenAnswerUnauthenticated() throws Exception {
         // given
         Report report = openedReport(sessions.commonUser().cookies());
 
@@ -192,12 +199,12 @@ class ProductionAuthorizationIT extends IntegrationTestSupport {
         List<String> outcomes = outcomesOf(operationsOf(report), request -> request.with(sessions.csrf()));
 
         // then
-        assertThat(outcomes).hasSize(14).allMatch("401 UNAUTHENTICATED"::equals);
+        assertThat(outcomes).hasSize(operationsOf(report).size()).allMatch("401 UNAUTHENTICATED"::equals);
     }
 
     @Test
-    @DisplayName("refuses whoever owes the password change on the fourteen operations: 403")
-    void givenUserOwingThePasswordChange_whenDoingTheFourteenOperations_thenAnswerPasswordChangeRequired()
+    @DisplayName("refuses whoever owes the password change on every operation: 403")
+    void givenUserOwingThePasswordChange_whenDoingEveryOperation_thenAnswerPasswordChangeRequired()
             throws Exception {
         // given
         Report report = openedReport(sessions.commonUser().cookies());
@@ -207,7 +214,7 @@ class ProductionAuthorizationIT extends IntegrationTestSupport {
         List<String> outcomes = outcomesOf(operationsOf(report), request -> request.with(sessions.csrf()).cookie(owing));
 
         // then
-        assertThat(outcomes).hasSize(14).allMatch("403 PASSWORD_CHANGE_REQUIRED"::equals);
+        assertThat(outcomes).hasSize(operationsOf(report).size()).allMatch("403 PASSWORD_CHANGE_REQUIRED"::equals);
     }
 
     @Test
@@ -239,6 +246,6 @@ class ProductionAuthorizationIT extends IntegrationTestSupport {
 
         // then
         assertThat(writes).hasSize(7).allMatch("409 SECTOR_INACTIVE"::equals);
-        assertThat(reads).containsExactly("200", "200", "200", "200", "200", "200", "200");
+        assertThat(reads).hasSize(readsOf(report).size()).allMatch("200"::equals);
     }
 }

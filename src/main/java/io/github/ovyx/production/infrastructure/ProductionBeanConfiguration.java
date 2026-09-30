@@ -3,6 +3,7 @@ package io.github.ovyx.production.infrastructure;
 import io.github.ovyx.production.application.dailyreport.ConfirmNoMortalityCommandHandler;
 import io.github.ovyx.production.application.dailyreport.CorrectDailyReportCommandHandler;
 import io.github.ovyx.production.application.dailyreport.DailyReportDirectory;
+import io.github.ovyx.production.application.dailyreport.ExportDailyReportsQueryHandler;
 import io.github.ovyx.production.application.dailyreport.FindDailyReportQueryHandler;
 import io.github.ovyx.production.application.dailyreport.FindReportCageQueryHandler;
 import io.github.ovyx.production.application.dailyreport.ListDailyReportsQueryHandler;
@@ -14,12 +15,14 @@ import io.github.ovyx.production.application.dailyreport.RecordProductionCommand
 import io.github.ovyx.production.application.dailyreport.SuggestDailyReportQueryHandler;
 import io.github.ovyx.production.application.dailyreport.SuggestFeedQueryHandler;
 import io.github.ovyx.production.application.dashboard.DashboardDirectory;
+import io.github.ovyx.production.application.dashboard.ExportSectorDashboardQueryHandler;
 import io.github.ovyx.production.application.dashboard.GetDashboardOverviewQueryHandler;
 import io.github.ovyx.production.application.dashboard.GetSectorDashboardQueryHandler;
 import io.github.ovyx.production.domain.port.DailyReportRepository;
 import io.github.ovyx.production.domain.port.FarmStructure;
 import io.github.ovyx.production.domain.port.FeedCatalog;
 import io.github.ovyx.shared.application.FarmCalendar;
+import io.github.ovyx.shared.application.spreadsheet.SpreadsheetWriter;
 import java.time.Clock;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -91,6 +94,12 @@ public class ProductionBeanConfiguration {
     }
 
     @Bean
+    ExportDailyReportsQueryHandler exportDailyReportsQueryHandler(
+            DailyReportDirectory directory, SpreadsheetWriter writer, FarmCalendar calendar) {
+        return new ExportDailyReportsQueryHandler(directory, writer, calendar);
+    }
+
+    @Bean
     FindReportCageQueryHandler findReportCageQueryHandler(DailyReportDirectory directory) {
         return new FindReportCageQueryHandler(directory);
     }
@@ -111,5 +120,12 @@ public class ProductionBeanConfiguration {
     GetSectorDashboardQueryHandler getSectorDashboardQueryHandler(
             DashboardDirectory directory, FarmCalendar calendar) {
         return new GetSectorDashboardQueryHandler(directory, calendar);
+    }
+
+    /** A exportacao do painel compoe a consulta do painel, para os numeros serem os dela (R-008 da 007). */
+    @Bean
+    ExportSectorDashboardQueryHandler exportSectorDashboardQueryHandler(
+            GetSectorDashboardQueryHandler dashboards, SpreadsheetWriter writer, FarmCalendar calendar) {
+        return new ExportSectorDashboardQueryHandler(dashboards, writer, calendar);
     }
 }
