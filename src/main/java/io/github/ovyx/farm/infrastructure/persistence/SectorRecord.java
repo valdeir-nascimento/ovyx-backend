@@ -12,6 +12,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -43,6 +44,10 @@ public class SectorRecord {
 
     @Column(name = "reference_weight_max")
     private Integer referenceWeightMax;
+
+    /** A meta de produtividade, em porcentagem, com uma casa (feature 008). */
+    @Column(name = "laying_rate_target", nullable = false, precision = 4, scale = 1)
+    private BigDecimal layingRateTarget;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 10)
@@ -82,6 +87,7 @@ public class SectorRecord {
             String description,
             Integer referenceWeightMin,
             Integer referenceWeightMax,
+            BigDecimal layingRateTarget,
             Status status,
             Instant createdAt,
             Instant updatedAt) {
@@ -90,6 +96,7 @@ public class SectorRecord {
         this.description = description;
         this.referenceWeightMin = referenceWeightMin;
         this.referenceWeightMax = referenceWeightMax;
+        this.layingRateTarget = layingRateTarget;
         this.status = status;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
@@ -101,12 +108,14 @@ public class SectorRecord {
             String description,
             Integer referenceWeightMin,
             Integer referenceWeightMax,
+            BigDecimal layingRateTarget,
             Status status,
             Instant updatedAt) {
         this.name = name;
         this.description = description;
         this.referenceWeightMin = referenceWeightMin;
         this.referenceWeightMax = referenceWeightMax;
+        this.layingRateTarget = layingRateTarget;
         this.status = status;
         this.updatedAt = updatedAt;
     }
@@ -133,6 +142,10 @@ public class SectorRecord {
 
     Integer getReferenceWeightMax() {
         return referenceWeightMax;
+    }
+
+    BigDecimal getLayingRateTarget() {
+        return layingRateTarget;
     }
 
     Status getStatus() {

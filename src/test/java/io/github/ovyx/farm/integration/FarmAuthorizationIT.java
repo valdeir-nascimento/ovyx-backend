@@ -85,7 +85,7 @@ class FarmAuthorizationIT extends IntegrationTestSupport {
                         .cookie(administrator)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"name": "Autorização %s"}
+                                {"name": "Autorização %s", "layingRateTarget": 85}
                                 """.formatted(UUID.randomUUID())))
                 .andExpect(status().isCreated())
                 .andReturn()
@@ -136,7 +136,8 @@ class FarmAuthorizationIT extends IntegrationTestSupport {
     private static MockHttpServletRequestBuilder withBody(MockHttpServletRequestBuilder request) {
         return request.contentType(MediaType.APPLICATION_JSON).content("""
                 {"name": "Codornas — Galpão 9", "battery": "C", "number": 9, "birdCount": 50,
-                 "pricePerKg": "2,85", "expectedIntake": 28, "weighedOn": "2026-09-24", "averageWeight": 161}
+                 "pricePerKg": "2,85", "expectedIntake": 28, "weighedOn": "2026-09-24", "averageWeight": 161,
+                 "layingRateTarget": 85}
                 """);
     }
 
@@ -190,6 +191,26 @@ class FarmAuthorizationIT extends IntegrationTestSupport {
 
         // then
         response.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("lets a common user read the laying rate target, and forbids changing it (008)")
+    void givenCommonUser_whenChangingTheLayingRateTarget_thenForbidAndKeepTheTarget() throws Exception {
+        // given
+        MockHttpServletRequestBuilder update = put(sectorPath)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"name": "Codornas — Galpão 9", "layingRateTarget": 60}
+                        """);
+
+        // when
+        ResultActions response = mockMvc.perform(update.with(sessions.csrf()).cookie(commonUser));
+
+        // then
+        response.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        mockMvc.perform(get(sectorPath).cookie(commonUser))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.layingRateTarget").value(85.0));
     }
 
     @ParameterizedTest(name = "{0} {1}")

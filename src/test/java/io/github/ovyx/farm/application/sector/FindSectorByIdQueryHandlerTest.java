@@ -6,6 +6,7 @@ import io.github.ovyx.farm.domain.model.SectorId;
 import io.github.ovyx.farm.domain.model.Status;
 import io.github.ovyx.shared.application.ErrorType;
 import io.github.ovyx.shared.application.Result;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -31,7 +32,7 @@ class FindSectorByIdQueryHandlerTest {
                 2400,
                 List.of("A", "B", "C", "D"),
                 Instant.parse("2026-09-20T10:15:00Z"),
-                Instant.parse("2026-09-24T17:40:12Z"), null);
+                Instant.parse("2026-09-24T17:40:12Z"), null, new BigDecimal("82.5"));
         directory.holding(galpao);
 
         // when

@@ -3,6 +3,7 @@ package io.github.ovyx.farm.application.sector;
 import io.github.ovyx.farm.domain.model.SectorId;
 import io.github.ovyx.farm.domain.model.Status;
 import io.github.ovyx.farm.domain.valueobject.ReferenceWeight;
+import java.math.BigDecimal;
 
 /**
  * Setor na lista, com os totais das gaiolas ativas (FR-004).
@@ -14,6 +15,7 @@ import io.github.ovyx.farm.domain.valueobject.ReferenceWeight;
  * @param activeCageCount quantidade de gaiolas ativas
  * @param birdCount       soma das aves das gaiolas ativas
  * @param referenceWeight a faixa de peso de referencia, ou {@code null} sem faixa (feature 005)
+ * @param layingRateTarget a meta de produtividade, em porcentagem, com uma casa (feature 008)
  */
 public record SectorSummary(
     SectorId id,
@@ -22,6 +24,7 @@ public record SectorSummary(
     Status status,
     int activeCageCount,
     int birdCount,
-    ReferenceWeight referenceWeight
+    ReferenceWeight referenceWeight,
+    BigDecimal layingRateTarget
 ) {
 }

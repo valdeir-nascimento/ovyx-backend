@@ -40,7 +40,8 @@ class ProductionSchemaIT extends IntegrationTestSupport {
     private UUID insertSector() {
         UUID id = UUID.randomUUID();
         jdbc.update(
-                "insert into sector (id, name, status, created_at, updated_at) values (?, ?, 'ACTIVE', now(), now())",
+                "insert into sector (id, name, status, laying_rate_target, created_at, updated_at)"
+                        + " values (?, ?, 'ACTIVE', 85.0, now(), now())",
                 id,
                 "Galpão " + id);
         return id;

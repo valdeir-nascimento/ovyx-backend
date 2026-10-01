@@ -1,9 +1,11 @@
 package io.github.ovyx.farm.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.ovyx.IntegrationTestSupport;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
@@ -36,7 +38,8 @@ class FarmSchemaIT extends IntegrationTestSupport {
     private UUID insertSector(String name, String status) {
         UUID id = UUID.randomUUID();
         jdbc.update(
-                "insert into sector (id, name, status, created_at, updated_at) values (?, ?, ?, now(), now())",
+                "insert into sector (id, name, status, laying_rate_target, created_at, updated_at)"
+                        + " values (?, ?, ?, 85.0, now(), now())",
                 id,
                 name,
                 status);
@@ -330,5 +333,55 @@ class FarmSchemaIT extends IntegrationTestSupport {
         assertThat(definitions)
                 .anyMatch(definition -> definition.contains("(sector_id, status, battery, number)")
                         && !definition.contains("UNIQUE"));
+    }
+
+    private void insertSectorWithTarget(Object target) {
+        jdbc.update(
+                "insert into sector (id, name, status, laying_rate_target, created_at, updated_at)"
+                        + " values (?, ?, 'ACTIVE', ?, now(), now())",
+                UUID.randomUUID(),
+                "Galpão " + UUID.randomUUID(),
+                target);
+    }
+
+    @ParameterizedTest(name = "{0}%")
+    @ValueSource(strings = {"0.9", "100.1"})
+    @DisplayName("rejects a laying rate target outside 1 to 100")
+    void givenLayingRateTargetOutsideTheRange_whenInserting_thenRejectIt(String target) {
+        // given
+        BigDecimal value = new BigDecimal(target);
+
+        // when
+        ThrowingCallable insertion = () -> insertSectorWithTarget(value);
+
+        // then
+        assertThatThrownBy(insertion).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("rejects a sector without a laying rate target")
+    void givenNoLayingRateTarget_whenInserting_thenRejectIt() {
+        // given
+        BigDecimal value = null;
+
+        // when
+        ThrowingCallable insertion = () -> insertSectorWithTarget(value);
+
+        // then
+        assertThatThrownBy(insertion).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @ParameterizedTest(name = "{0}%")
+    @ValueSource(strings = {"1.0", "100.0"})
+    @DisplayName("accepts a laying rate target at the limits of the range")
+    void givenLayingRateTargetAtTheLimitOfTheRange_whenInserting_thenAcceptIt(String target) {
+        // given
+        BigDecimal value = new BigDecimal(target);
+
+        // when
+        ThrowingCallable insertion = () -> insertSectorWithTarget(value);
+
+        // then
+        assertThatCode(insertion).doesNotThrowAnyException();
     }
 }

@@ -7,6 +7,7 @@ import io.github.ovyx.farm.domain.model.SectorId;
 import io.github.ovyx.farm.domain.valueobject.Battery;
 import io.github.ovyx.farm.domain.valueobject.BirdCount;
 import io.github.ovyx.farm.domain.valueobject.CageNumber;
+import io.github.ovyx.farm.domain.valueobject.LayingRateTarget;
 import io.github.ovyx.farm.domain.valueobject.ReferenceWeight;
 import io.github.ovyx.farm.domain.valueobject.SectorDescription;
 import io.github.ovyx.farm.domain.valueobject.SectorName;
@@ -33,6 +34,7 @@ final class SectorRecordMapper {
                 descriptionOf(sector),
                 minimumOf(sector),
                 maximumOf(sector),
+                sector.layingRateTarget().value(),
                 sector.status(),
                 sector.createdAt(),
                 sector.updatedAt());
@@ -51,6 +53,7 @@ final class SectorRecordMapper {
                 || !Objects.equals(record.getDescription(), descriptionOf(sector))
                 || !Objects.equals(record.getReferenceWeightMin(), minimumOf(sector))
                 || !Objects.equals(record.getReferenceWeightMax(), maximumOf(sector))
+                || record.getLayingRateTarget().compareTo(sector.layingRateTarget().value()) != 0
                 || record.getStatus() != sector.status()
                 || !Objects.equals(record.getUpdatedAt(), sector.updatedAt());
         record.apply(
@@ -58,6 +61,7 @@ final class SectorRecordMapper {
                 descriptionOf(sector),
                 minimumOf(sector),
                 maximumOf(sector),
+                sector.layingRateTarget().value(),
                 sector.status(),
                 sector.updatedAt());
 
@@ -90,6 +94,7 @@ final class SectorRecordMapper {
                 record.getReferenceWeightMin() == null
                         ? null
                         : new ReferenceWeight(record.getReferenceWeightMin(), record.getReferenceWeightMax()),
+                new LayingRateTarget(record.getLayingRateTarget()),
                 record.getStatus(),
                 record.getCages().stream().map(SectorRecordMapper::toDomain).toList(),
                 record.getCreatedAt(),

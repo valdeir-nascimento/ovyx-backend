@@ -28,7 +28,7 @@ public class JdbcSectorDirectory implements SectorDirectory {
 
     private static final String SELECT = """
             select s.id, s.name, s.description, s.status, s.created_at, s.updated_at,
-                   s.reference_weight_min, s.reference_weight_max,
+                   s.reference_weight_min, s.reference_weight_max, s.laying_rate_target,
                    count(c.id) filter (where c.status = 'ACTIVE') as active_cage_count,
                    coalesce(sum(c.bird_count) filter (where c.status = 'ACTIVE'), 0) as bird_count
               from sector s
@@ -78,7 +78,8 @@ public class JdbcSectorDirectory implements SectorDirectory {
                         Arrays.asList((String[]) rs.getArray("batteries").getArray()),
                         rs.getObject("created_at", OffsetDateTime.class).toInstant(),
                         rs.getObject("updated_at", OffsetDateTime.class).toInstant(),
-                        referenceWeightOf(rs)))
+                        referenceWeightOf(rs),
+                        rs.getBigDecimal("laying_rate_target")))
                 .optional();
     }
 
@@ -90,7 +91,8 @@ public class JdbcSectorDirectory implements SectorDirectory {
                 Status.valueOf(rs.getString("status")),
                 rs.getInt("active_cage_count"),
                 rs.getInt("bird_count"),
-                referenceWeightOf(rs));
+                referenceWeightOf(rs),
+                rs.getBigDecimal("laying_rate_target"));
     }
 
     /** A faixa de peso de referencia do setor, ou {@code null} sem faixa (feature 005). */

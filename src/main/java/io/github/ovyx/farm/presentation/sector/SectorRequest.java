@@ -28,7 +28,14 @@ public record SectorRequest(
                 type = "integer",
                 description = "Peso máximo de referência das aves, em gramas, maior que o mínimo",
                 example = "175")
-        JsonNode maximumWeight) {
+        JsonNode maximumWeight,
+        @Schema(
+                type = "number",
+                description = "Meta de produtividade do setor: a porcentagem de ovos coletados sobre as aves alojadas"
+                        + " esperada por dia, de 1 a 100, com até uma casa decimal. Número ou texto, com vírgula ou"
+                        + " ponto.",
+                example = "85")
+        JsonNode layingRateTarget) {
 
     /** O peso minimo como texto, do jeito que veio; ausente, nulo (feature 005). */
     public String rawMinimumWeight() {
@@ -38,5 +45,10 @@ public record SectorRequest(
     /** O peso maximo como texto, do jeito que veio; ausente, nulo (feature 005). */
     public String rawMaximumWeight() {
         return RawJsonValue.of(maximumWeight);
+    }
+
+    /** A meta de produtividade como texto, do jeito que veio; ausente, nula (feature 008). */
+    public String rawLayingRateTarget() {
+        return RawJsonValue.of(layingRateTarget);
     }
 }

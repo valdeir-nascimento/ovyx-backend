@@ -5,6 +5,7 @@ import io.github.ovyx.farm.domain.port.SectorRoster;
 import io.github.ovyx.farm.domain.valueobject.Battery;
 import io.github.ovyx.farm.domain.valueobject.BirdCount;
 import io.github.ovyx.farm.domain.valueobject.CageNumber;
+import io.github.ovyx.farm.domain.valueobject.LayingRateTarget;
 import io.github.ovyx.farm.domain.valueobject.ReferenceWeight;
 import io.github.ovyx.farm.domain.valueobject.SectorDescription;
 import io.github.ovyx.farm.domain.valueobject.SectorName;
@@ -37,6 +38,8 @@ import java.util.Optional;
  *       volta exatamente essas (FR-012, FR-015, R-004)
  *   <li>A faixa de peso de referencia, quando ha, tem os dois limites, com o minimo abaixo do maximo, e
  *       as violacoes dela voltam junto das do nome e da descricao (FR-001 e R-006 da 005)
+ *   <li>Todo setor tem a meta de produtividade, de 1 a 100%, com uma casa, e as violacoes dela voltam junto
+ *       das do nome, da descricao e da faixa (FR-001 e R-006 da 008)
  * </ol>
  *
  * <p>O setor contem as gaiolas (R-003): toda escrita numa gaiola passa por ele, e muda o instante da
@@ -62,6 +65,7 @@ public final class Sector extends AggregateRoot<SectorId> {
     private SectorName name;
     private SectorDescription description;
     private ReferenceWeight referenceWeight;
+    private LayingRateTarget layingRateTarget;
     private Status status;
     private Instant updatedAt;
 
@@ -70,6 +74,7 @@ public final class Sector extends AggregateRoot<SectorId> {
             SectorName name,
             SectorDescription description,
             ReferenceWeight referenceWeight,
+            LayingRateTarget layingRateTarget,
             Status status,
             List<Cage> cages,
             Instant createdAt,
@@ -78,6 +83,7 @@ public final class Sector extends AggregateRoot<SectorId> {
         this.name = name;
         this.description = description;
         this.referenceWeight = referenceWeight;
+        this.layingRateTarget = layingRateTarget;
         this.status = status;
         this.cages = new ArrayList<>(cages);
         this.createdAt = createdAt;
@@ -98,9 +104,10 @@ public final class Sector extends AggregateRoot<SectorId> {
             String rawDescription,
             String rawMinimumWeight,
             String rawMaximumWeight,
+            String rawLayingRateTarget,
             SectorRoster roster,
             Clock clock) {
-        validate(rawName, rawDescription, rawMinimumWeight, rawMaximumWeight);
+        validate(rawName, rawDescription, rawMinimumWeight, rawMaximumWeight, rawLayingRateTarget);
 
         SectorId id = SectorId.generate();
         SectorName name = SectorName.of(rawName);
@@ -112,6 +119,7 @@ public final class Sector extends AggregateRoot<SectorId> {
                 name,
                 SectorDescription.optionalOf(rawDescription).orElse(null),
                 ReferenceWeight.optionalOf(rawMinimumWeight, rawMaximumWeight).orElse(null),
+                LayingRateTarget.of(rawLayingRateTarget),
                 Status.ACTIVE,
                 List.of(),
                 now,
@@ -126,6 +134,7 @@ public final class Sector extends AggregateRoot<SectorId> {
      *
      * @param description a descricao, ou {@code null} quando o setor nao tem
      * @param referenceWeight a faixa de peso de referencia, ou {@code null} quando o setor nao tem
+     * @param layingRateTarget a meta de produtividade (feature 008)
      * @param cages todas as gaiolas do setor, ativas e inativas
      */
     public static Sector restore(
@@ -133,17 +142,19 @@ public final class Sector extends AggregateRoot<SectorId> {
             SectorName name,
             SectorDescription description,
             ReferenceWeight referenceWeight,
+            LayingRateTarget layingRateTarget,
             Status status,
             List<Cage> cages,
             Instant createdAt,
             Instant updatedAt) {
-        return new Sector(id, name, description, referenceWeight, status, cages, createdAt, updatedAt);
+        return new Sector(
+                id, name, description, referenceWeight, layingRateTarget, status, cages, createdAt, updatedAt);
     }
 
     /**
-     * Edita o nome, a descricao e a faixa de peso de referencia, com as mesmas regras do cadastro (FR-003
-     * da 002; FR-001 da 005). Sem os dois limites, o setor fica sem faixa. Recusada, a edicao nao altera
-     * nada.
+     * Edita o nome, a descricao, a faixa de peso de referencia e a meta de produtividade, com as mesmas
+     * regras do cadastro (FR-003 da 002; FR-001 da 005; FR-002 da 008). Sem os dois limites, o setor fica sem
+     * faixa. Recusada, a edicao nao altera nada.
      *
      * @throws DomainException quando algum campo viola uma regra, ou quando outro setor ativo ja usa o
      *     nome
@@ -153,9 +164,10 @@ public final class Sector extends AggregateRoot<SectorId> {
             String rawDescription,
             String rawMinimumWeight,
             String rawMaximumWeight,
+            String rawLayingRateTarget,
             SectorRoster roster,
             Clock clock) {
-        validate(rawName, rawDescription, rawMinimumWeight, rawMaximumWeight);
+        validate(rawName, rawDescription, rawMinimumWeight, rawMaximumWeight, rawLayingRateTarget);
 
         SectorName newName = SectorName.of(rawName);
         refuseIfNameInUse(newName, id(), roster);
@@ -163,16 +175,22 @@ public final class Sector extends AggregateRoot<SectorId> {
         this.name = newName;
         this.description = SectorDescription.optionalOf(rawDescription).orElse(null);
         this.referenceWeight = ReferenceWeight.optionalOf(rawMinimumWeight, rawMaximumWeight).orElse(null);
+        this.layingRateTarget = LayingRateTarget.of(rawLayingRateTarget);
         touch(clock);
     }
 
-    /** Os campos do setor, todas as violacoes de uma vez (FR-017 da 001). */
+    /** Os campos do setor, todas as violacoes de uma vez, na ordem do formulario (FR-017 da 001). */
     private static void validate(
-            String rawName, String rawDescription, String rawMinimumWeight, String rawMaximumWeight) {
+            String rawName,
+            String rawDescription,
+            String rawMinimumWeight,
+            String rawMaximumWeight,
+            String rawLayingRateTarget) {
         Notification notification = new Notification();
         SectorName.validate(rawName, notification);
         SectorDescription.validate(rawDescription, notification);
         ReferenceWeight.validate(rawMinimumWeight, rawMaximumWeight, notification);
+        LayingRateTarget.validate(rawLayingRateTarget, notification);
         notification.throwIfAny(FarmErrorCode.VALIDATION_FAILED);
     }
 
@@ -381,6 +399,11 @@ public final class Sector extends AggregateRoot<SectorId> {
     /** A faixa de peso de referencia das aves, quando o administrador a definiu (feature 005). */
     public Optional<ReferenceWeight> referenceWeight() {
         return Optional.ofNullable(referenceWeight);
+    }
+
+    /** A meta de produtividade do setor, que o painel e o alerta de baixa postura usam (feature 008). */
+    public LayingRateTarget layingRateTarget() {
+        return layingRateTarget;
     }
 
     public Optional<SectorDescription> description() {

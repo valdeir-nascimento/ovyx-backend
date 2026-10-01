@@ -34,6 +34,7 @@ public class RegisterSectorCommandHandler implements CommandHandler<RegisterSect
                     command.description(),
                     command.minimumWeight(),
                     command.maximumWeight(),
+                    command.layingRateTarget(),
                     sectorRepository,
                     clock);
         } catch (DomainException refusal) {

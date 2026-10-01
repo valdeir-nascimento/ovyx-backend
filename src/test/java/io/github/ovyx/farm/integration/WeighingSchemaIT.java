@@ -41,8 +41,8 @@ class WeighingSchemaIT extends IntegrationTestSupport {
     private UUID insertSector(Integer minimum, Integer maximum) {
         UUID id = UUID.randomUUID();
         jdbc.update(
-                "insert into sector (id, name, status, reference_weight_min, reference_weight_max, created_at,"
-                        + " updated_at) values (?, ?, 'ACTIVE', ?, ?, now(), now())",
+                "insert into sector (id, name, status, reference_weight_min, reference_weight_max,"
+                        + " laying_rate_target, created_at, updated_at) values (?, ?, 'ACTIVE', ?, ?, 85.0, now(), now())",
                 id,
                 "Galpão " + id,
                 minimum,

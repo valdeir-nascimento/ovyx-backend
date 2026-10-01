@@ -61,7 +61,8 @@ class FeedFormulaSchemaIT extends IntegrationTestSupport {
     private UUID[] insertReportWithCage() {
         UUID sectorId = UUID.randomUUID();
         jdbc.update(
-                "insert into sector (id, name, status, created_at, updated_at) values (?, ?, 'ACTIVE', now(), now())",
+                "insert into sector (id, name, status, laying_rate_target, created_at, updated_at)"
+                        + " values (?, ?, 'ACTIVE', 85.0, now(), now())",
                 sectorId,
                 "Galpão " + sectorId);
         UUID cageId = UUID.randomUUID();

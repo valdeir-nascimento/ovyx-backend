@@ -22,7 +22,8 @@ public final class SectorExamples {
               "name": "Codornas — Galpão 4",
               "description": "Codornas japonesas em postura, baterias A e B",
               "minimumWeight": 155,
-              "maximumWeight": 175
+              "maximumWeight": 175,
+              "layingRateTarget": 85
             }""";
 
     public static final String EDIT =
@@ -31,7 +32,8 @@ public final class SectorExamples {
               "name": "Codornas — Galpão 1 (norte)",
               "description": "Codornas japonesas em postura, baterias A a D",
               "minimumWeight": 155,
-              "maximumWeight": 175
+              "maximumWeight": 175,
+              "layingRateTarget": "82,5"
             }""";
 
     /** A edicao sem os dois limites: o setor fica sem faixa (feature 005). */
@@ -39,7 +41,8 @@ public final class SectorExamples {
             """
             {
               "name": "Codornas — Galpão 1 (norte)",
-              "description": "Codornas japonesas em postura, baterias A a D"
+              "description": "Codornas japonesas em postura, baterias A a D",
+              "layingRateTarget": 88
             }""";
 
     // ------------------------------------------------------------------------ sucesso
@@ -53,7 +56,8 @@ public final class SectorExamples {
                 "description": "Codornas japonesas em postura, baterias A a D",
                 "status": "ACTIVE",
                 "activeCageCount": 48,
-                "birdCount": 2400
+                "birdCount": 2400,
+                "layingRateTarget": 85.0
               },
               {
                 "id": "7a1b9c3d-2e4f-4a6b-8c0d-5e7f9a1b3c22",
@@ -61,7 +65,8 @@ public final class SectorExamples {
                 "description": "Linhagem Hy-Line W-36 em gaiolas convencionais",
                 "status": "ACTIVE",
                 "activeCageCount": 24,
-                "birdCount": 1200
+                "birdCount": 1200,
+                "layingRateTarget": 72.0
               }
             ]""";
 
@@ -74,6 +79,7 @@ public final class SectorExamples {
               "status": "ACTIVE",
               "activeCageCount": 0,
               "birdCount": 0,
+              "layingRateTarget": 85.0,
               "referenceWeight": {
                 "minimum": 155,
                 "maximum": 175
@@ -92,6 +98,7 @@ public final class SectorExamples {
               "status": "ACTIVE",
               "activeCageCount": 48,
               "birdCount": 2400,
+              "layingRateTarget": 85.0,
               "batteries": ["A", "B", "C", "D"],
               "createdAt": "2026-09-20T10:15:00Z",
               "updatedAt": "2026-09-24T17:40:12Z"
@@ -106,6 +113,11 @@ public final class SectorExamples {
               "status": "ACTIVE",
               "activeCageCount": 48,
               "birdCount": 2400,
+              "referenceWeight": {
+                "minimum": 155,
+                "maximum": 175
+              },
+              "layingRateTarget": 82.5,
               "batteries": ["A", "B", "C", "D"],
               "createdAt": "2026-09-20T10:15:00Z",
               "updatedAt": "2026-09-25T09:12:40Z"
@@ -120,6 +132,7 @@ public final class SectorExamples {
               "status": "INACTIVE",
               "activeCageCount": 0,
               "birdCount": 0,
+              "layingRateTarget": 85.0,
               "batteries": ["A", "B", "C", "D"],
               "createdAt": "2026-09-20T10:15:00Z",
               "updatedAt": "2026-09-25T14:03:51Z"
@@ -134,6 +147,7 @@ public final class SectorExamples {
               "status": "ACTIVE",
               "activeCageCount": 48,
               "birdCount": 2400,
+              "layingRateTarget": 85.0,
               "batteries": ["A", "B", "C", "D"],
               "createdAt": "2026-09-20T10:15:00Z",
               "updatedAt": "2026-09-25T15:20:07Z"
@@ -164,6 +178,45 @@ public final class SectorExamples {
               "detail": "Dados inválidos.",
               "details": {
                 "minimumWeight": "O peso mínimo deve ser menor que o máximo."
+              },
+              "instance": \"""";
+
+    /** A meta acima de 100%, recusada no campo dela (feature 008). */
+    private static final String TARGET_OUT_OF_RANGE =
+            """
+            {
+              "code": "VALIDATION_FAILED",
+              "title": "Dados inválidos",
+              "status": 400,
+              "detail": "Dados inválidos.",
+              "details": {
+                "layingRateTarget": "A meta deve ficar entre 1% e 100%."
+              },
+              "instance": \"""";
+
+    /** A meta em branco (feature 008). */
+    private static final String TARGET_MISSING =
+            """
+            {
+              "code": "VALIDATION_FAILED",
+              "title": "Dados inválidos",
+              "status": 400,
+              "detail": "Dados inválidos.",
+              "details": {
+                "layingRateTarget": "Informe a meta de produtividade, de 1 a 100%."
+              },
+              "instance": \"""";
+
+    /** A meta com duas casas decimais (feature 008). */
+    private static final String TARGET_INVALID =
+            """
+            {
+              "code": "VALIDATION_FAILED",
+              "title": "Dados inválidos",
+              "status": 400,
+              "detail": "Dados inválidos.",
+              "details": {
+                "layingRateTarget": "Informe a meta em porcentagem, com até uma casa decimal."
               },
               "instance": \"""";
 
@@ -296,6 +349,7 @@ public final class SectorExamples {
 
     public static final String REGISTER_FIELDS_INVALID = FIELDS_INVALID + COLLECTION + END;
     public static final String REGISTER_RANGE_INVERTED = RANGE_INVERTED + COLLECTION + END;
+    public static final String REGISTER_TARGET_OUT_OF_RANGE = TARGET_OUT_OF_RANGE + COLLECTION + END;
     public static final String REGISTER_UNREADABLE_BODY = UNREADABLE_BODY + COLLECTION + END;
     public static final String REGISTER_UNAUTHENTICATED = UNAUTHENTICATED + COLLECTION + END;
     public static final String REGISTER_FORBIDDEN = FORBIDDEN + COLLECTION + END;
@@ -317,6 +371,8 @@ public final class SectorExamples {
     // ------------------------------------------------ PUT /api/v1/sectors/{sectorId}
 
     public static final String UPDATE_NAME_MISSING = NAME_MISSING + ITEM + END;
+    public static final String UPDATE_TARGET_MISSING = TARGET_MISSING + ITEM + END;
+    public static final String UPDATE_TARGET_INVALID = TARGET_INVALID + ITEM + END;
     public static final String UPDATE_UNREADABLE_BODY = UNREADABLE_BODY + ITEM + END;
     public static final String UPDATE_UNAUTHENTICATED = UNAUTHENTICATED + ITEM + END;
     public static final String UPDATE_FORBIDDEN = FORBIDDEN + ITEM + END;

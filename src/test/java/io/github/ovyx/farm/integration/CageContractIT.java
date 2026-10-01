@@ -63,7 +63,7 @@ class CageContractIT extends IntegrationTestSupport {
         sessions = new IntegrationSessions(mockMvc, caretakerRepository, passwordHasher, clock);
         administrator = sessions.administrator().cookies();
         sectorPath = "/api/v1/sectors/" + idOf(send(post("/api/v1/sectors"), """
-                {"name": "Gaiolas %s"}
+                {"name": "Gaiolas %s", "layingRateTarget": 85}
                 """.formatted(UUID.randomUUID()))
                 .andExpect(status().isCreated()));
         cagesPath = sectorPath + "/cages";
@@ -298,7 +298,7 @@ class CageContractIT extends IntegrationTestSupport {
         // given
         String foreign = registered("B", 7, 50);
         String otherSector = "/api/v1/sectors/" + idOf(send(post("/api/v1/sectors"), """
-                {"name": "Outro %s"}
+                {"name": "Outro %s", "layingRateTarget": 85}
                 """.formatted(UUID.randomUUID())));
         String foreignThroughOtherSector = otherSector + foreign.substring(foreign.indexOf("/cages"));
 

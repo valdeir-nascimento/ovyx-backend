@@ -5,6 +5,7 @@ import static org.assertj.core.api.InstanceOfAssertFactories.STRING;
 
 import io.github.ovyx.IntegrationTestSupport;
 import java.util.List;
+import java.util.Map;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -66,15 +67,15 @@ class DatabaseMigrationIT extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("records the nine migrations as successfully applied")
-    void givenMigratedDatabase_whenReadingTheHistory_thenFindTheNineMigrationsApplied() {
+    @DisplayName("records the ten migrations as successfully applied")
+    void givenMigratedDatabase_whenReadingTheHistory_thenFindTheTenMigrationsApplied() {
         // given — o contentor compartilhado, migrado na subida
 
         // when
         List<String> versions = jdbc().queryForList(APPLIED_VERSIONS, String.class);
 
         // then
-        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9");
+        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10");
     }
 
     @ParameterizedTest
@@ -160,6 +161,30 @@ class DatabaseMigrationIT extends IntegrationTestSupport {
 
         // then
         assertThat(columns).contains("reference_weight_min", "reference_weight_max");
+    }
+
+    @Test
+    @DisplayName("adds the laying rate target to the sector as a required numeric with one decimal and no default")
+    void givenMigratedDatabase_whenReadingTheLayingRateTargetColumn_thenFindARequiredNumericWithoutDefault() {
+        // given
+        String column = "laying_rate_target";
+
+        // when
+        Map<String, Object> definition = jdbc().queryForMap(
+                """
+                select data_type, numeric_precision, numeric_scale, is_nullable, column_default
+                  from information_schema.columns
+                 where table_name = 'sector' and column_name = ?
+                """,
+                column);
+
+        // then
+        assertThat(definition)
+                .containsEntry("data_type", "numeric")
+                .containsEntry("numeric_precision", 4)
+                .containsEntry("numeric_scale", 1)
+                .containsEntry("is_nullable", "NO")
+                .containsEntry("column_default", null);
     }
 
     @Test

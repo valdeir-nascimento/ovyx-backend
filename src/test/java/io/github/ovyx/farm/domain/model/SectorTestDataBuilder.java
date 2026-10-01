@@ -4,6 +4,7 @@ import io.github.ovyx.farm.domain.port.SectorRoster;
 import io.github.ovyx.farm.domain.valueobject.Battery;
 import io.github.ovyx.farm.domain.valueobject.BirdCount;
 import io.github.ovyx.farm.domain.valueobject.CageNumber;
+import io.github.ovyx.farm.domain.valueobject.LayingRateTarget;
 import io.github.ovyx.farm.domain.valueobject.ReferenceWeight;
 import io.github.ovyx.farm.domain.valueobject.SectorDescription;
 import io.github.ovyx.farm.domain.valueobject.SectorName;
@@ -33,6 +34,7 @@ public final class SectorTestDataBuilder {
     private boolean inactive;
     private Integer minimumWeight;
     private Integer maximumWeight;
+    private String layingRateTarget = "85";
     private final List<CageSpec> cages = new ArrayList<>();
     private SectorRoster roster = EMPTY_ROSTER;
     private Clock clock = FixedClock.at("2026-09-20T10:15:00Z");
@@ -65,6 +67,12 @@ public final class SectorTestDataBuilder {
         return this;
     }
 
+    /** A meta de produtividade, como digitada (feature 008); 85 por padrão. */
+    public SectorTestDataBuilder withLayingRateTarget(String layingRateTarget) {
+        this.layingRateTarget = layingRateTarget;
+        return this;
+    }
+
     public SectorTestDataBuilder inactive() {
         this.inactive = true;
         return this;
@@ -94,13 +102,15 @@ public final class SectorTestDataBuilder {
 
     public Sector build() {
         if (!inactive && cages.isEmpty()) {
-            return Sector.register(name, description, textOf(minimumWeight), textOf(maximumWeight), roster, clock);
+            return Sector.register(
+                    name, description, textOf(minimumWeight), textOf(maximumWeight), layingRateTarget, roster, clock);
         }
         return Sector.restore(
                 SectorId.generate(),
                 SectorName.of(name),
                 SectorDescription.optionalOf(description).orElse(null),
                 minimumWeight == null ? null : new ReferenceWeight(minimumWeight, maximumWeight),
+                LayingRateTarget.of(layingRateTarget),
                 inactive ? Status.INACTIVE : Status.ACTIVE,
                 cages.stream().map(this::restored).toList(),
                 clock.instant(),

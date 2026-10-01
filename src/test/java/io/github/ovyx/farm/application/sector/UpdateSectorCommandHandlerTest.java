@@ -11,6 +11,7 @@ import io.github.ovyx.shared.application.ErrorType;
 import io.github.ovyx.shared.application.Result;
 import io.github.ovyx.shared.domain.FixedClock;
 import java.time.Duration;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -37,7 +38,7 @@ class UpdateSectorCommandHandlerTest {
         Sector sector = saved("Codornas — Galpão 1");
         clock.advance(Duration.ofHours(1));
         UpdateSectorCommand command = new UpdateSectorCommand(
-                sector.id().toString(), "Codornas — Galpão 1 (norte)", "Baterias A a D, ala norte", null, null);
+                sector.id().toString(), "Codornas — Galpão 1 (norte)", "Baterias A a D, ala norte", null, null, "85");
 
         // when
         Result<SectorId> result = handler.handle(command);
@@ -54,7 +55,7 @@ class UpdateSectorCommandHandlerTest {
     @DisplayName("fails as not found for an unknown or malformed identifier")
     void givenUnknownOrMalformedIdentifier_whenUpdating_thenFailAsNotFound(String sectorId) {
         // given
-        UpdateSectorCommand command = new UpdateSectorCommand(sectorId, "Codornas — Galpão 1", null, null, null);
+        UpdateSectorCommand command = new UpdateSectorCommand(sectorId, "Codornas — Galpão 1", null, null, null, "85");
 
         // when
         Result<SectorId> result = handler.handle(command);
@@ -70,7 +71,7 @@ class UpdateSectorCommandHandlerTest {
     void givenMissingNameAndLongDescription_whenUpdating_thenFailAsValidationAndSaveNothing() {
         // given
         Sector sector = saved("Codornas — Galpão 1");
-        UpdateSectorCommand command = new UpdateSectorCommand(sector.id().toString(), " ", "d".repeat(501), null, null);
+        UpdateSectorCommand command = new UpdateSectorCommand(sector.id().toString(), " ", "d".repeat(501), null, null, "85");
 
         // when
         Result<SectorId> result = handler.handle(command);
@@ -88,7 +89,7 @@ class UpdateSectorCommandHandlerTest {
         saved("Poedeiras brancas — Galpão 2");
         Sector sector = saved("Codornas — Galpão 1");
         UpdateSectorCommand command =
-                new UpdateSectorCommand(sector.id().toString(), "Poedeiras Brancas — Galpão 2", null, null, null);
+                new UpdateSectorCommand(sector.id().toString(), "Poedeiras Brancas — Galpão 2", null, null, null, "85");
 
         // when
         Result<SectorId> result = handler.handle(command);
@@ -107,7 +108,7 @@ class UpdateSectorCommandHandlerTest {
         // given
         Sector sector = saved("Codornas — Galpão 1");
         UpdateSectorCommand command =
-                new UpdateSectorCommand(sector.id().toString(), sector.name().value(), null, "155", "175");
+                new UpdateSectorCommand(sector.id().toString(), sector.name().value(), null, "155", "175", "85");
 
         // when
         handler.handle(command);
@@ -115,5 +116,43 @@ class UpdateSectorCommandHandlerTest {
         // then
         assertThat(repository.findById(sector.id()).orElseThrow().referenceWeight())
                 .contains(new ReferenceWeight(155, 175));
+    }
+
+    // ---------------------------------------------------------------- meta de produtividade (008)
+
+    @Test
+    @DisplayName("changes the laying rate target of the sector")
+    void givenSectorWith85_whenUpdatingTheTargetTo72_thenSave72() {
+        // given
+        Sector sector = saved("Codornas — Galpão 1");
+        UpdateSectorCommand command =
+                new UpdateSectorCommand(sector.id().toString(), sector.name().value(), null, null, null, "72");
+
+        // when
+        Result<SectorId> result = handler.handle(command);
+
+        // then
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(repository.findById(sector.id()).orElseThrow().layingRateTarget().value())
+                .isEqualByComparingTo("72.0");
+    }
+
+    @Test
+    @DisplayName("fails as validation without a target, and keeps the one saved")
+    void givenMissingTarget_whenUpdating_thenFailAsValidationAndKeepTheTarget() {
+        // given
+        Sector sector = saved("Codornas — Galpão 1");
+        UpdateSectorCommand command =
+                new UpdateSectorCommand(sector.id().toString(), sector.name().value(), null, null, null, null);
+
+        // when
+        Result<SectorId> result = handler.handle(command);
+
+        // then
+        assertThat(result.error().type()).isEqualTo(ErrorType.VALIDATION);
+        assertThat(result.error().details())
+                .containsOnly(Map.entry("layingRateTarget", "Informe a meta de produtividade, de 1 a 100%."));
+        assertThat(repository.findById(sector.id()).orElseThrow().layingRateTarget().value())
+                .isEqualByComparingTo("85.0");
     }
 }

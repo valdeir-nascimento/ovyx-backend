@@ -142,6 +142,10 @@ public interface SectorApi {
                     name = "faixaInvertida",
                     summary = "Faixa de peso com o mínimo acima do máximo",
                     value = SectorExamples.REGISTER_RANGE_INVERTED),
+                @ExampleObject(
+                    name = "metaForaDaFaixa",
+                    summary = "Meta de produtividade acima de 100%",
+                    value = SectorExamples.REGISTER_TARGET_OUT_OF_RANGE),
                 @ExampleObject(name = "corpoIlegivel", value = SectorExamples.REGISTER_UNREADABLE_BODY)
             }))
     @ApiResponse(
@@ -261,7 +265,7 @@ public interface SectorApi {
                 examples = {
                     @ExampleObject(
                         name = "edicao",
-                        summary = "Nome, descrição e faixa de peso corrigidos",
+                        summary = "Nome, descrição, faixa de peso e meta corrigidos",
                         value = SectorExamples.EDIT),
                     @ExampleObject(
                         name = "semFaixa",
@@ -285,6 +289,14 @@ public interface SectorApi {
             examples = {
                 @ExampleObject(
                     name = "nomeAusente", summary = "Nome em branco", value = SectorExamples.UPDATE_NAME_MISSING),
+                @ExampleObject(
+                    name = "metaAusente",
+                    summary = "Meta de produtividade em branco",
+                    value = SectorExamples.UPDATE_TARGET_MISSING),
+                @ExampleObject(
+                    name = "metaComDuasCasas",
+                    summary = "Meta com duas casas decimais",
+                    value = SectorExamples.UPDATE_TARGET_INVALID),
                 @ExampleObject(name = "corpoIlegivel", value = SectorExamples.UPDATE_UNREADABLE_BODY)
             }))
     @ApiResponse(

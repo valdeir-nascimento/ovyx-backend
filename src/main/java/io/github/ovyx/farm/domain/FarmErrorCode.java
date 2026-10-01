@@ -57,6 +57,13 @@ public enum FarmErrorCode implements ErrorCode {
     /** Minimo da faixa igual ou acima do maximo. */
     REFERENCE_WEIGHT_INVERTED,
 
+    /** Ausente no campo {@code layingRateTarget}: a meta de produtividade e obrigatoria no setor (008). */
+    LAYING_RATE_TARGET_REQUIRED,
+    /** Nao e uma porcentagem com ate uma casa decimal, como "82,55" ou "85%". */
+    LAYING_RATE_TARGET_INVALID,
+    /** Fora de 1% a 100%. */
+    LAYING_RATE_TARGET_OUT_OF_RANGE,
+
     /** Peso medio da pesagem ausente (feature 005). */
     WEIGHT_REQUIRED,
     /** Peso que nao e um numero de gramas com ate uma casa decimal. */

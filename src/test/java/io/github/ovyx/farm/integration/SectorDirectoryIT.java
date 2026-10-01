@@ -15,6 +15,7 @@ import io.github.ovyx.farm.domain.model.Status;
 import io.github.ovyx.farm.domain.port.SectorRepository;
 import io.github.ovyx.farm.domain.valueobject.ReferenceWeight;
 import io.github.ovyx.shared.domain.FixedClock;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -240,5 +241,27 @@ class SectorDirectoryIT extends IntegrationTestSupport {
                 .filteredOn(summary -> summary.id().equals(withRange.id()))
                 .singleElement()
                 .satisfies(summary -> assertThat(summary.referenceWeight()).isEqualTo(new ReferenceWeight(155, 175)));
+    }
+
+    // ---------------------------------------------------------------- meta de produtividade (008)
+
+    @Test
+    @DisplayName("reads the laying rate target of each sector in the list and in the detail, the inactive included")
+    void givenSectorsWithDifferentTargets_whenReadingThem_thenFindEachTarget() {
+        // given
+        Sector at72 = saved(aUniqueSector().withLayingRateTarget("72").withClock(clock).build());
+        Sector at82 = saved(aUniqueSector().withLayingRateTarget("82,5").withClock(clock).build());
+        Sector inactive = saved(aUniqueSector().withLayingRateTarget("91,5").inactive().withClock(clock).build());
+
+        // when
+        SectorDetail detail = directory.findDetail(at82.id()).orElseThrow();
+        List<SectorSummary> listed = directory.list(StatusFilter.ALL);
+
+        // then
+        assertThat(detail.layingRateTarget()).isEqualTo(new BigDecimal("82.5"));
+        assertThat(listed)
+                .filteredOn(summary -> List.of(at72.id(), at82.id(), inactive.id()).contains(summary.id()))
+                .extracting(SectorSummary::layingRateTarget)
+                .containsExactlyInAnyOrder(new BigDecimal("72.0"), new BigDecimal("82.5"), new BigDecimal("91.5"));
     }
 }
