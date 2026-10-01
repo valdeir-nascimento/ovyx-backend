@@ -106,7 +106,12 @@ public class OpenApiConfiguration {
 
                         Setores e gaiolas da granja (`Sector`, `Cage`): a estrutura produtiva onde as features \
                         seguintes lançam produção, ração, mortalidade e peso. Desde a feature 005, também a faixa \
-                        de peso de referência do setor e as pesagens de cada gaiola (`Weighing`).
+                        de peso de referência do setor e as pesagens de cada gaiola (`Weighing`). Desde a feature 008, a \
+                        meta de produtividade de cada setor, que o painel e o alerta de baixa postura usam.
+
+                        **Meta de produtividade**: obrigatória em todo setor, de 1 a 100%, com até uma casa decimal. \
+                        Chega como número ou como texto ("82,5" e "82.5" são a mesma meta), e sai sempre como número. \
+                        Os setores cadastrados antes da feature 008 ficaram com 85%.
 
                         **Perfis**: qualquer responsável autenticado consulta setores e gaiolas. Cadastrar, editar, \
                         inativar e reativar é exclusivo do perfil Administrador; o usuário comum recebe o 403 \
@@ -154,7 +159,8 @@ public class OpenApiConfiguration {
 
                         **Painel**: só leitura, o mesmo para os dois perfis. "Hoje" é o dia da granja, no fuso dela. \
                         Os números são os mesmos dos relatórios; o custo considera só os dias com a ração completa, \
-                        e o dia sem relatório fica sem valor, e não com zero.
+                        e o dia sem relatório fica sem valor, e não com zero. A meta de produtividade é a do setor (API \
+                        da Granja, feature 008), a atual, também para os dias passados.
 
                         **Planilhas**: o painel de um setor e os relatórios de um intervalo também saem como planilha \
                         do Excel (.xlsx), com os mesmos números da tela. Quantidades, valores em reais, porcentagens e \

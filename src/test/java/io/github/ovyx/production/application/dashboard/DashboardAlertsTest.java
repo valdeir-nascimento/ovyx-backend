@@ -53,9 +53,17 @@ class DashboardAlertsTest {
         return new CageWatch(UUID.randomUUID(), code, 0, 135, 150, 3, null, null);
     }
 
+    /** A meta dos setores cadastrados antes da feature 008. */
+    private static final LayingRateTarget EIGHTY_FIVE = new LayingRateTarget(new BigDecimal("85"));
+
     private static List<DashboardAlert> alerts(ReportDay today, List<CageWatch> cages, ReferenceWeight range,
             MortalityBaseline baseline) {
-        return DashboardAlerts.of(TODAY, today, new CageWatchReading(cages, range, baseline));
+        return alerts(today, cages, range, baseline, EIGHTY_FIVE);
+    }
+
+    private static List<DashboardAlert> alerts(ReportDay today, List<CageWatch> cages, ReferenceWeight range,
+            MortalityBaseline baseline, LayingRateTarget target) {
+        return DashboardAlerts.of(TODAY, today, new CageWatchReading(cages, range, baseline), target);
     }
 
     // ---------------------------------------------------------------- pendências do relatório de hoje
@@ -172,7 +180,7 @@ class DashboardAlertsTest {
     }
 
     @Test
-    @DisplayName("tells the rate of the cage and the one of the sector today, and leads to the cages")
+    @DisplayName("tells the rate of the cage, the target of the sector and its rate today, and leads to the cages")
     void givenLowLaying_whenListingTheAlerts_thenExplainItWithTheRates() {
         // given
         CageWatch c03 = new CageWatch(UUID.randomUUID(), "C-03", 0, 114, 150, 3, null, null);
@@ -182,7 +190,8 @@ class DashboardAlertsTest {
 
         // then
         assertThat(alert.title()).isEqualTo("Baixa postura na gaiola C-03");
-        assertThat(alert.detail()).isEqualTo("76,0% nos últimos 3 relatórios, contra 87,0% no setor hoje.");
+        assertThat(alert.detail())
+                .isEqualTo("76,0% nos últimos 3 relatórios, abaixo da meta de 85% do setor; o setor fez 87,0% hoje.");
         assertThat(alert.target().reportId()).isNull();
         assertThat(alert.target().cageCode()).isEqualTo("C-03");
     }
@@ -198,7 +207,7 @@ class DashboardAlertsTest {
 
         // then
         assertThat(alert.kind()).isEqualTo(AlertKind.LOW_LAYING);
-        assertThat(alert.detail()).isEqualTo("76,0% nos últimos 3 relatórios, abaixo da meta de 85%.");
+        assertThat(alert.detail()).isEqualTo("76,0% nos últimos 3 relatórios, abaixo da meta de 85% do setor.");
     }
 
     // ---------------------------------------------------------------- pesagem fora da faixa
@@ -284,5 +293,40 @@ class DashboardAlertsTest {
                         "HIGH_MORTALITY B-07",
                         "LOW_LAYING A-02",
                         "WEIGHT_OUT_OF_RANGE A-02");
+    }
+
+    // ---------------------------------------------------------------- meta do setor (008)
+
+    @ParameterizedTest(name = "a target of {0}%: alert {1}")
+    @CsvSource({"72, false", "75, false", "85, true", "75.1, true"})
+    @DisplayName("compares the last 3 reports of the cage with the target of its sector, the target included")
+    void givenCageAt75Percent_whenListingTheAlertsWithTheTargetOfTheSector_thenWarnOnlyBelowIt(
+            String target, boolean expected) {
+        // given
+        CageWatch c03 = new CageWatch(UUID.randomUUID(), "C-03", 0, 225, 300, 3, null, null);
+
+        // when
+        List<DashboardAlert> alerts = alerts(
+                completeToday(), List.of(c03), RANGE, QUIET_WEEK, new LayingRateTarget(new BigDecimal(target)));
+
+        // then
+        assertThat(alerts.stream().anyMatch(alert -> alert.kind() == AlertKind.LOW_LAYING)).isEqualTo(expected);
+    }
+
+    @Test
+    @DisplayName("writes a target with a decimal in the alert")
+    void givenTargetOf82Point5_whenListingTheAlerts_thenWriteItWithAComma() {
+        // given
+        CageWatch c03 = new CageWatch(UUID.randomUUID(), "C-03", 0, 225, 300, 3, null, null);
+
+        // when
+        DashboardAlert alert = alerts(null, List.of(c03), RANGE, QUIET_WEEK, new LayingRateTarget(new BigDecimal("82.5")))
+                .stream()
+                .filter(each -> each.kind() == AlertKind.LOW_LAYING)
+                .findFirst()
+                .orElseThrow();
+
+        // then
+        assertThat(alert.detail()).isEqualTo("75,0% nos últimos 3 relatórios, abaixo da meta de 82,5% do setor.");
     }
 }

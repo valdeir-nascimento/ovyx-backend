@@ -49,7 +49,11 @@ public class SectorController implements SectorApi {
     public ResponseEntity<Object> registerSector(@RequestBody SectorRequest body) {
         // Sem @Valid: o corpo nao tem anotacoes, e todas as violacoes vem do dominio, de uma vez.
         Result<SectorId> registered = dispatcher.dispatch(new RegisterSectorCommand(
-                body.name(), body.description(), body.rawMinimumWeight(), body.rawMaximumWeight()));
+                body.name(),
+                body.description(),
+                body.rawMinimumWeight(),
+                body.rawMaximumWeight(),
+                body.rawLayingRateTarget()));
         return resultHttpMapper.created(
             detailOf(registered).map(SectorDetailResponse::from),
             detail -> URI.create("/api/v1/sectors/" + detail.id()));
@@ -68,7 +72,12 @@ public class SectorController implements SectorApi {
         produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Object> updateSector(@PathVariable String sectorId, @RequestBody SectorRequest body) {
         Result<SectorId> updated = dispatcher.dispatch(new UpdateSectorCommand(
-                sectorId, body.name(), body.description(), body.rawMinimumWeight(), body.rawMaximumWeight()));
+                sectorId,
+                body.name(),
+                body.description(),
+                body.rawMinimumWeight(),
+                body.rawMaximumWeight(),
+                body.rawLayingRateTarget()));
         return resultHttpMapper.ok(detailOf(updated).map(SectorDetailResponse::from));
     }
 

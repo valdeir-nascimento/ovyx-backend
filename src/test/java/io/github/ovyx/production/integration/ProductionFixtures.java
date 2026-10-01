@@ -22,7 +22,8 @@ final class ProductionFixtures {
     UUID sector(String status) {
         UUID id = UUID.randomUUID();
         jdbc.update(
-                "insert into sector (id, name, status, created_at, updated_at) values (?, ?, ?, now(), now())",
+                "insert into sector (id, name, status, laying_rate_target, created_at, updated_at)"
+                        + " values (?, ?, ?, 85.0, now(), now())",
                 id,
                 "Codornas — Galpão " + id.toString().substring(0, 8),
                 status);
@@ -95,6 +96,11 @@ final class ProductionFixtures {
         jdbc.update("update feed_formula set status = 'INACTIVE' where id = ?", formulaId);
     }
 
+    /** Muda a meta de produtividade do setor no farm, como a edição do administrador (feature 008). */
+    void layingRateTarget(UUID sectorId, String value) {
+        jdbc.update("update sector set laying_rate_target = ? where id = ?", new BigDecimal(value), sectorId);
+    }
+
     void deactivate(UUID sectorId) {
         jdbc.update("update sector set status = 'INACTIVE' where id = ?", sectorId);
         jdbc.update("update cage set status = 'INACTIVE' where sector_id = ?", sectorId);
@@ -106,7 +112,8 @@ final class ProductionFixtures {
     UUID sectorNamed(String name, String status) {
         UUID id = UUID.randomUUID();
         jdbc.update(
-                "insert into sector (id, name, status, created_at, updated_at) values (?, ?, ?, now(), now())",
+                "insert into sector (id, name, status, laying_rate_target, created_at, updated_at)"
+                        + " values (?, ?, ?, 85.0, now(), now())",
                 id,
                 name + " " + id.toString().substring(0, 8),
                 status);

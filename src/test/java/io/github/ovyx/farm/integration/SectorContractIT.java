@@ -21,6 +21,8 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
@@ -88,7 +90,7 @@ class SectorContractIT extends IntegrationTestSupport {
     /** Cadastra um setor e devolve o caminho dele. */
     private String registered(String name) throws Exception {
         String response = register("""
-                        {"name": "%s", "description": "Codornas japonesas em postura, baterias A e B"}
+                        {"name": "%s", "description": "Codornas japonesas em postura, baterias A e B", "layingRateTarget": 85}
                         """.formatted(name))
                 .andExpect(status().isCreated())
                 .andReturn()
@@ -107,7 +109,7 @@ class SectorContractIT extends IntegrationTestSupport {
 
         // when
         ResultActions response = register("""
-                {"name": "%s", "description": "Codornas japonesas em postura, baterias A e B"}
+                {"name": "%s", "description": "Codornas japonesas em postura, baterias A e B", "layingRateTarget": 85}
                 """.formatted(name));
 
         // then
@@ -132,7 +134,7 @@ class SectorContractIT extends IntegrationTestSupport {
 
         // when
         ResultActions response = register("""
-                {"name": "%s"}
+                {"name": "%s", "layingRateTarget": 85}
                 """.formatted(name));
 
         // then
@@ -144,7 +146,7 @@ class SectorContractIT extends IntegrationTestSupport {
     void givenShortNameAndLongDescription_whenRegistering_thenAnswerBadRequestWithBothFields() throws Exception {
         // given
         String body = """
-                {"name": "A", "description": "%s"}
+                {"name": "A", "description": "%s", "layingRateTarget": 85}
                 """.formatted("d".repeat(501));
 
         // when
@@ -171,7 +173,7 @@ class SectorContractIT extends IntegrationTestSupport {
 
         // when
         ResultActions response = register("""
-                {"name": "  %s  "}
+                {"name": "  %s  ", "layingRateTarget": 85}
                 """.formatted(name.toUpperCase()));
 
         // then
@@ -214,7 +216,7 @@ class SectorContractIT extends IntegrationTestSupport {
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.APPLICATION_XML)
                 .content("""
-                        {"name": "%s"}
+                        {"name": "%s", "layingRateTarget": 85}
                         """.formatted(name)));
 
         // then
@@ -319,7 +321,7 @@ class SectorContractIT extends IntegrationTestSupport {
 
         // when
         ResultActions response = update(path, """
-                {"name": "%s", "description": "Baterias A a D, ala norte"}
+                {"name": "%s", "description": "Baterias A a D, ala norte", "layingRateTarget": 85}
                 """.formatted(newName));
 
         // then
@@ -337,7 +339,7 @@ class SectorContractIT extends IntegrationTestSupport {
 
         // when
         ResultActions response = update(path, """
-                {"name": "   "}
+                {"name": "   ", "layingRateTarget": 85}
                 """);
 
         // then
@@ -351,7 +353,7 @@ class SectorContractIT extends IntegrationTestSupport {
     void givenUnknownSector_whenUpdating_thenAnswerNotFound() throws Exception {
         // given
         String body = """
-                {"name": "%s"}
+                {"name": "%s", "layingRateTarget": 85}
                 """.formatted(uniqueName());
 
         // when
@@ -371,7 +373,7 @@ class SectorContractIT extends IntegrationTestSupport {
 
         // when
         ResultActions response = update(path, """
-                {"name": "%s"}
+                {"name": "%s", "layingRateTarget": 85}
                 """.formatted(taken.toLowerCase()));
 
         // then
@@ -451,7 +453,7 @@ class SectorContractIT extends IntegrationTestSupport {
     void givenReferenceWeight_whenRegistering_thenAnswerTheRange() throws Exception {
         // given
         String body = """
-                {"name": "%s", "minimumWeight": 155, "maximumWeight": "175"}
+                {"name": "%s", "minimumWeight": 155, "maximumWeight": "175", "layingRateTarget": 85}
                 """.formatted(uniqueName());
 
         // when
@@ -468,7 +470,7 @@ class SectorContractIT extends IntegrationTestSupport {
     void givenInvertedRange_whenRegistering_thenAnswerBadRequestInTheMinimumField() throws Exception {
         // given
         String body = """
-                {"name": "%s", "minimumWeight": 180, "maximumWeight": 170}
+                {"name": "%s", "minimumWeight": 180, "maximumWeight": 170, "layingRateTarget": 85}
                 """.formatted(uniqueName());
 
         // when
@@ -489,14 +491,140 @@ class SectorContractIT extends IntegrationTestSupport {
 
         // when
         ResultActions withRange = update(path, """
-                {"name": "%s", "minimumWeight": 155, "maximumWeight": 175}
+                {"name": "%s", "minimumWeight": 155, "maximumWeight": 175, "layingRateTarget": 85}
                 """.formatted(name));
         ResultActions withoutRange = update(path, """
-                {"name": "%s"}
+                {"name": "%s", "layingRateTarget": 85}
                 """.formatted(name));
 
         // then
         withRange.andExpect(status().isOk()).andExpect(jsonPath("$.referenceWeight.minimum").value(155));
         withoutRange.andExpect(status().isOk()).andExpect(jsonPath("$.referenceWeight").doesNotExist());
+    }
+
+    // ---------------------------------------------------------------- meta de produtividade (008)
+
+    private ResultActions read(String path) throws Exception {
+        return mockMvc.perform(get(path).cookie(administrator).accept(MediaType.APPLICATION_JSON));
+    }
+
+    private String registeredWithTarget(String name, String target) throws Exception {
+        String response = register("""
+                        {"name": "%s", "layingRateTarget": %s}
+                        """.formatted(name, target))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        return SECTORS + "/" + JsonPath.read(response, "$.id");
+    }
+
+    @Test
+    @DisplayName("answers the laying rate target in every sector operation, with one decimal")
+    void givenSectorWithTarget_whenCallingEachOperation_thenAnswerTheTarget() throws Exception {
+        // given
+        String name = uniqueName();
+        String path = registeredWithTarget(name, "\"82,5\"");
+        String id = path.substring(path.lastIndexOf('/') + 1);
+
+        // when
+        ResultActions detail = read(path);
+        ResultActions list = read(SECTORS + "?status=ALL");
+        ResultActions updated = update(path, """
+                {"name": "%s", "layingRateTarget": "72"}
+                """.formatted(name));
+        ResultActions deactivated = postTo(path + "/deactivation");
+        ResultActions reactivated = postTo(path + "/reactivation");
+
+        // then
+        detail.andExpect(status().isOk()).andExpect(jsonPath("$.layingRateTarget").value(82.5));
+        list.andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == '%s')].layingRateTarget".formatted(id)).value(82.5));
+        updated.andExpect(status().isOk()).andExpect(jsonPath("$.layingRateTarget").value(72.0));
+        deactivated.andExpect(status().isOk()).andExpect(jsonPath("$.layingRateTarget").value(72.0));
+        reactivated.andExpect(status().isOk()).andExpect(jsonPath("$.layingRateTarget").value(72.0));
+    }
+
+    @ParameterizedTest(name = "{0} is {1}%")
+    @CsvSource(delimiter = ';', value = {"\"82.5\"; 82.5", "\"  72 \"; 72.0", "100; 100.0", "\"82,5\"; 82.5"})
+    @DisplayName("registers the target sent as a number or as text, with a comma or a dot")
+    void givenTargetAsNumberOrText_whenRegistering_thenAnswerTheTarget(String target, double expected)
+            throws Exception {
+        // given
+        String body = """
+                {"name": "%s", "layingRateTarget": %s}
+                """.formatted(uniqueName(), target);
+
+        // when
+        ResultActions response = register(body);
+
+        // then
+        response.andExpect(status().isCreated()).andExpect(jsonPath("$.layingRateTarget").value(expected));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @CsvSource(
+            delimiter = ';',
+            value = {
+                "\"\"; Informe a meta de produtividade, de 1 a 100%.",
+                "null; Informe a meta de produtividade, de 1 a 100%.",
+                "\"0\"; A meta deve ficar entre 1% e 100%.",
+                "101; A meta deve ficar entre 1% e 100%.",
+                "\"-5\"; A meta deve ficar entre 1% e 100%.",
+                "\"100,1\"; A meta deve ficar entre 1% e 100%.",
+                "\"82,55\"; Informe a meta em porcentagem, com até uma casa decimal.",
+                "\"abc\"; Informe a meta em porcentagem, com até uma casa decimal.",
+                "\"85%\"; Informe a meta em porcentagem, com até uma casa decimal."
+            })
+    @DisplayName("refuses an invalid target with 400, in its field")
+    void givenInvalidTarget_whenRegistering_thenAnswerBadRequestInTheTargetField(String target, String message)
+            throws Exception {
+        // given
+        String body = """
+                {"name": "%s", "layingRateTarget": %s}
+                """.formatted(uniqueName(), target);
+
+        // when
+        ResultActions response = register(body);
+
+        // then
+        response.andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.details.layingRateTarget").value(message));
+    }
+
+    @Test
+    @DisplayName("refuses a missing target together with a blank name, in one answer")
+    void givenBlankNameAndNoTarget_whenRegistering_thenAnswerBothViolations() throws Exception {
+        // given
+        String body = """
+                {"name": "  "}
+                """;
+
+        // when
+        ResultActions response = register(body);
+
+        // then
+        response.andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details.name").value("Informe o nome do setor."))
+                .andExpect(jsonPath("$.details.layingRateTarget").value("Informe a meta de produtividade, de 1 a 100%."));
+    }
+
+    @Test
+    @DisplayName("keeps the saved target when an update is refused")
+    void givenSectorWith72_whenAnUpdateIsRefusedForTheTarget_thenKeep72() throws Exception {
+        // given
+        String name = uniqueName();
+        String path = registeredWithTarget(name, "72");
+
+        // when
+        ResultActions refused = update(path, """
+                {"name": "%s", "layingRateTarget": ""}
+                """.formatted(name));
+
+        // then
+        refused.andExpect(status().isBadRequest());
+        read(path).andExpect(jsonPath("$.layingRateTarget").value(72.0));
     }
 }

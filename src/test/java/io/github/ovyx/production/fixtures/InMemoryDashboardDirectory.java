@@ -4,10 +4,12 @@ import io.github.ovyx.production.application.dailyreport.ReportingSector;
 import io.github.ovyx.production.application.dashboard.CageWatchReading;
 import io.github.ovyx.production.application.dashboard.DashboardDirectory;
 import io.github.ovyx.production.application.dashboard.DashboardSectors;
+import io.github.ovyx.production.application.dashboard.LayingRateTarget;
 import io.github.ovyx.production.application.dashboard.LatestReport;
 import io.github.ovyx.production.application.dashboard.MortalityBaseline;
 import io.github.ovyx.production.application.dashboard.ReportDay;
 import io.github.ovyx.production.domain.model.SectorId;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -19,6 +21,8 @@ import java.util.Optional;
 public final class InMemoryDashboardDirectory implements DashboardDirectory {
 
     private final Map<SectorId, ReportingSector> sectors = new LinkedHashMap<>();
+    private final Map<SectorId, LayingRateTarget> targets = new LinkedHashMap<>();
+    private int askedTargets;
     private final List<ReportDay> days = new ArrayList<>();
     private DashboardSectors overview = new DashboardSectors(0, 0, List.of());
     private CageWatchReading watch = new CageWatchReading(List.of(), null, new MortalityBaseline(0, 0));
@@ -30,6 +34,16 @@ public final class InMemoryDashboardDirectory implements DashboardDirectory {
     public ReportingSector put(ReportingSector sector) {
         sectors.put(SectorId.of(sector.id()), sector);
         return sector;
+    }
+
+    /** A meta do setor; sem ela, os 85% dos setores anteriores à feature 008. */
+    public void answerLayingRateTarget(SectorId sectorId, String target) {
+        targets.put(sectorId, new LayingRateTarget(new BigDecimal(target)));
+    }
+
+    /** Quantas vezes o handler leu a meta de um setor. */
+    public int askedTargets() {
+        return askedTargets;
     }
 
     public void add(ReportDay day) {
@@ -71,6 +85,12 @@ public final class InMemoryDashboardDirectory implements DashboardDirectory {
     @Override
     public Optional<ReportingSector> sector(SectorId sectorId) {
         return Optional.ofNullable(sectors.get(sectorId));
+    }
+
+    @Override
+    public LayingRateTarget layingRateTarget(SectorId sectorId) {
+        askedTargets++;
+        return targets.getOrDefault(sectorId, new LayingRateTarget(new BigDecimal("85")));
     }
 
     @Override

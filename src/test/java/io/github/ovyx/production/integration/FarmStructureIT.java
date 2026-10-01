@@ -33,7 +33,8 @@ class FarmStructureIT extends IntegrationTestSupport {
     private UUID insertSector(String name, String status) {
         UUID id = UUID.randomUUID();
         jdbc.update(
-                "insert into sector (id, name, status, created_at, updated_at) values (?, ?, ?, now(), now())",
+                "insert into sector (id, name, status, laying_rate_target, created_at, updated_at)"
+                        + " values (?, ?, ?, 85.0, now(), now())",
                 id,
                 name,
                 status);

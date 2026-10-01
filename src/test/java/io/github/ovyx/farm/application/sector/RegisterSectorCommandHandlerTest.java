@@ -27,7 +27,7 @@ class RegisterSectorCommandHandlerTest {
     void givenValidNameAndDescription_whenRegistering_thenSaveTheSector() {
         // given
         RegisterSectorCommand command =
-                new RegisterSectorCommand("Codornas — Galpão 4", "Codornas japonesas em postura, baterias A e B", null, null);
+                new RegisterSectorCommand("Codornas — Galpão 4", "Codornas japonesas em postura, baterias A e B", null, null, "85");
 
         // when
         Result<SectorId> result = handler.handle(command);
@@ -42,7 +42,7 @@ class RegisterSectorCommandHandlerTest {
     @DisplayName("fails as validation with every invalid field, and saves nothing")
     void givenShortNameAndLongDescription_whenRegistering_thenFailAsValidationWithEveryField() {
         // given
-        RegisterSectorCommand command = new RegisterSectorCommand("A", "d".repeat(501), null, null);
+        RegisterSectorCommand command = new RegisterSectorCommand("A", "d".repeat(501), null, null, "85");
 
         // when
         Result<SectorId> result = handler.handle(command);
@@ -59,7 +59,7 @@ class RegisterSectorCommandHandlerTest {
     void givenNameOfAnotherActiveSector_whenRegistering_thenFailAsConflict() {
         // given
         repository.save(aSector().named("Codornas — Galpão 4").withRoster(repository).build());
-        RegisterSectorCommand command = new RegisterSectorCommand("CODORNAS — GALPÃO 4", null, null, null);
+        RegisterSectorCommand command = new RegisterSectorCommand("CODORNAS — GALPÃO 4", null, null, null, "85");
 
         // when
         Result<SectorId> result = handler.handle(command);
@@ -78,7 +78,7 @@ class RegisterSectorCommandHandlerTest {
     @DisplayName("registers the sector with the reference weight range")
     void givenReferenceWeight_whenRegistering_thenSaveTheRange() {
         // given
-        RegisterSectorCommand command = new RegisterSectorCommand("Codornas — Galpão 4", null, "155", "175");
+        RegisterSectorCommand command = new RegisterSectorCommand("Codornas — Galpão 4", null, "155", "175", "85");
 
         // when
         Result<SectorId> result = handler.handle(command);
@@ -92,7 +92,7 @@ class RegisterSectorCommandHandlerTest {
     @DisplayName("fails as validation with an incomplete range, in the missing field, and saves nothing")
     void givenOnlyTheMinimum_whenRegistering_thenFailAsValidationInTheMaximumField() {
         // given
-        RegisterSectorCommand command = new RegisterSectorCommand("Codornas — Galpão 4", null, "155", null);
+        RegisterSectorCommand command = new RegisterSectorCommand("Codornas — Galpão 4", null, "155", null, "85");
 
         // when
         Result<SectorId> result = handler.handle(command);
@@ -100,6 +100,38 @@ class RegisterSectorCommandHandlerTest {
         // then
         assertThat(result.error().type()).isEqualTo(ErrorType.VALIDATION);
         assertThat(result.error().details()).containsOnly(Map.entry("maximumWeight", "Informe também o peso máximo."));
+        assertThat(repository.saves()).isZero();
+    }
+
+    // ---------------------------------------------------------------- meta de produtividade (008)
+
+    @Test
+    @DisplayName("registers the sector with the laying rate target")
+    void givenTargetWithComma_whenRegistering_thenSaveTheTarget() {
+        // given
+        RegisterSectorCommand command = new RegisterSectorCommand("Codornas — Galpão 4", null, null, null, "82,5");
+
+        // when
+        Result<SectorId> result = handler.handle(command);
+
+        // then
+        assertThat(repository.findById(result.value()).orElseThrow().layingRateTarget().value())
+                .isEqualByComparingTo("82.5");
+    }
+
+    @Test
+    @DisplayName("fails as validation with an invalid target, in its field, and saves nothing")
+    void givenTargetWithTwoDecimals_whenRegistering_thenFailAsValidationInTheTargetField() {
+        // given
+        RegisterSectorCommand command = new RegisterSectorCommand("Codornas — Galpão 4", null, null, null, "82,55");
+
+        // when
+        Result<SectorId> result = handler.handle(command);
+
+        // then
+        assertThat(result.error().type()).isEqualTo(ErrorType.VALIDATION);
+        assertThat(result.error().details())
+                .containsOnly(Map.entry("layingRateTarget", "Informe a meta em porcentagem, com até uma casa decimal."));
         assertThat(repository.saves()).isZero();
     }
 }

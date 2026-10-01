@@ -12,7 +12,8 @@ import java.util.Optional;
 
 /**
  * O painel de um setor (FR-005 a FR-009 da 006). Le os relatorios de hoje - 13 ate hoje, o bastante para os
- * 7 dias e os 7 anteriores, e deixa as contas ao {@link SectorDashboard}. O setor inativo continua consultavel.
+ * 7 dias e os 7 anteriores, e a meta do setor (feature 008), e deixa as contas ao {@link SectorDashboard} e ao
+ * {@link DashboardAlerts}. O setor inativo continua consultavel.
  */
 public class GetSectorDashboardQueryHandler implements QueryHandler<GetSectorDashboardQuery, SectorDashboard> {
 
@@ -37,14 +38,15 @@ public class GetSectorDashboardQueryHandler implements QueryHandler<GetSectorDas
         if (sector.isEmpty()) {
             return Result.failure(ProductionRefusals.sectorNotFound());
         }
+        LayingRateTarget target = directory.layingRateTarget(sectorId.get());
         LocalDate today = calendar.today();
         DashboardPeriod period = query.period() == null ? DashboardPeriod.TODAY : query.period();
         List<ReportDay> days = directory.reportDays(sectorId.get(), today.minusDays(DAYS_READ_BEFORE_TODAY), today);
         ReportDay todayReport =
                 days.stream().filter(day -> day.date().equals(today)).findFirst().orElse(null);
         List<DashboardAlert> alerts =
-                DashboardAlerts.of(today, todayReport, directory.cageWatch(sectorId.get(), today));
-        return Result.success(SectorDashboard.of(sector.get(), period, today, days)
+                DashboardAlerts.of(today, todayReport, directory.cageWatch(sectorId.get(), today), target);
+        return Result.success(SectorDashboard.of(sector.get(), period, today, days, target)
                 .withAlerts(alerts)
                 .withLatestReports(directory.latestReports(sectorId.get(), LATEST_REPORTS)));
     }

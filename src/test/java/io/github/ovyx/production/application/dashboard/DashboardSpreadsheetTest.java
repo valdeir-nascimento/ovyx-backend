@@ -448,4 +448,45 @@ class DashboardSpreadsheetTest {
         // then
         assertThat(cell(sheet, sheet.rows().getFirst(), "Situação")).isEqualTo(Cell.text("Produção pendente"));
     }
+
+    // ---------------------------------------------------------------- meta do setor (008)
+
+    @Test
+    @DisplayName("writes the target of the sector in every day, and the low laying alert with it (008)")
+    void givenSectorWithATargetOf72_whenBuildingTheSpreadsheet_thenWriteItInEveryDayAndInTheAlert() {
+        // given
+        DashboardAlert lowLaying = new DashboardAlert(
+                AlertKind.LOW_LAYING,
+                AlertTone.WARNING,
+                "Baixa postura na gaiola C-03",
+                "70,0% nos últimos 3 relatórios, abaixo da meta de 72% do setor; o setor fez 85,0% hoje.",
+                new AlertTarget(null, UUID.randomUUID(), "C-03"));
+        SectorDashboard dashboard = new SectorDashboard(
+                SECTOR,
+                DashboardPeriod.LAST_7_DAYS,
+                TODAY.minusDays(6),
+                TODAY,
+                null,
+                indicators(),
+                trend(),
+                new LayingRateTarget(new BigDecimal("72")).value(),
+                TargetStatus.ABOVE,
+                grades(),
+                List.of(lowLaying),
+                1,
+                latest());
+
+        // when
+        Spreadsheet spreadsheet = DashboardSpreadsheet.of(dashboard, TODAY, NOW);
+
+        // then
+        Sheet days = sheet(spreadsheet, "7 dias");
+        assertThat(days.rows()).hasSize(7);
+        days.rows().forEach(row -> assertNumber(cell(days, row, "Meta"), "72.00", CellFormat.PERCENT_2));
+        assertThat(sheet(spreadsheet, "Alertas").rows())
+                .containsExactly(List.of(
+                        Cell.text("Atenção"),
+                        Cell.text("Baixa postura na gaiola C-03"),
+                        Cell.text("70,0% nos últimos 3 relatórios, abaixo da meta de 72% do setor; o setor fez 85,0% hoje.")));
+    }
 }

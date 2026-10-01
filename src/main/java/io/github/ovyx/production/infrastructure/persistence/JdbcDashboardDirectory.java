@@ -7,6 +7,7 @@ import io.github.ovyx.production.application.dashboard.DashboardDirectory;
 import io.github.ovyx.production.application.dashboard.DashboardSector;
 import io.github.ovyx.production.application.dashboard.DashboardSectors;
 import io.github.ovyx.production.application.dashboard.LatestReport;
+import io.github.ovyx.production.application.dashboard.LayingRateTarget;
 import io.github.ovyx.production.application.dashboard.MortalityBaseline;
 import io.github.ovyx.production.application.dashboard.ReferenceWeight;
 import io.github.ovyx.production.application.dashboard.ReportDay;
@@ -15,6 +16,7 @@ import io.github.ovyx.production.domain.model.FeedStatus;
 import io.github.ovyx.production.domain.model.MortalityStatus;
 import io.github.ovyx.production.domain.model.ProductionStatus;
 import io.github.ovyx.production.domain.model.SectorId;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.HashMap;
@@ -99,6 +101,15 @@ public class JdbcDashboardDirectory implements DashboardDirectory {
                 .query((row, index) -> new ReportingSector(
                         row.getObject("id", UUID.class), row.getString("name"), row.getString("status")))
                 .optional();
+    }
+
+    @Override
+    public LayingRateTarget layingRateTarget(SectorId sectorId) {
+        return new LayingRateTarget(jdbcClient
+                .sql("select laying_rate_target from sector where id = :id")
+                .param("id", sectorId.value())
+                .query(BigDecimal.class)
+                .single());
     }
 
     @Override

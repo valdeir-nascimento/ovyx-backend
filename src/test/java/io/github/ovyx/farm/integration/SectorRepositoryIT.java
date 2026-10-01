@@ -10,14 +10,18 @@ import io.github.ovyx.farm.domain.model.CageId;
 import io.github.ovyx.farm.domain.model.Sector;
 import io.github.ovyx.farm.domain.model.SectorId;
 import io.github.ovyx.farm.domain.port.SectorRepository;
+import io.github.ovyx.farm.domain.valueobject.LayingRateTarget;
 import io.github.ovyx.farm.domain.valueobject.ReferenceWeight;
 import io.github.ovyx.farm.domain.valueobject.SectorDescription;
 import io.github.ovyx.farm.domain.valueobject.SectorName;
 import io.github.ovyx.shared.domain.FixedClock;
+import java.math.BigDecimal;
 import java.util.Map;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -94,7 +98,7 @@ class SectorRepositoryIT extends IntegrationTestSupport {
         Sector sector = saved(aUniqueSector().withRoster(repository).withClock(clock).build());
         long before = (long) rowOf(sector.id()).get("version");
         Sector loaded = repository.findById(sector.id()).orElseThrow();
-        loaded.update(loaded.name().value() + " (norte)", null, null, null, repository, clock);
+        loaded.update(loaded.name().value() + " (norte)", null, null, null, "85", repository, clock);
 
         // when
         repository.save(loaded);
@@ -238,7 +242,7 @@ class SectorRepositoryIT extends IntegrationTestSupport {
 
         // when
         Sector read = repository.findById(sector.id()).orElseThrow();
-        read.update(read.name().value(), null, null, null, repository, clock);
+        read.update(read.name().value(), null, null, null, "85", repository, clock);
         repository.save(read);
 
         // then
@@ -248,5 +252,58 @@ class SectorRepositoryIT extends IntegrationTestSupport {
                         "select reference_weight_min, reference_weight_max from sector where id = ?", sector.id().value()))
                 .containsEntry("reference_weight_min", null)
                 .containsEntry("reference_weight_max", null);
+    }
+
+    // ---------------------------------------------------------------- meta de produtividade (008)
+
+    @ParameterizedTest(name = "{0}%")
+    @ValueSource(strings = {"82,5", "1", "100"})
+    @DisplayName("saves the laying rate target and reads it back with one decimal")
+    void givenSectorWithTarget_whenSavingAndReadingBack_thenKeepTheTarget(String target) {
+        // given
+        Sector sector = saved(
+                aUniqueSector().withLayingRateTarget(target).withRoster(repository).withClock(clock).build());
+
+        // when
+        LayingRateTarget read = repository.findById(sector.id()).orElseThrow().layingRateTarget();
+
+        // then
+        assertThat(read).isEqualTo(sector.layingRateTarget());
+        assertThat(jdbc.queryForObject(
+                        "select laying_rate_target from sector where id = ?", BigDecimal.class, sector.id().value()))
+                .isEqualTo(sector.layingRateTarget().value());
+    }
+
+    @Test
+    @DisplayName("saves the new target of an updated sector")
+    void givenSectorWith85_whenUpdatingTo72AndSaving_thenRead72() {
+        // given
+        Sector sector = saved(aUniqueSector().withRoster(repository).withClock(clock).build());
+        Sector loaded = repository.findById(sector.id()).orElseThrow();
+        loaded.update(loaded.name().value(), null, null, null, "72", repository, clock);
+
+        // when
+        repository.save(loaded);
+
+        // then
+        assertThat(repository.findById(sector.id()).orElseThrow().layingRateTarget().value())
+                .isEqualByComparingTo("72.0");
+    }
+
+    @Test
+    @DisplayName("raises the version once when only the target changes, even at the same instant")
+    void givenSavedSector_whenOnlyTheTargetChangesAtTheSameInstant_thenRaiseTheVersionOnce() {
+        // given
+        Sector sector = saved(aUniqueSector().withRoster(repository).withClock(clock).build());
+        long before = (long) rowOf(sector.id()).get("version");
+        Sector loaded = repository.findById(sector.id()).orElseThrow();
+        loaded.update(loaded.name().value(), loaded.description().map(SectorDescription::value).orElse(null), null, null,
+                "72", repository, clock);
+
+        // when
+        repository.save(loaded);
+
+        // then
+        assertThat((long) rowOf(sector.id()).get("version")).isEqualTo(before + 1);
     }
 }

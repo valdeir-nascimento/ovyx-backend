@@ -14,6 +14,7 @@ import io.github.ovyx.shared.application.Result;
 import io.github.ovyx.shared.application.spreadsheet.Spreadsheet;
 import io.github.ovyx.shared.application.spreadsheet.SpreadsheetFile;
 import io.github.ovyx.shared.domain.FixedClock;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -44,7 +45,7 @@ class ExportCagesQueryHandlerTest {
             List.of("A"),
             Instant.parse("2026-09-01T10:00:00Z"),
             Instant.parse("2026-09-01T10:00:00Z"),
-            null);
+            null, new BigDecimal("85.0"));
     private final RecordingCageDirectory cages = new RecordingCageDirectory().withSector(sectorId);
     private final SectorDirectory sectors = new SectorDirectory() {
         @Override

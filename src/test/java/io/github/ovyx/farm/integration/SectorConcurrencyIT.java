@@ -73,7 +73,7 @@ class SectorConcurrencyIT extends IntegrationTestSupport {
             throws Exception {
         // given
         String name = "Corrida " + UUID.randomUUID().toString().substring(0, 8);
-        RegisterSectorCommand registration = new RegisterSectorCommand(name, null, null, null);
+        RegisterSectorCommand registration = new RegisterSectorCommand(name, null, null, null, "85");
 
         // when
         List<Result<SectorId>> results =
@@ -92,7 +92,7 @@ class SectorConcurrencyIT extends IntegrationTestSupport {
     /** Um setor recém-cadastrado, para as corridas nas gaiolas dele. */
     private String registeredSector() {
         Result<SectorId> registered = dispatcher.dispatch(
-                new RegisterSectorCommand("Corrida " + UUID.randomUUID().toString().substring(0, 8), null, null, null));
+                new RegisterSectorCommand("Corrida " + UUID.randomUUID().toString().substring(0, 8), null, null, null, "85"));
         return registered.value().toString();
     }
 

@@ -43,7 +43,7 @@ class CagesSpreadsheetTest {
                 List.of("A", "B"),
                 Instant.parse("2026-09-01T10:00:00Z"),
                 Instant.parse("2026-09-01T10:00:00Z"),
-                range);
+                range, new BigDecimal("85.0"));
     }
 
     private static CageSummary cage(String battery, int number, Status status, String weight, LocalDate weighedOn) {

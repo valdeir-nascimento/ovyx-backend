@@ -18,6 +18,12 @@ public interface DashboardDirectory {
     /** O setor do painel, ativo ou inativo; vazio se nao existe. */
     Optional<ReportingSector> sector(SectorId sectorId);
 
+    /**
+     * A meta de produtividade do setor, que o administrador define no cadastro dele (feature 008). Lida so depois
+     * de {@link #sector} achar o setor: setor nao e apagado, e todo setor tem a meta.
+     */
+    LayingRateTarget layingRateTarget(SectorId sectorId);
+
     /** Um {@link ReportDay} por relatorio do setor de {@code from} a {@code to}, inclusive, pela data. */
     List<ReportDay> reportDays(SectorId sectorId, LocalDate from, LocalDate to);
 

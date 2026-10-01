@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import io.github.ovyx.farm.application.sector.SectorSummary;
 import io.github.ovyx.farm.domain.model.Status;
 import io.swagger.v3.oas.annotations.media.Schema;
+import java.math.BigDecimal;
 import java.util.UUID;
 
 /** Um setor na lista, com os totais das gaiolas ativas (FR-004). */
@@ -19,7 +20,11 @@ public record SectorSummaryResponse(
         @Schema(description = "Soma das aves das gaiolas ativas", example = "2400") int birdCount,
         @Schema(description = "Faixa de peso de referência das aves, em gramas; ausente sem faixa")
         @JsonInclude(JsonInclude.Include.NON_NULL)
-        ReferenceWeightResponse referenceWeight) {
+        ReferenceWeightResponse referenceWeight,
+        @Schema(
+                description = "Meta de produtividade do setor, em porcentagem, com uma casa decimal",
+                example = "85.0")
+        BigDecimal layingRateTarget) {
 
     public static SectorSummaryResponse from(SectorSummary summary) {
         return new SectorSummaryResponse(
@@ -29,6 +34,7 @@ public record SectorSummaryResponse(
                 summary.status(),
                 summary.activeCageCount(),
                 summary.birdCount(),
-                ReferenceWeightResponse.from(summary.referenceWeight()));
+                ReferenceWeightResponse.from(summary.referenceWeight()),
+                summary.layingRateTarget());
     }
 }

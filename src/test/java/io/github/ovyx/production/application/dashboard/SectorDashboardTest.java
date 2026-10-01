@@ -73,8 +73,11 @@ class SectorDashboardTest {
                 day.noMortalityConfirmed());
     }
 
+    /** A meta dos setores cadastrados antes da feature 008. */
+    private static final LayingRateTarget EIGHTY_FIVE = new LayingRateTarget(new BigDecimal("85"));
+
     private static SectorDashboard dashboard(DashboardPeriod period, ReportDay... days) {
-        return SectorDashboard.of(SECTOR, period, TODAY, List.of(days));
+        return SectorDashboard.of(SECTOR, period, TODAY, List.of(days), EIGHTY_FIVE);
     }
 
     @Test
@@ -545,5 +548,24 @@ class SectorDashboardTest {
 
         // then
         assertThat(dashboard.targetStatus()).isEqualTo(TargetStatus.ABOVE);
+    }
+
+    // ---------------------------------------------------------------- meta do setor (008)
+
+    @ParameterizedTest(name = "a target of {0}% is {1}")
+    @CsvSource({"72, ABOVE", "85, BELOW", "79, ABOVE"})
+    @DisplayName("compares the last day with the target of the sector, the target included")
+    void givenLastDayAt79Percent_whenBuildingWithTheTargetOfTheSector_thenCompareWithIt(
+            String target, TargetStatus expected) {
+        // given
+        ReportDay today = day(TODAY, 2000, 1580, "159.60");
+
+        // when
+        SectorDashboard dashboard = SectorDashboard.of(
+                SECTOR, DashboardPeriod.TODAY, TODAY, List.of(today), new LayingRateTarget(new BigDecimal(target)));
+
+        // then
+        assertThat(dashboard.target()).isEqualByComparingTo(target).hasScaleOf(2);
+        assertThat(dashboard.targetStatus()).isEqualTo(expected);
     }
 }

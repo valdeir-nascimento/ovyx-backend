@@ -5,7 +5,12 @@ info:
   description: |
     Setores e gaiolas da granja (`Sector`, `Cage`): a estrutura produtiva onde as features
     seguintes lançam produção, ração, mortalidade e peso. Desde a feature 005, também a faixa de peso
-    de referência do setor e as pesagens de cada gaiola (`Weighing`).
+    de referência do setor e as pesagens de cada gaiola (`Weighing`). Desde a feature 008, a meta de
+    produtividade de cada setor, que o painel e o alerta de baixa postura usam.
+
+    **Meta de produtividade**: obrigatória em todo setor, de 1 a 100%, com até uma casa decimal. Chega
+    como número ou como texto ("82,5" e "82.5" são a mesma meta), e sai sempre como número. Os setores
+    cadastrados antes da feature 008 ficaram com 85%.
 
     **Sessão, erros, CSRF e acesso negado**: iguais aos da API de Identidade
     (`specs/001-auth-foundation/contracts/identity-api.yaml`). Toda operação exige o cookie de
@@ -68,12 +73,14 @@ paths:
                     status: ACTIVE
                     activeCageCount: 48
                     birdCount: 2400
+                    layingRateTarget: 85.0
                   - id: 7a1b9c3d-2e4f-4a6b-8c0d-5e7f9a1b3c22
                     name: Poedeiras brancas — Galpão 2
                     description: Linhagem Hy-Line W-36 em gaiolas convencionais
                     status: ACTIVE
                     activeCageCount: 24
                     birdCount: 1200
+                    layingRateTarget: 72.0
         '400':
           description: Situação desconhecida (`VALIDATION_FAILED`), com o nome do parâmetro em `details`.
           content:
@@ -117,6 +124,7 @@ paths:
                   description: Codornas japonesas em postura, baterias A e B
                   minimumWeight: 155
                   maximumWeight: 175
+                  layingRateTarget: 85
       responses:
         '201':
           description: Setor cadastrado. O cabeçalho `Location` aponta para ele.
@@ -139,6 +147,7 @@ paths:
                     status: ACTIVE
                     activeCageCount: 0
                     birdCount: 0
+                    layingRateTarget: 85.0
                     referenceWeight:
                       minimum: 155
                       maximum: 175
@@ -173,6 +182,16 @@ paths:
                     instance: /api/v1/sectors
                     details:
                       minimumWeight: O peso mínimo deve ser menor que o máximo.
+                metaForaDaFaixa:
+                  summary: Meta de produtividade acima de 100%
+                  value:
+                    code: VALIDATION_FAILED
+                    title: Dados inválidos
+                    status: 400
+                    detail: Dados inválidos.
+                    instance: /api/v1/sectors
+                    details:
+                      layingRateTarget: A meta deve ficar entre 1% e 100%.
         '401':
           $ref: '#/components/responses/SessaoInvalida'
         '403':
@@ -224,6 +243,7 @@ paths:
                     status: ACTIVE
                     activeCageCount: 48
                     birdCount: 2400
+                    layingRateTarget: 85.0
                     batteries: [A, B, C, D]
                     createdAt: '2026-09-20T10:15:00Z'
                     updatedAt: '2026-09-24T17:40:12Z'
@@ -249,17 +269,19 @@ paths:
               $ref: '#/components/schemas/SectorRequest'
             examples:
               edicao:
-                summary: Nome, descrição e faixa de peso corrigidos
+                summary: Nome, descrição, faixa de peso e meta corrigidos
                 value:
                   name: Codornas — Galpão 1 (norte)
                   description: Codornas japonesas em postura, baterias A a D
                   minimumWeight: 155
                   maximumWeight: 175
+                  layingRateTarget: '82,5'
               semFaixa:
                 summary: Faixa de peso retirada, sem os dois limites
                 value:
                   name: Codornas — Galpão 1 (norte)
                   description: Codornas japonesas em postura, baterias A a D
+                  layingRateTarget: 88
       responses:
         '200':
           description: Setor atualizado
@@ -284,6 +306,26 @@ paths:
                     instance: /api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11
                     details:
                       name: Informe o nome do setor.
+                metaAusente:
+                  summary: Meta de produtividade em branco
+                  value:
+                    code: VALIDATION_FAILED
+                    title: Dados inválidos
+                    status: 400
+                    detail: Dados inválidos.
+                    instance: /api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11
+                    details:
+                      layingRateTarget: Informe a meta de produtividade, de 1 a 100%.
+                metaComDuasCasas:
+                  summary: Meta com duas casas decimais
+                  value:
+                    code: VALIDATION_FAILED
+                    title: Dados inválidos
+                    status: 400
+                    detail: Dados inválidos.
+                    instance: /api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11
+                    details:
+                      layingRateTarget: Informe a meta em porcentagem, com até uma casa decimal.
         '401':
           $ref: '#/components/responses/SessaoInvalida'
         '403':
@@ -327,6 +369,7 @@ paths:
                     status: INACTIVE
                     activeCageCount: 0
                     birdCount: 0
+                    layingRateTarget: 85.0
                     batteries: [A, B, C, D]
                     createdAt: '2026-09-20T10:15:00Z'
                     updatedAt: '2026-09-25T14:03:51Z'
@@ -1363,7 +1406,7 @@ components:
     SectorRequest:
       type: object
       description: Cadastro ou edição de setor
-      required: [name]
+      required: [name, layingRateTarget]
       properties:
         name:
           type: string
@@ -1388,10 +1431,16 @@ components:
           maximum: 10000
           description: Peso máximo de referência das aves, em gramas, maior que o mínimo
           example: 175
+        layingRateTarget:
+          type: number
+          description: >-
+            Meta de produtividade do setor: a porcentagem de ovos coletados sobre as aves alojadas
+            esperada por dia, de 1 a 100, com até uma casa decimal. Número ou texto, com vírgula ou ponto.
+          example: 85
     SectorSummary:
       type: object
-      description: Setor na lista, com os totais das gaiolas ativas
-      required: [id, name, status, activeCageCount, birdCount]
+      description: Setor na lista, com os totais das gaiolas ativas e a meta de produtividade
+      required: [id, name, status, activeCageCount, birdCount, layingRateTarget]
       properties:
         id:
           type: string
@@ -1415,6 +1464,13 @@ components:
           example: 2400
         referenceWeight:
           $ref: '#/components/schemas/ReferenceWeight'
+        layingRateTarget:
+          type: number
+          minimum: 1
+          maximum: 100
+          multipleOf: 0.1
+          description: Meta de produtividade do setor, em porcentagem, com uma casa decimal
+          example: 85.0
     SectorDetail:
       allOf:
       - $ref: '#/components/schemas/SectorSummary'

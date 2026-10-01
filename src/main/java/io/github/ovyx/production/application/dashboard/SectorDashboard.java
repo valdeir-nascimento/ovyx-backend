@@ -24,7 +24,7 @@ import java.util.function.Predicate;
  *
  * @param todayReport o relatorio de hoje; {@code null} se hoje ainda nao foi aberto
  * @param trend os 7 dias de hoje - 6 ate hoje, qualquer que seja o periodo
- * @param target a meta de produtividade ({@link LayingRateTarget})
+ * @param target a meta de produtividade do setor, com duas casas ({@link LayingRateTarget}, feature 008)
  * @param targetStatus o ultimo dia com relatorio da serie diante da meta; {@code null} sem dia com relatorio
  * @param grades a classificacao dos ovos do periodo; {@code null} sem ovo
  * @param alerts os alertas e as pendencias de hoje ({@link DashboardAlerts})
@@ -60,8 +60,14 @@ public record SectorDashboard(
      *
      * @param today o dia de hoje da granja
      * @param days os relatorios do setor de hoje - 13 ate hoje, em qualquer ordem
+     * @param target a meta de produtividade do setor (feature 008)
      */
-    public static SectorDashboard of(ReportingSector sector, DashboardPeriod period, LocalDate today, List<ReportDay> days) {
+    public static SectorDashboard of(
+            ReportingSector sector,
+            DashboardPeriod period,
+            LocalDate today,
+            List<ReportDay> days,
+            LayingRateTarget target) {
         List<ReportDay> current = within(days, period.from(today), period.to(today));
         List<ReportDay> previous = within(days, period.previousFrom(today), period.previousTo(today));
         int productionPending = pending(current, day -> day.productionStatus() == ProductionStatus.PENDING);
@@ -82,8 +88,8 @@ public record SectorDashboard(
                 todayReport,
                 indicators,
                 trend,
-                LayingRateTarget.VALUE,
-                targetStatus(trend),
+                target.value(),
+                targetStatus(trend, target),
                 EggGrading.of(current),
                 List.of(),
                 0,
@@ -126,13 +132,13 @@ public record SectorDashboard(
                 latest);
     }
 
-    /** O ultimo dia da serie com relatorio diante da meta, com a meta incluida (FR-010). */
-    private static TargetStatus targetStatus(List<DashboardDay> trend) {
+    /** O ultimo dia da serie com relatorio diante da meta do setor, com a meta incluida (FR-010 da 006). */
+    private static TargetStatus targetStatus(List<DashboardDay> trend, LayingRateTarget target) {
         return trend.reversed().stream()
                 .map(DashboardDay::layingRate)
                 .filter(Objects::nonNull)
                 .findFirst()
-                .map(rate -> rate.compareTo(LayingRateTarget.VALUE) >= 0 ? TargetStatus.ABOVE : TargetStatus.BELOW)
+                .map(rate -> target.isMetBy(rate) ? TargetStatus.ABOVE : TargetStatus.BELOW)
                 .orElse(null);
     }
 

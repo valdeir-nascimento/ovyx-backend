@@ -254,6 +254,7 @@ class WeighingTest {
                 sector.name(),
                 null,
                 null,
+                sector.layingRateTarget(),
                 Status.INACTIVE,
                 sector.cages(),
                 sector.createdAt(),
