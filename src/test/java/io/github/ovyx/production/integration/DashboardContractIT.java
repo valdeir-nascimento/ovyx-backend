@@ -358,4 +358,47 @@ class DashboardContractIT extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.latestReports[0].mortalityStatus").value("RECORDED"))
                 .andExpect(jsonPath("$.latestReports[1].collectionDate").value(today.minusDays(1).toString()));
     }
+
+    // ---------------------------------------------------------------- meta do setor (008)
+
+    /**
+     * Um setor com a A-01 (100 aves) e os relatórios de hoje - 2 até hoje, com 75, 74 e 76 ovos: a gaiola fica
+     * em 75,0% nos últimos 3 relatórios, e o setor em 76,0% hoje.
+     */
+    private UUID sectorAt75Percent(String target) {
+        UUID sectorId = fixtures.activeSector();
+        fixtures.layingRateTarget(sectorId, target);
+        UUID a01 = fixtures.activeCage(sectorId, "A", 1, 100);
+        int[] eggs = {75, 74, 76};
+        for (int back = 2; back >= 0; back--) {
+            UUID report = fixtures.report(sectorId, today.minusDays(back), 100, true);
+            fixtures.cageIn(report, a01, 100);
+            fixtures.production(report, a01, eggs[2 - back], 0, 0, 0, 0, 0, 0);
+        }
+        return sectorId;
+    }
+
+    @Test
+    @DisplayName("uses the target of each sector in the chart and in the low laying alert (008)")
+    void givenTwoSectorsWithTheSameReportsAndDifferentTargets_whenReadingToday_thenUseTheTargetOfEach()
+            throws Exception {
+        // given
+        UUID at72 = sectorAt75Percent("72");
+        UUID at85 = sectorAt75Percent("85");
+
+        // when
+        ResultActions low = read(dashboardOf(at72) + "?period=TODAY");
+        ResultActions high = read(dashboardOf(at85) + "?period=TODAY");
+
+        // then
+        low.andExpect(status().isOk())
+                .andExpect(jsonPath("$.target").value(72.00))
+                .andExpect(jsonPath("$.targetStatus").value("ABOVE"))
+                .andExpect(jsonPath("$.alerts[?(@.kind == 'LOW_LAYING')]").isEmpty());
+        high.andExpect(status().isOk())
+                .andExpect(jsonPath("$.target").value(85.00))
+                .andExpect(jsonPath("$.targetStatus").value("BELOW"))
+                .andExpect(jsonPath("$.alerts[?(@.kind == 'LOW_LAYING')].detail")
+                        .value("75,0% nos últimos 3 relatórios, abaixo da meta de 85% do setor; o setor fez 76,0% hoje."));
+    }
 }

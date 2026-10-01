@@ -119,9 +119,9 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
     /** Os contratos originais, fora do repositório; existem na máquina de quem mantém as specs. */
     private static final Map<String, Path> SPEC_CONTRACTS = Map.of(
             IDENTITY_CONTRACT, Path.of("../specs/001-auth-foundation/contracts/identity-api.yaml"),
-            FARM_CONTRACT, Path.of("../specs/007-spreadsheet-export/contracts/farm-api.yaml"),
+            FARM_CONTRACT, Path.of("../specs/008-sector-laying-target/contracts/farm-api.yaml"),
             FEED_FORMULA_CONTRACT, Path.of("../specs/004-feed-formulas/contracts/feed-formulas-api.yaml"),
-            PRODUCTION_CONTRACT, Path.of("../specs/007-spreadsheet-export/contracts/production-api.yaml"));
+            PRODUCTION_CONTRACT, Path.of("../specs/008-sector-laying-target/contracts/production-api.yaml"));
 
     /** O tipo das planilhas das exportações (R-004 da 007). */
     private static final String SPREADSHEET = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";

@@ -7,6 +7,7 @@ import io.github.ovyx.production.application.dashboard.CageWatch;
 import io.github.ovyx.production.application.dashboard.CageWatchReading;
 import io.github.ovyx.production.application.dashboard.DashboardDirectory;
 import io.github.ovyx.production.application.dashboard.DashboardSector;
+import io.github.ovyx.production.application.dashboard.LayingRateTarget;
 import io.github.ovyx.production.application.dashboard.DashboardSectors;
 import io.github.ovyx.production.application.dashboard.LatestReport;
 import io.github.ovyx.production.application.dashboard.ReferenceWeight;
@@ -351,5 +352,24 @@ class DashboardDirectoryIT extends IntegrationTestSupport {
 
         // then
         assertThat(days).extracting(ReportDay::date).containsExactly(TODAY);
+    }
+
+    // ---------------------------------------------------------------- meta do setor (008)
+
+    @Test
+    @DisplayName("reads the laying rate target of the sector, with two decimal places")
+    void givenSectorsWithTheirTargets_whenReadingTheTarget_thenGiveTheTargetOfEach() {
+        // given
+        UUID at72 = fixtures.activeSector();
+        fixtures.layingRateTarget(at72, "72.0");
+        UUID untouched = fixtures.activeSector();
+
+        // when
+        LayingRateTarget target72 = directory.layingRateTarget(SectorId.of(at72));
+        LayingRateTarget target85 = directory.layingRateTarget(SectorId.of(untouched));
+
+        // then
+        assertThat(target72.value()).isEqualByComparingTo("72.00").hasScaleOf(2);
+        assertThat(target85.value()).isEqualByComparingTo("85.00").hasScaleOf(2);
     }
 }

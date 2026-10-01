@@ -202,4 +202,31 @@ class DashboardExportContractIT extends IntegrationTestSupport {
                 .andExpect(content().contentTypeCompatibleWith(PROBLEM_JSON))
                 .andExpect(jsonPath("$.code").value("SECTOR_NOT_FOUND"));
     }
+
+    // ---------------------------------------------------------------- meta do setor (008)
+
+    @Test
+    @DisplayName("writes the target of the sector in the column Meta of every day (008)")
+    void givenSectorWithATargetOf72_whenExportingTheSevenDays_thenWriteTheTargetInEveryDay() throws Exception {
+        // given
+        UUID sectorId = sectorWithTwoDays();
+        fixtures.layingRateTarget(sectorId, "72");
+
+        // when
+        byte[] file = perform(get("/api/v1/sectors/" + sectorId + "/dashboard/export").queryParam("period", "LAST_7_DAYS"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsByteArray();
+
+        // then
+        List<Row> rows = rowsOf(file, "7 dias");
+        int titles = rows.stream().map(row -> row.getCellText(0)).toList().indexOf("Data");
+        assertThat(rows.get(titles).getCellText(3)).isEqualTo("Meta");
+        List<Row> days = rows.subList(titles + 1, rows.size());
+        assertThat(days).hasSize(7);
+        assertThat(days)
+                .allSatisfy(day -> assertThat(day.getCellAsNumber(3))
+                        .hasValueSatisfying(target -> assertThat(target).isEqualByComparingTo("0.72")));
+    }
 }

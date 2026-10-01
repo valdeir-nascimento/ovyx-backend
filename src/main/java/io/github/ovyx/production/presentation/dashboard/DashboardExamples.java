@@ -238,7 +238,7 @@ public final class DashboardExamples {
                   "kind": "LOW_LAYING",
                   "tone": "WARNING",
                   "title": "Baixa postura na gaiola C-03",
-                  "detail": "76,0% nos últimos 3 relatórios, contra 87,0% no setor hoje.",
+                  "detail": "76,0% nos últimos 3 relatórios, abaixo da meta de 85% do setor; o setor fez 87,0% hoje.",
                   "target": {
                     "cageId": "1c3e5a7c-9e1a-4c3e-8a5c-7e9a1c3e5a88",
                     "cageCode": "C-03"

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.github.ovyx.production.application.dailyreport.ReportingSector;
 import io.github.ovyx.production.fixtures.InMemoryDashboardDirectory;
 import io.github.ovyx.shared.application.ErrorType;
+import io.github.ovyx.production.domain.model.SectorId;
 import io.github.ovyx.shared.application.FarmCalendar;
 import io.github.ovyx.shared.application.Result;
 import io.github.ovyx.shared.domain.FixedClock;
@@ -115,6 +116,7 @@ class GetSectorDashboardQueryHandlerTest {
         // then
         assertThat(result.error().type()).isEqualTo(ErrorType.NOT_FOUND);
         assertThat(result.error().code()).isEqualTo("SECTOR_NOT_FOUND");
+        assertThat(directory.askedTargets()).isZero();
     }
 
     @Test
@@ -128,5 +130,27 @@ class GetSectorDashboardQueryHandlerTest {
 
         // then
         assertThat(directory.askedLatest()).isEqualTo(4);
+    }
+
+    // ---------------------------------------------------------------- meta do setor (008)
+
+    @Test
+    @DisplayName("uses the target of the sector in the chart and in the low laying alert")
+    void givenSectorWithATargetOf72_whenReadingTheDashboard_thenUseItInTheChartAndInTheAlerts() {
+        // given
+        directory.answerLayingRateTarget(SectorId.of(codornas.id()), "72");
+        directory.add(day(TODAY, 1580));
+        CageWatch c03 = new CageWatch(UUID.randomUUID(), "C-03", 0, 225, 300, 3, null, null);
+        directory.answerCageWatch(new CageWatchReading(List.of(c03), null, new MortalityBaseline(0, 0)));
+
+        // when
+        SectorDashboard dashboard = handler.handle(
+                        new GetSectorDashboardQuery(codornas.id().toString(), DashboardPeriod.TODAY))
+                .value();
+
+        // then
+        assertThat(dashboard.target()).isEqualByComparingTo("72.00");
+        assertThat(dashboard.targetStatus()).isEqualTo(TargetStatus.ABOVE);
+        assertThat(dashboard.alerts()).extracting(DashboardAlert::kind).doesNotContain(AlertKind.LOW_LAYING);
     }
 }

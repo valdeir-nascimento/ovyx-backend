@@ -42,7 +42,11 @@ public record SectorDashboardResponse(
         TodayReport todayReport,
         IndicatorsResponse indicators,
         @Schema(description = "Os 7 dias de hoje − 6 até hoje, para as tendências e os gráficos") List<Day> trend,
-        @Schema(description = "A meta de produtividade, em porcentagem", example = "85.00") BigDecimal target,
+        @Schema(
+                description = "A meta de produtividade do setor, em porcentagem, com duas casas como a produtividade."
+                        + " A produtividade igual à meta conta como acima.",
+                example = "85.00")
+        BigDecimal target,
         @Schema(
                 description = "O último dia com relatório diante da meta; ausente sem dia com relatório",
                 example = "ABOVE")

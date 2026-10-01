@@ -15,7 +15,8 @@ import java.util.List;
  *
  * <p>Primeiro as pendencias do relatorio de hoje; depois os alertas das gaiolas, por tipo, cada tipo na ordem
  * das gaiolas. Os limites vem do prototipo: a mortalidade acima do dobro da media diaria por gaiola, com ao
- * menos 2 aves; a produtividade abaixo da meta nos ultimos 3 relatorios; e a pesagem fora da faixa.
+ * menos 2 aves; a produtividade abaixo da meta do setor nos ultimos 3 relatorios (feature 008); e a pesagem
+ * fora da faixa.
  */
 public final class DashboardAlerts {
 
@@ -34,8 +35,10 @@ public final class DashboardAlerts {
      * Os alertas de hoje.
      *
      * @param todayReport o relatorio de hoje somado; {@code null} se hoje ainda nao foi aberto
+     * @param target a meta de produtividade do setor, que a baixa postura usa (feature 008)
      */
-    public static List<DashboardAlert> of(LocalDate today, ReportDay todayReport, CageWatchReading reading) {
+    public static List<DashboardAlert> of(
+            LocalDate today, ReportDay todayReport, CageWatchReading reading, LayingRateTarget target) {
         List<DashboardAlert> alerts = new ArrayList<>(pending(today, todayReport));
         if (todayReport != null) {
             BigDecimal average = reading.baseline().dailyAverage();
@@ -45,8 +48,8 @@ public final class DashboardAlerts {
                     .forEach(alerts::add);
         }
         reading.cages().stream()
-                .filter(DashboardAlerts::isLowLaying)
-                .map(cage -> lowLaying(cage, todayReport))
+                .filter(cage -> isLowLaying(cage, target))
+                .map(cage -> lowLaying(cage, todayReport, target))
                 .forEach(alerts::add);
         if (reading.range() != null) {
             reading.cages().stream()
@@ -117,24 +120,28 @@ public final class DashboardAlerts {
                 new AlertTarget(report.reportId(), cage.cageId(), cage.code()));
     }
 
-    private static boolean isLowLaying(CageWatch cage) {
+    private static boolean isLowLaying(CageWatch cage, LayingRateTarget target) {
         return cage.recentReports() >= RECENT_REPORTS
                 && cage.recentBirds() > 0
-                && DailyReportTotals.percent(cage.recentEggs(), cage.recentBirds()).compareTo(LayingRateTarget.VALUE)
-                        < 0;
+                && !target.isMetBy(DailyReportTotals.percent(cage.recentEggs(), cage.recentBirds()));
     }
 
-    private static DashboardAlert lowLaying(CageWatch cage, ReportDay report) {
+    /**
+     * A baixa postura diz sempre a meta do setor, que explica o alerta, e, com o relatorio de hoje aberto e com
+     * aves, a produtividade do setor hoje, como comparacao (R-009 da 008).
+     */
+    private static DashboardAlert lowLaying(CageWatch cage, ReportDay report, LayingRateTarget target) {
         String rate = oneDecimal(DailyReportTotals.percent(cage.recentEggs(), cage.recentBirds())) + "%";
-        String against = report == null || report.openingBirdCount() == 0
-                ? "abaixo da meta de " + LayingRateTarget.VALUE.stripTrailingZeros().toPlainString() + "%."
-                : "contra " + oneDecimal(DailyReportTotals.percent(report.eggs(), report.openingBirdCount()))
-                        + "% no setor hoje.";
+        String sectorToday = report == null || report.openingBirdCount() == 0
+                ? "."
+                : "; o setor fez " + oneDecimal(DailyReportTotals.percent(report.eggs(), report.openingBirdCount()))
+                        + "% hoje.";
         return new DashboardAlert(
                 AlertKind.LOW_LAYING,
                 AlertTone.WARNING,
                 "Baixa postura na gaiola " + cage.code(),
-                rate + " nos últimos " + RECENT_REPORTS + " relatórios, " + against,
+                rate + " nos últimos " + RECENT_REPORTS + " relatórios, abaixo da meta de " + target.label()
+                        + "% do setor" + sectorToday,
                 new AlertTarget(null, cage.cageId(), cage.code()));
     }
 
