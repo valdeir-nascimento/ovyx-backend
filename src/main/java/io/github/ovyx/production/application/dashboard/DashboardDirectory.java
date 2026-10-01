@@ -4,7 +4,9 @@ import io.github.ovyx.production.application.dailyreport.ReportingSector;
 import io.github.ovyx.production.domain.model.SectorId;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Porta de leitura do painel (R-004 da 006): os numeros crus, somados no banco. As contas sao do
@@ -23,6 +25,18 @@ public interface DashboardDirectory {
      * de {@link #sector} achar o setor: setor nao e apagado, e todo setor tem a meta.
      */
     LayingRateTarget layingRateTarget(SectorId sectorId);
+
+    /**
+     * Os setores ativos, com ou sem relatorio, com a meta, na ordem das abas: pelo nome, sem maiusculas (feature
+     * 009).
+     */
+    List<ActiveSector> activeSectors();
+
+    /**
+     * Os relatorios dos setores ativos de {@code from} a {@code to}, inclusive, agrupados pelo setor, cada lista pela
+     * data (feature 009). O setor sem relatorio no intervalo nao aparece.
+     */
+    Map<UUID, List<ReportDay>> activeReportDays(LocalDate from, LocalDate to);
 
     /** Um {@link ReportDay} por relatorio do setor de {@code from} a {@code to}, inclusive, pela data. */
     List<ReportDay> reportDays(SectorId sectorId, LocalDate from, LocalDate to);

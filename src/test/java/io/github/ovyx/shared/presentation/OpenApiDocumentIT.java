@@ -108,6 +108,11 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
             "daily-report.deviation",
             "daily-report.feedPendingCages",
             "dashboard.incompleteDays",
+            // A granja toda (009): os pendentes, o dia sem setor com relatório e a variação nula de um custo que não
+            // mudou. Só na rota da granja, e não no painel do setor.
+            "farm-dashboard.incompleteDays",
+            "farm-dashboard.reportingSectors",
+            "farm-dashboard.change",
             "dashboard.completeToday",
             "dashboard.removedBirds");
 
@@ -121,7 +126,13 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
             IDENTITY_CONTRACT, Path.of("../specs/001-auth-foundation/contracts/identity-api.yaml"),
             FARM_CONTRACT, Path.of("../specs/008-sector-laying-target/contracts/farm-api.yaml"),
             FEED_FORMULA_CONTRACT, Path.of("../specs/004-feed-formulas/contracts/feed-formulas-api.yaml"),
-            PRODUCTION_CONTRACT, Path.of("../specs/008-sector-laying-target/contracts/production-api.yaml"));
+            PRODUCTION_CONTRACT, Path.of("../specs/009-farm-dashboard/contracts/production-api.yaml"));
+
+    /**
+     * Os caminhos do contrato que a feature em curso ainda não entregou, fora da comparação até a tarefa que os
+     * entrega. Vazio fora das features em curso: na 009, a exportação da granja ficou aqui até a US4 (T033).
+     */
+    private static final Set<String> PENDING_PATHS = Set.of();
 
     /** O tipo das planilhas das exportações (R-004 da 007). */
     private static final String SPREADSHEET = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -231,7 +242,9 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
                     collectZeroOrBoolean(path.getValue(), "", false, found);
                     String prefix = path.getKey().contains("/daily-reports")
                             ? "daily-report."
-                            : path.getKey().endsWith("/dashboard")
+                            : path.getKey().endsWith("/dashboard/farm")
+                                    ? "farm-dashboard."
+                                    : path.getKey().endsWith("/dashboard")
                                     ? "dashboard."
                                     : path.getKey().contains("/feed-formulas")
                                     ? "feed-formula."
@@ -279,7 +292,17 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
                 contract(IDENTITY_CONTRACT),
                 contract(FARM_CONTRACT),
                 contract(FEED_FORMULA_CONTRACT),
-                contract(PRODUCTION_CONTRACT));
+                withoutPendingPaths(contract(PRODUCTION_CONTRACT)));
+    }
+
+    /** O contrato sem os caminhos ainda não entregues ({@link #PENDING_PATHS}). */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> withoutPendingPaths(Map<String, Object> document) {
+        Map<String, Object> paths = new LinkedHashMap<>((Map<String, Object>) document.get("paths"));
+        paths.keySet().removeAll(PENDING_PATHS);
+        Map<String, Object> delivered = new LinkedHashMap<>(document);
+        delivered.put("paths", paths);
+        return delivered;
     }
 
     /** As operações de um contrato, como mapas, na ordem dos caminhos. */
@@ -372,7 +395,8 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
         // T112: as operações dos contratos, com os mesmos caminhos, métodos e códigos de resposta. Uma
         // resposta a mais ou a menos no código, sem o contrato saber, é o desvio que isto pega: as 9
         // da identidade, as 18 do farm com as 5 de pesagem e a exportação das gaiolas (007), as 6 das fórmulas e as
-        // 16 da produção, com as 2 do painel (006) e as 2 exportações (007).
+        // 18 da produção, com as 2 do painel (006), as 2 exportações (007) e as 2 da granja toda (009), menos as
+        // pendentes.
         Map<String, List<String>> contract = new TreeMap<>();
         for (Map<String, Object> expected : expectedContracts()) {
             contract.putAll(operationsWithResponses(expected));
@@ -382,7 +406,7 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
         Map<String, List<String>> published = operationsWithResponses(published());
 
         // then
-        assertThat(contract).hasSize(9 + 18 + 6 + 16);
+        assertThat(contract).hasSize(9 + 18 + 6 + 18 - PENDING_PATHS.size());
         assertThat(published).isEqualTo(contract);
     }
 

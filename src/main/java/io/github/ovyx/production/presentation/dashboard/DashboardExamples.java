@@ -529,4 +529,383 @@ public final class DashboardExamples {
               "detail": "Não foi possível concluir a operação. Tente novamente em instantes.",
               "instance": "/api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11/dashboard/export"
             }""";
+
+    // ---------------------------------------------------------------- getFarmDashboard (009)
+
+    public static final String FARM_200_GRANJA_COM_TRES_SETORES =
+            """
+            {
+              "period": "TODAY",
+              "from": "2026-09-24",
+              "to": "2026-09-24",
+              "activeSectors": 3,
+              "reportingSectors": 2,
+              "indicators": {
+                "production": {
+                  "value": 2900,
+                  "previous": 2860,
+                  "change": 1.4,
+                  "goodDirection": "UP",
+                  "incompleteDays": 0
+                },
+                "layingRate": {
+                  "value": 90.63,
+                  "previous": 89.38,
+                  "change": 1.25,
+                  "goodDirection": "UP",
+                  "incompleteDays": 0
+                },
+                "feedCost": {
+                  "value": 280.00,
+                  "previous": 277.65,
+                  "change": 0.8,
+                  "goodDirection": "DOWN",
+                  "incompleteDays": 0
+                },
+                "costPerEgg": {
+                  "value": 0.097,
+                  "previous": 0.097,
+                  "change": 0.0,
+                  "goodDirection": "DOWN",
+                  "incompleteDays": 0
+                }
+              },
+              "trend": [
+                {
+                  "date": "2026-09-18",
+                  "production": 2810,
+                  "layingRate": 87.81,
+                  "feedCost": 276.90,
+                  "costPerEgg": 0.099,
+                  "target": 80.13,
+                  "reportingSectors": 2
+                },
+                {
+                  "date": "2026-09-19",
+                  "production": 2830,
+                  "layingRate": 88.44,
+                  "feedCost": 277.40,
+                  "costPerEgg": 0.098,
+                  "target": 80.13,
+                  "reportingSectors": 2
+                },
+                {
+                  "date": "2026-09-20",
+                  "production": 2795,
+                  "layingRate": 87.34,
+                  "feedCost": 276.10,
+                  "costPerEgg": 0.099,
+                  "target": 80.13,
+                  "reportingSectors": 2
+                },
+                {
+                  "date": "2026-09-21",
+                  "production": 1715,
+                  "layingRate": 85.75,
+                  "feedCost": 158.30,
+                  "costPerEgg": 0.092,
+                  "target": 85.00,
+                  "reportingSectors": 1
+                },
+                {
+                  "date": "2026-09-22",
+                  "production": 2870,
+                  "layingRate": 89.69,
+                  "feedCost": 278.90,
+                  "costPerEgg": 0.097,
+                  "target": 80.13,
+                  "reportingSectors": 2
+                },
+                {
+                  "date": "2026-09-23",
+                  "production": 2860,
+                  "layingRate": 89.38,
+                  "feedCost": 277.65,
+                  "costPerEgg": 0.097,
+                  "target": 80.13,
+                  "reportingSectors": 2
+                },
+                {
+                  "date": "2026-09-24",
+                  "production": 2900,
+                  "layingRate": 90.63,
+                  "feedCost": 280.00,
+                  "costPerEgg": 0.097,
+                  "target": 80.13,
+                  "reportingSectors": 2
+                }
+              ],
+              "target": 80.58,
+              "targetStatus": "ABOVE",
+              "grades": {
+                "collected": 2900,
+                "standard": {
+                  "grade": "standard",
+                  "count": 2760,
+                  "percent": 95.2
+                },
+                "shares": [
+                  {
+                    "grade": "small",
+                    "count": 48,
+                    "percent": 1.7
+                  },
+                  {
+                    "grade": "jumbo",
+                    "count": 20,
+                    "percent": 0.7
+                  },
+                  {
+                    "grade": "dirty",
+                    "count": 32,
+                    "percent": 1.1
+                  },
+                  {
+                    "grade": "cracked",
+                    "count": 26,
+                    "percent": 0.9
+                  },
+                  {
+                    "grade": "bloodSpot",
+                    "count": 9,
+                    "percent": 0.3
+                  },
+                  {
+                    "grade": "abnormal",
+                    "count": 5,
+                    "percent": 0.2
+                  }
+                ]
+              },
+              "sectors": [
+                {
+                  "sector": {
+                    "id": "3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11",
+                    "name": "Codornas — Galpão 1"
+                  },
+                  "production": 1740,
+                  "layingRate": 87.00,
+                  "target": 85.00,
+                  "targetStatus": "ABOVE",
+                  "costPerEgg": 0.092,
+                  "todayReport": {
+                    "id": "6b1d3f5a-7c9e-4a2b-8d4f-1e3a5c7b9d55",
+                    "productionStatus": "COMPLETE",
+                    "feedStatus": "COMPLETE",
+                    "mortalityStatus": "RECORDED"
+                  },
+                  "openAlerts": 3
+                },
+                {
+                  "sector": {
+                    "id": "5c8d2e4f-6a1b-4c3d-9e7f-0a2b4c6d8e33",
+                    "name": "Codornas — Galpão 4"
+                  },
+                  "target": 85.00,
+                  "openAlerts": 1
+                },
+                {
+                  "sector": {
+                    "id": "7e9a1c3e-5b7d-4f9a-8c1e-3b5d7f9a1c55",
+                    "name": "Poedeiras — Galpão 2"
+                  },
+                  "production": 1160,
+                  "layingRate": 96.67,
+                  "target": 72.00,
+                  "targetStatus": "ABOVE",
+                  "costPerEgg": 0.104,
+                  "todayReport": {
+                    "id": "2c4e6a8c-0e2a-4c6e-8a0c-2e4a6c8e0a66",
+                    "productionStatus": "COMPLETE",
+                    "feedStatus": "COMPLETE",
+                    "mortalityStatus": "PENDING"
+                  },
+                  "openAlerts": 1
+                }
+              ]
+            }""";
+
+    public static final String FARM_200_GRANJA_SEM_RELATORIO =
+            """
+            {
+              "period": "TODAY",
+              "from": "2026-09-24",
+              "to": "2026-09-24",
+              "activeSectors": 2,
+              "reportingSectors": 0,
+              "indicators": {
+                "production": {
+                  "goodDirection": "UP",
+                  "incompleteDays": 0
+                },
+                "layingRate": {
+                  "goodDirection": "UP",
+                  "incompleteDays": 0
+                },
+                "feedCost": {
+                  "goodDirection": "DOWN",
+                  "incompleteDays": 0
+                },
+                "costPerEgg": {
+                  "goodDirection": "DOWN",
+                  "incompleteDays": 0
+                }
+              },
+              "trend": [
+                {
+                  "date": "2026-09-18",
+                  "reportingSectors": 0
+                },
+                {
+                  "date": "2026-09-19",
+                  "reportingSectors": 0
+                },
+                {
+                  "date": "2026-09-20",
+                  "reportingSectors": 0
+                },
+                {
+                  "date": "2026-09-21",
+                  "reportingSectors": 0
+                },
+                {
+                  "date": "2026-09-22",
+                  "reportingSectors": 0
+                },
+                {
+                  "date": "2026-09-23",
+                  "reportingSectors": 0
+                },
+                {
+                  "date": "2026-09-24",
+                  "reportingSectors": 0
+                }
+              ],
+              "sectors": [
+                {
+                  "sector": {
+                    "id": "3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11",
+                    "name": "Codornas — Galpão 1"
+                  },
+                  "target": 85.00,
+                  "openAlerts": 1
+                },
+                {
+                  "sector": {
+                    "id": "7e9a1c3e-5b7d-4f9a-8c1e-3b5d7f9a1c55",
+                    "name": "Poedeiras — Galpão 2"
+                  },
+                  "target": 72.00,
+                  "openAlerts": 1
+                }
+              ]
+            }""";
+
+    public static final String FARM_400_PERIODO_INVALIDO =
+            """
+            {
+              "code": "VALIDATION_FAILED",
+              "title": "Dados inválidos",
+              "status": 400,
+              "detail": "Valor inválido para o parâmetro 'period'.",
+              "instance": "/api/v1/dashboard/farm",
+              "details": {
+                "parameter": "period"
+              }
+            }""";
+
+    public static final String FARM_401_SEM_SESSAO =
+            """
+            {
+              "code": "UNAUTHENTICATED",
+              "title": "Não autenticado",
+              "status": 401,
+              "detail": "Sua sessão expirou. Entre novamente para continuar.",
+              "instance": "/api/v1/dashboard/farm"
+            }""";
+
+    public static final String FARM_403_TROCA_DE_SENHA_PENDENTE =
+            """
+            {
+              "code": "PASSWORD_CHANGE_REQUIRED",
+              "title": "Troca de senha obrigatória",
+              "status": 403,
+              "detail": "É necessário trocar a senha antes de executar qualquer outra operação.",
+              "instance": "/api/v1/dashboard/farm"
+            }""";
+
+    public static final String FARM_406 =
+            """
+            {
+              "code": "REQUEST_NOT_ACCEPTABLE",
+              "title": "Requisição não suportada",
+              "status": 406,
+              "detail": "A requisição não é suportada por este endereço.",
+              "instance": "/api/v1/dashboard/farm"
+            }""";
+
+    public static final String FARM_500 =
+            """
+            {
+              "code": "INTERNAL_ERROR",
+              "title": "Erro inesperado",
+              "status": 500,
+              "detail": "Não foi possível concluir a operação. Tente novamente em instantes.",
+              "instance": "/api/v1/dashboard/farm"
+            }""";
+
+    // ---------------------------------------------------------------- exportFarmDashboard (009)
+
+    public static final String FARM_EXPORT_400_PERIODO_INVALIDO =
+            """
+            {
+              "code": "VALIDATION_FAILED",
+              "title": "Dados inválidos",
+              "status": 400,
+              "detail": "Valor inválido para o parâmetro 'period'.",
+              "instance": "/api/v1/dashboard/farm/export",
+              "details": {
+                "parameter": "period"
+              }
+            }""";
+
+    public static final String FARM_EXPORT_401_SEM_SESSAO =
+            """
+            {
+              "code": "UNAUTHENTICATED",
+              "title": "Não autenticado",
+              "status": 401,
+              "detail": "Sua sessão expirou. Entre novamente para continuar.",
+              "instance": "/api/v1/dashboard/farm/export"
+            }""";
+
+    public static final String FARM_EXPORT_403_TROCA_DE_SENHA_PENDENTE =
+            """
+            {
+              "code": "PASSWORD_CHANGE_REQUIRED",
+              "title": "Troca de senha obrigatória",
+              "status": 403,
+              "detail": "É necessário trocar a senha antes de executar qualquer outra operação.",
+              "instance": "/api/v1/dashboard/farm/export"
+            }""";
+
+    public static final String FARM_EXPORT_406 =
+            """
+            {
+              "code": "REQUEST_NOT_ACCEPTABLE",
+              "title": "Requisição não suportada",
+              "status": 406,
+              "detail": "A requisição não é suportada por este endereço.",
+              "instance": "/api/v1/dashboard/farm/export"
+            }""";
+
+    public static final String FARM_EXPORT_500 =
+            """
+            {
+              "code": "INTERNAL_ERROR",
+              "title": "Erro inesperado",
+              "status": 500,
+              "detail": "Não foi possível concluir a operação. Tente novamente em instantes.",
+              "instance": "/api/v1/dashboard/farm/export"
+            }""";
 }

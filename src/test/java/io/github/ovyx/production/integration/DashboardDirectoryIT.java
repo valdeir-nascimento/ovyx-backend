@@ -7,6 +7,7 @@ import io.github.ovyx.production.application.dashboard.CageWatch;
 import io.github.ovyx.production.application.dashboard.CageWatchReading;
 import io.github.ovyx.production.application.dashboard.DashboardDirectory;
 import io.github.ovyx.production.application.dashboard.DashboardSector;
+import io.github.ovyx.production.application.dashboard.ActiveSector;
 import io.github.ovyx.production.application.dashboard.LayingRateTarget;
 import io.github.ovyx.production.application.dashboard.DashboardSectors;
 import io.github.ovyx.production.application.dashboard.LatestReport;
@@ -18,6 +19,7 @@ import io.github.ovyx.production.domain.model.ProductionStatus;
 import io.github.ovyx.production.domain.model.SectorId;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Map;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -371,5 +373,63 @@ class DashboardDirectoryIT extends IntegrationTestSupport {
         // then
         assertThat(target72.value()).isEqualByComparingTo("72.00").hasScaleOf(2);
         assertThat(target85.value()).isEqualByComparingTo("85.00").hasScaleOf(2);
+    }
+
+    // ---------------------------------------------------------------- granja toda (009)
+
+    /** Um dia que nenhum outro teste usa, para os relatorios da granja serem so os daqui. */
+    private static final LocalDate FARM_DAY = LocalDate.of(2032, 6, 10);
+
+    @Test
+    @DisplayName("reads the active sectors with their targets, with or without reports, in the order of the tabs")
+    void givenActiveAndInactiveSectors_whenReadingTheActiveOnes_thenGiveTheActiveWithTheirTargetsByName() {
+        // given
+        UUID second = fixtures.sectorNamed("zz-granja B", "ACTIVE");
+        UUID first = fixtures.sectorNamed("ZZ-GRANJA a", "ACTIVE");
+        fixtures.layingRateTarget(first, "72.0");
+        UUID inactive = fixtures.sectorNamed("zz-granja c", "INACTIVE");
+        completeReport(second, fixtures.activeCage(second, "A", 1, 48), FARM_DAY);
+
+        // when
+        List<ActiveSector> sectors = directory.activeSectors();
+
+        // then
+        List<ActiveSector> mine = sectors.stream()
+                .filter(sector -> List.of(first, second, inactive).contains(sector.id()))
+                .toList();
+        assertThat(mine).extracting(ActiveSector::id).containsExactly(first, second);
+        assertThat(mine.get(0).name()).isEqualTo(fixtures.nameOf(first));
+        assertThat(mine.get(0).target().value()).isEqualByComparingTo("72.00");
+        assertThat(mine.get(1).target().value()).isEqualByComparingTo("85.00");
+    }
+
+    @Test
+    @DisplayName("reads the reports of the active sectors in the interval, grouped by sector, both ends included")
+    void givenReportsOfSeveralSectors_whenReadingTheFarmDays_thenGroupThemBySectorWithinTheInterval() {
+        // given
+        UUID one = fixtures.activeSector();
+        UUID other = fixtures.activeSector();
+        UUID inactive = fixtures.activeSector();
+        UUID oneCage = fixtures.activeCage(one, "A", 1, 48);
+        UUID otherCage = fixtures.activeCage(other, "A", 1, 48);
+        UUID inactiveCage = fixtures.activeCage(inactive, "A", 1, 48);
+        completeReport(one, oneCage, FARM_DAY.minusDays(13));
+        completeReport(one, oneCage, FARM_DAY);
+        completeReport(one, oneCage, FARM_DAY.minusDays(14));
+        completeReport(one, oneCage, FARM_DAY.plusDays(1));
+        completeReport(other, otherCage, FARM_DAY.minusDays(2));
+        completeReport(inactive, inactiveCage, FARM_DAY);
+        fixtures.deactivate(inactive);
+
+        // when
+        Map<UUID, List<ReportDay>> days = directory.activeReportDays(FARM_DAY.minusDays(13), FARM_DAY);
+
+        // then
+        assertThat(days.get(one)).extracting(ReportDay::date).containsExactly(FARM_DAY.minusDays(13), FARM_DAY);
+        assertThat(days.get(other)).extracting(ReportDay::date).containsExactly(FARM_DAY.minusDays(2));
+        assertThat(days).doesNotContainKey(inactive);
+        assertThat(days.get(one))
+                .usingRecursiveFieldByFieldElementComparator()
+                .containsExactlyElementsOf(directory.reportDays(SectorId.of(one), FARM_DAY.minusDays(13), FARM_DAY));
     }
 }

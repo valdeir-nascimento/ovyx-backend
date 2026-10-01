@@ -162,6 +162,11 @@ public class OpenApiConfiguration {
                         e o dia sem relatório fica sem valor, e não com zero. A meta de produtividade é a do setor (API \
                         da Granja, feature 008), a atual, também para os dias passados.
 
+                        **Granja toda**: o painel da granja soma os setores ativos, com as mesmas contas do painel de um \
+                        setor: a produtividade é a soma dos ovos sobre a soma das aves dos relatórios, e o custo conta só os \
+                        relatórios com a ração completa. Setor sem relatório não conta como zero. A meta da granja é a média \
+                        das metas dos setores ponderada pelas aves do início do dia dos relatórios (feature 009).
+
                         **Planilhas**: o painel de um setor e os relatórios de um intervalo também saem como planilha \
                         do Excel (.xlsx), com os mesmos números da tela. Quantidades, valores em reais, porcentagens e \
                         datas são números e datas na planilha, e não texto; o valor sem dados fica em branco. Texto \
