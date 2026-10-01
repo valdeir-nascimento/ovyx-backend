@@ -97,7 +97,7 @@ class ProductionAuthorizationIT extends IntegrationTestSupport {
 
     /**
      * As leituras: a lista, a sugestão, o relatório, a gaiola e a proposta da ração; as duas do painel (006), o
-     * cabeçalho e o painel do setor; e as exportações para planilha (007).
+     * cabeçalho e o painel do setor; as exportações para planilha (007); e o painel da granja toda (009).
      */
     private List<MockHttpServletRequestBuilder> readsOf(Report report) {
         return List.of(
@@ -109,7 +109,9 @@ class ProductionAuthorizationIT extends IntegrationTestSupport {
                 get("/api/v1/dashboard"),
                 get("/api/v1/sectors/" + sectorId + "/dashboard").queryParam("period", "LAST_7_DAYS"),
                 get(reports() + "/export").queryParam("from", "2026-09-01").queryParam("to", "2026-09-28"),
-                get("/api/v1/sectors/" + sectorId + "/dashboard/export").queryParam("period", "LAST_7_DAYS"));
+                get("/api/v1/sectors/" + sectorId + "/dashboard/export").queryParam("period", "LAST_7_DAYS"),
+                get("/api/v1/dashboard/farm").queryParam("period", "LAST_7_DAYS"),
+                get("/api/v1/dashboard/farm/export").queryParam("period", "LAST_7_DAYS"));
     }
 
     /**

@@ -32,6 +32,11 @@ info:
     sem relatório fica sem valor, e não com zero. A meta de produtividade é a do setor (API da Granja,
     feature 008), a atual, também para os dias passados.
 
+    **Granja toda**: o painel da granja soma os setores ativos, com as mesmas contas do painel de um setor:
+    a produtividade é a soma dos ovos sobre a soma das aves dos relatórios, e o custo conta só os
+    relatórios com a ração completa. Setor sem relatório não conta como zero. A meta da granja é a média
+    das metas dos setores ponderada pelas aves do início do dia dos relatórios (feature 009).
+
     **Planilhas**: o painel de um setor e os relatórios de um intervalo também saem como planilha do
     Excel (.xlsx), com os mesmos números da tela. Quantidades, valores em reais, porcentagens e datas
     são números e datas na planilha, e não texto; o valor sem dados fica em branco. Texto digitado por
@@ -83,6 +88,269 @@ paths:
                     activeSectors: 1
                     completeToday: 0
                     sectors: []
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/TrocaDeSenhaPendente'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+  /api/v1/dashboard/farm:
+    get:
+      tags:
+      - Painel
+      summary: Consultar o painel da granja toda
+      description: Os setores ativos somados no período (feature 009) — os quatro indicadores comparados com o período anterior, a série dos últimos 7 dias com a meta da granja, a classificação dos ovos e a comparação dos setores lado a lado, com a produtividade diante da meta de cada um, o custo por ovo, o relatório de hoje e os alertas abertos. Nos indicadores, `incompleteDays` conta os relatórios (de cada setor, em cada dia) com o lançamento pendente.
+      operationId: getFarmDashboard
+      parameters:
+      - name: period
+        in: query
+        required: false
+        description: O período dos indicadores, da classificação e da comparação. Sem ele, vale `TODAY`.
+        schema:
+          $ref: '#/components/schemas/DashboardPeriod'
+        example: TODAY
+      responses:
+        '200':
+          description: Painel da granja toda
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FarmDashboard'
+              examples:
+                granjaComTresSetores:
+                  summary: Hoje, com dois setores com relatório e um sem
+                  value:
+                    period: TODAY
+                    from: '2026-09-24'
+                    to: '2026-09-24'
+                    activeSectors: 3
+                    reportingSectors: 2
+                    indicators:
+                      production:
+                        value: 2900
+                        previous: 2860
+                        change: 1.4
+                        goodDirection: UP
+                        incompleteDays: 0
+                      layingRate:
+                        value: 90.63
+                        previous: 89.38
+                        change: 1.25
+                        goodDirection: UP
+                        incompleteDays: 0
+                      feedCost:
+                        value: 280.00
+                        previous: 277.65
+                        change: 0.8
+                        goodDirection: DOWN
+                        incompleteDays: 0
+                      costPerEgg:
+                        value: 0.097
+                        previous: 0.097
+                        change: 0.0
+                        goodDirection: DOWN
+                        incompleteDays: 0
+                    trend:
+                    - date: '2026-09-18'
+                      production: 2810
+                      layingRate: 87.81
+                      feedCost: 276.90
+                      costPerEgg: 0.099
+                      target: 80.13
+                      reportingSectors: 2
+                    - date: '2026-09-19'
+                      production: 2830
+                      layingRate: 88.44
+                      feedCost: 277.40
+                      costPerEgg: 0.098
+                      target: 80.13
+                      reportingSectors: 2
+                    - date: '2026-09-20'
+                      production: 2795
+                      layingRate: 87.34
+                      feedCost: 276.10
+                      costPerEgg: 0.099
+                      target: 80.13
+                      reportingSectors: 2
+                    - date: '2026-09-21'
+                      production: 1715
+                      layingRate: 85.75
+                      feedCost: 158.30
+                      costPerEgg: 0.092
+                      target: 85.00
+                      reportingSectors: 1
+                    - date: '2026-09-22'
+                      production: 2870
+                      layingRate: 89.69
+                      feedCost: 278.90
+                      costPerEgg: 0.097
+                      target: 80.13
+                      reportingSectors: 2
+                    - date: '2026-09-23'
+                      production: 2860
+                      layingRate: 89.38
+                      feedCost: 277.65
+                      costPerEgg: 0.097
+                      target: 80.13
+                      reportingSectors: 2
+                    - date: '2026-09-24'
+                      production: 2900
+                      layingRate: 90.63
+                      feedCost: 280.00
+                      costPerEgg: 0.097
+                      target: 80.13
+                      reportingSectors: 2
+                    target: 80.58
+                    targetStatus: ABOVE
+                    grades:
+                      collected: 2900
+                      standard:
+                        grade: standard
+                        count: 2760
+                        percent: 95.2
+                      shares:
+                      - grade: small
+                        count: 48
+                        percent: 1.7
+                      - grade: jumbo
+                        count: 20
+                        percent: 0.7
+                      - grade: dirty
+                        count: 32
+                        percent: 1.1
+                      - grade: cracked
+                        count: 26
+                        percent: 0.9
+                      - grade: bloodSpot
+                        count: 9
+                        percent: 0.3
+                      - grade: abnormal
+                        count: 5
+                        percent: 0.2
+                    sectors:
+                    - sector:
+                        id: 3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11
+                        name: Codornas — Galpão 1
+                      production: 1740
+                      layingRate: 87.00
+                      target: 85.00
+                      targetStatus: ABOVE
+                      costPerEgg: 0.092
+                      todayReport:
+                        id: 6b1d3f5a-7c9e-4a2b-8d4f-1e3a5c7b9d55
+                        productionStatus: COMPLETE
+                        feedStatus: COMPLETE
+                        mortalityStatus: RECORDED
+                      openAlerts: 3
+                    - sector:
+                        id: 5c8d2e4f-6a1b-4c3d-9e7f-0a2b4c6d8e33
+                        name: Codornas — Galpão 4
+                      target: 85.00
+                      openAlerts: 1
+                    - sector:
+                        id: 7e9a1c3e-5b7d-4f9a-8c1e-3b5d7f9a1c55
+                        name: Poedeiras — Galpão 2
+                      production: 1160
+                      layingRate: 96.67
+                      target: 72.00
+                      targetStatus: ABOVE
+                      costPerEgg: 0.104
+                      todayReport:
+                        id: 2c4e6a8c-0e2a-4c6e-8a0c-2e4a6c8e0a66
+                        productionStatus: COMPLETE
+                        feedStatus: COMPLETE
+                        mortalityStatus: PENDING
+                      openAlerts: 1
+                granjaSemRelatorio:
+                  summary: Nenhum setor com relatório no período
+                  value:
+                    period: TODAY
+                    from: '2026-09-24'
+                    to: '2026-09-24'
+                    activeSectors: 2
+                    reportingSectors: 0
+                    indicators:
+                      production:
+                        goodDirection: UP
+                        incompleteDays: 0
+                      layingRate:
+                        goodDirection: UP
+                        incompleteDays: 0
+                      feedCost:
+                        goodDirection: DOWN
+                        incompleteDays: 0
+                      costPerEgg:
+                        goodDirection: DOWN
+                        incompleteDays: 0
+                    trend:
+                    - date: '2026-09-18'
+                      reportingSectors: 0
+                    - date: '2026-09-19'
+                      reportingSectors: 0
+                    - date: '2026-09-20'
+                      reportingSectors: 0
+                    - date: '2026-09-21'
+                      reportingSectors: 0
+                    - date: '2026-09-22'
+                      reportingSectors: 0
+                    - date: '2026-09-23'
+                      reportingSectors: 0
+                    - date: '2026-09-24'
+                      reportingSectors: 0
+                    sectors:
+                    - sector:
+                        id: 3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11
+                        name: Codornas — Galpão 1
+                      target: 85.00
+                      openAlerts: 1
+                    - sector:
+                        id: 7e9a1c3e-5b7d-4f9a-8c1e-3b5d7f9a1c55
+                        name: Poedeiras — Galpão 2
+                      target: 72.00
+                      openAlerts: 1
+        '400':
+          $ref: '#/components/responses/PeriodoInvalido'
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          $ref: '#/components/responses/TrocaDeSenhaPendente'
+        '406':
+          $ref: '#/components/responses/FormatoIndisponivel'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
+  /api/v1/dashboard/farm/export:
+    get:
+      tags:
+      - Painel
+      summary: Exportar o painel da granja toda para planilha
+      description: 'O painel da granja no período, como planilha do Excel: os quatro indicadores somados com o valor, o anterior e a variação; os 7 dias, com a meta da granja e os setores com relatório em cada dia; a classificação dos ovos; e a comparação dos setores. Os números são os da consulta do painel da granja. O arquivo se chama `painel-granja-<data de hoje da granja>.xlsx`.'
+      operationId: exportFarmDashboard
+      parameters:
+      - name: period
+        in: query
+        required: false
+        description: O período do painel exportado. Sem ele, vale `TODAY`.
+        schema:
+          $ref: '#/components/schemas/DashboardPeriod'
+        example: LAST_7_DAYS
+      responses:
+        '200':
+          description: Planilha do painel da granja
+          headers:
+            Content-Disposition:
+              description: O nome do arquivo, para salvar.
+              schema:
+                type: string
+              example: attachment; filename="painel-granja-28-09-2026.xlsx"
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/PeriodoInvalido'
         '401':
           $ref: '#/components/responses/SessaoInvalida'
         '403':
@@ -2988,5 +3256,135 @@ components:
           description: Os 4 relatórios mais recentes, do mais novo para o mais antigo
           items:
             $ref: '#/components/schemas/LatestReport'
+    FarmDay:
+      type: object
+      description: Um dia da série da granja. Os valores somam os setores ativos com relatório no dia; sem nenhum, ficam ausentes, e com a ração pendente em todos, os custos ficam ausentes.
+      required:
+      - date
+      - reportingSectors
+      properties:
+        date:
+          type: string
+          format: date
+          example: '2026-09-24'
+        production:
+          type: integer
+          description: Ovos coletados, somados
+          example: 2900
+        layingRate:
+          type: number
+          description: Produtividade, a soma dos ovos sobre a soma das aves, em porcentagem com duas casas
+          example: 90.63
+        feedCost:
+          type: number
+          description: Custo da ração dos relatórios com a ração completa, em reais com duas casas
+          example: 280.00
+        costPerEgg:
+          type: number
+          description: Custo por ovo desses relatórios, em reais com três casas
+          example: 0.097
+        target:
+          type: number
+          description: A meta da granja no dia, a média das metas dos setores com relatório ponderada pelas aves, com duas casas
+          example: 80.13
+        reportingSectors:
+          type: integer
+          description: Quantos setores ativos têm relatório no dia
+          example: 2
+    FarmSectorRow:
+      type: object
+      description: Um setor ativo na comparação da granja, no período. Sem relatório no período, os números ficam ausentes, e não zero.
+      required:
+      - sector
+      - target
+      - openAlerts
+      properties:
+        sector:
+          $ref: '#/components/schemas/DashboardSector'
+        production:
+          type: integer
+          description: Ovos coletados no período
+          example: 1740
+        layingRate:
+          type: number
+          description: Produtividade do período, em porcentagem com duas casas
+          example: 87.00
+        target:
+          type: number
+          description: A meta de produtividade atual do setor, com duas casas
+          example: 85.00
+        targetStatus:
+          type: string
+          enum:
+          - ABOVE
+          - BELOW
+          description: A produtividade do período diante da meta do setor, a igualdade contando como acima; ausente sem relatório no período
+          example: ABOVE
+        costPerEgg:
+          type: number
+          description: Custo por ovo do período, só com os relatórios de ração completa, em reais com três casas
+          example: 0.092
+        todayReport:
+          $ref: '#/components/schemas/TodayReport'
+        openAlerts:
+          type: integer
+          description: Os alertas e as pendências abertos hoje no setor, os mesmos do painel dele
+          example: 3
+    FarmDashboard:
+      type: object
+      description: O painel da granja toda, os setores ativos somados no período
+      required:
+      - period
+      - from
+      - to
+      - activeSectors
+      - reportingSectors
+      - indicators
+      - trend
+      - sectors
+      properties:
+        period:
+          $ref: '#/components/schemas/DashboardPeriod'
+        from:
+          type: string
+          format: date
+          example: '2026-09-24'
+        to:
+          type: string
+          format: date
+          example: '2026-09-24'
+        activeSectors:
+          type: integer
+          description: Quantos setores ativos a granja tem
+          example: 3
+        reportingSectors:
+          type: integer
+          description: Quantos deles têm relatório no período
+          example: 2
+        indicators:
+          $ref: '#/components/schemas/Indicators'
+        trend:
+          type: array
+          description: Os 7 dias de hoje − 6 até hoje, para as tendências e os gráficos
+          items:
+            $ref: '#/components/schemas/FarmDay'
+        target:
+          type: number
+          description: A meta da granja nos 7 dias, a média das metas dos setores ponderada pelas aves dos relatórios, com duas casas; ausente sem relatório nos 7 dias
+          example: 80.58
+        targetStatus:
+          type: string
+          enum:
+          - ABOVE
+          - BELOW
+          description: O último dia com relatório diante da meta da granja naquele dia; ausente sem dia com relatório
+          example: ABOVE
+        grades:
+          $ref: '#/components/schemas/EggGrading'
+        sectors:
+          type: array
+          description: Os setores ativos, por nome, como as abas do painel
+          items:
+            $ref: '#/components/schemas/FarmSectorRow'
 security:
 - sessionCookie: []

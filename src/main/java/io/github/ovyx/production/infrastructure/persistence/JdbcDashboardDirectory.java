@@ -1,6 +1,7 @@
 package io.github.ovyx.production.infrastructure.persistence;
 
 import io.github.ovyx.production.application.dailyreport.ReportingSector;
+import io.github.ovyx.production.application.dashboard.ActiveSector;
 import io.github.ovyx.production.application.dashboard.CageWatch;
 import io.github.ovyx.production.application.dashboard.CageWatchReading;
 import io.github.ovyx.production.application.dashboard.DashboardDirectory;
@@ -17,13 +18,18 @@ import io.github.ovyx.production.domain.model.MortalityStatus;
 import io.github.ovyx.production.domain.model.ProductionStatus;
 import io.github.ovyx.production.domain.model.SectorId;
 import java.math.BigDecimal;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
@@ -42,6 +48,31 @@ public class JdbcDashboardDirectory implements DashboardDirectory {
      * a leitura presa ao indice por setor e data, em vez de varrer todas as gaiolas de todos os relatorios.
      */
     private static final int REPORTS_SEARCHED_FOR_LAYING = 10;
+
+    /**
+     * Os relatorios somados num intervalo, com o filtro dos setores no lugar do {@code %s}: o do painel de um setor ou
+     * o dos setores ativos da granja (feature 009). As somas sao as mesmas nos dois.
+     */
+    private static final String REPORT_DAYS = """
+            select r.id, r.sector_id, r.collection_date, r.opening_bird_count, r.no_mortality_confirmed,
+                   count(c.cage_id) as cages,
+                   count(c.eggs) as cages_with_production,
+                   count(c.feed_consumption) as cages_with_feed,
+                   coalesce(sum(c.eggs), 0) as eggs,
+                   coalesce(sum(c.small), 0) as small,
+                   coalesce(sum(c.jumbo), 0) as jumbo,
+                   coalesce(sum(c.dirty), 0) as dirty,
+                   coalesce(sum(c.cracked), 0) as cracked,
+                   coalesce(sum(c.blood_spot), 0) as blood_spot,
+                   coalesce(sum(c.abnormal), 0) as abnormal,
+                   coalesce(sum(c.feed_consumption * c.feed_price_per_kg), 0) as exact_feed_cost,
+                   coalesce(sum(c.deaths + c.culls), 0) as removed_birds
+              from daily_report r
+              left join report_cage c on c.report_id = r.id
+             where %s and r.collection_date between :from and :to
+             group by r.id
+             order by r.collection_date
+            """;
 
     private final JdbcClient jdbcClient;
 
@@ -115,47 +146,63 @@ public class JdbcDashboardDirectory implements DashboardDirectory {
     @Override
     public List<ReportDay> reportDays(SectorId sectorId, LocalDate from, LocalDate to) {
         return jdbcClient
-                .sql("""
-                        select r.id, r.collection_date, r.opening_bird_count, r.no_mortality_confirmed,
-                               count(c.cage_id) as cages,
-                               count(c.eggs) as cages_with_production,
-                               count(c.feed_consumption) as cages_with_feed,
-                               coalesce(sum(c.eggs), 0) as eggs,
-                               coalesce(sum(c.small), 0) as small,
-                               coalesce(sum(c.jumbo), 0) as jumbo,
-                               coalesce(sum(c.dirty), 0) as dirty,
-                               coalesce(sum(c.cracked), 0) as cracked,
-                               coalesce(sum(c.blood_spot), 0) as blood_spot,
-                               coalesce(sum(c.abnormal), 0) as abnormal,
-                               coalesce(sum(c.feed_consumption * c.feed_price_per_kg), 0) as exact_feed_cost,
-                               coalesce(sum(c.deaths + c.culls), 0) as removed_birds
-                          from daily_report r
-                          left join report_cage c on c.report_id = r.id
-                         where r.sector_id = :sectorId and r.collection_date between :from and :to
-                         group by r.id
-                         order by r.collection_date
-                        """)
+                .sql(REPORT_DAYS.formatted("r.sector_id = :sectorId"))
                 .param("sectorId", sectorId.value())
                 .param("from", from)
                 .param("to", to)
-                .query((row, index) -> new ReportDay(
-                        row.getObject("id", UUID.class),
-                        row.getObject("collection_date", LocalDate.class),
-                        row.getInt("opening_bird_count"),
-                        row.getInt("cages"),
-                        row.getInt("cages_with_production"),
-                        row.getInt("cages_with_feed"),
-                        row.getInt("eggs"),
-                        row.getInt("small"),
-                        row.getInt("jumbo"),
-                        row.getInt("dirty"),
-                        row.getInt("cracked"),
-                        row.getInt("blood_spot"),
-                        row.getInt("abnormal"),
-                        row.getBigDecimal("exact_feed_cost"),
-                        row.getInt("removed_birds"),
-                        row.getBoolean("no_mortality_confirmed")))
+                .query((row, index) -> reportDayOf(row))
                 .list();
+    }
+
+    @Override
+    public List<ActiveSector> activeSectors() {
+        return jdbcClient
+                .sql("""
+                        select id, name, laying_rate_target from sector
+                         where status = 'ACTIVE'
+                         order by lower(name), id
+                        """)
+                .query((row, index) -> new ActiveSector(
+                        row.getObject("id", UUID.class),
+                        row.getString("name"),
+                        new LayingRateTarget(row.getBigDecimal("laying_rate_target"))))
+                .list();
+    }
+
+    @Override
+    public Map<UUID, List<ReportDay>> activeReportDays(LocalDate from, LocalDate to) {
+        Map<UUID, List<ReportDay>> days = new LinkedHashMap<>();
+        // Um relatorio por linha, agrupado pelo setor na ordem em que chega, que e a das datas.
+        RowCallbackHandler groupBySector = row -> days.computeIfAbsent(
+                        row.getObject("sector_id", UUID.class), sectorId -> new ArrayList<>())
+                .add(reportDayOf(row));
+        jdbcClient
+                .sql(REPORT_DAYS.formatted("r.sector_id in (select s.id from sector s where s.status = 'ACTIVE')"))
+                .param("from", from)
+                .param("to", to)
+                .query(groupBySector);
+        return days;
+    }
+
+    /** Um relatorio somado, da consulta {@link #REPORT_DAYS}. */
+    private static ReportDay reportDayOf(ResultSet row) throws SQLException {
+        return new ReportDay(
+                row.getObject("id", UUID.class),
+                row.getObject("collection_date", LocalDate.class),
+                row.getInt("opening_bird_count"),
+                row.getInt("cages"),
+                row.getInt("cages_with_production"),
+                row.getInt("cages_with_feed"),
+                row.getInt("eggs"),
+                row.getInt("small"),
+                row.getInt("jumbo"),
+                row.getInt("dirty"),
+                row.getInt("cracked"),
+                row.getInt("blood_spot"),
+                row.getInt("abnormal"),
+                row.getBigDecimal("exact_feed_cost"),
+                row.getInt("removed_birds"),
+                row.getBoolean("no_mortality_confirmed"));
     }
 
     @Override

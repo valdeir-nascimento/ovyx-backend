@@ -62,6 +62,11 @@ public class ProductionRouteAuthorization implements RouteAuthorization {
             .requestMatchers(HttpMethod.GET, "/api/v1/sectors/*/dashboard/export")
             .authenticated()
             .requestMatchers(HttpMethod.GET, "/api/v1/sectors/*/dashboard")
+            .authenticated()
+            // O painel da granja toda (009): o mesmo para os dois perfis, como o de um setor.
+            .requestMatchers(HttpMethod.GET, "/api/v1/dashboard/farm")
+            .authenticated()
+            .requestMatchers(HttpMethod.GET, "/api/v1/dashboard/farm/export")
             .authenticated();
     }
 }

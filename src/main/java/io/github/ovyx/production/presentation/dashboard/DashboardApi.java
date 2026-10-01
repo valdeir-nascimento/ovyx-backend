@@ -75,6 +75,123 @@ public interface DashboardApi {
     ResponseEntity<Object> getDashboardOverview();
 
     @Operation(
+        summary = "Consultar o painel da granja toda",
+        description = "Os setores ativos somados no período (feature 009) — os quatro indicadores comparados com o "
+            + "período anterior, a série dos últimos 7 dias com a meta da granja, a classificação dos ovos e a "
+            + "comparação dos setores lado a lado, com a produtividade diante da meta de cada um, o custo por ovo, o "
+            + "relatório de hoje e os alertas abertos. Nos indicadores, `incompleteDays` conta os relatórios (de cada "
+            + "setor, em cada dia) com o lançamento pendente.")
+    @ApiResponse(
+        responseCode = "200",
+        description = "Painel da granja toda",
+        content = @Content(
+            mediaType = MediaType.APPLICATION_JSON_VALUE,
+            schema = @Schema(implementation = FarmDashboardResponse.class),
+            examples = {
+                @ExampleObject(name = "granjaComTresSetores", summary = "Hoje, com dois setores com relatório e um sem", value = DashboardExamples.FARM_200_GRANJA_COM_TRES_SETORES),
+                @ExampleObject(name = "granjaSemRelatorio", summary = "Nenhum setor com relatório no período", value = DashboardExamples.FARM_200_GRANJA_SEM_RELATORIO)
+            }))
+    @ApiResponse(
+        responseCode = "400",
+        description = "Período fora de `TODAY`, `YESTERDAY` e `LAST_7_DAYS` (`VALIDATION_FAILED`), com o nome do "
+            + "parâmetro em `details`.",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(name = "periodoInvalido", summary = "Período que não existe", value = DashboardExamples.FARM_400_PERIODO_INVALIDO)))
+    @ApiResponse(
+        responseCode = "401",
+        description = "Sem sessão válida (`UNAUTHENTICATED`), ou responsável inativado com a sessão aberta "
+            + "(`CARETAKER_UNAVAILABLE`).",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(name = "semSessao", summary = "Sem sessão", value = DashboardExamples.FARM_401_SEM_SESSAO)))
+    @ApiResponse(
+        responseCode = "403",
+        description = "Troca de senha pendente (`PASSWORD_CHANGE_REQUIRED`).",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(name = "trocaDeSenhaPendente", summary = "Senha provisória ainda não trocada", value = DashboardExamples.FARM_403_TROCA_DE_SENHA_PENDENTE)))
+    @ApiResponse(
+        responseCode = "406",
+        description = "Formato de resposta indisponível (`REQUEST_NOT_ACCEPTABLE`).",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(value = DashboardExamples.FARM_406)))
+    @ApiResponse(
+        responseCode = "500",
+        description = "Falha inesperada (`INTERNAL_ERROR`), sem detalhe da causa.",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(value = DashboardExamples.FARM_500)))
+    ResponseEntity<Object> getFarmDashboard(
+        @Parameter(
+            description = "O período dos indicadores, da classificação e da comparação. Sem ele, vale `TODAY`.",
+            example = "TODAY")
+        DashboardPeriod period);
+
+    @Operation(
+        summary = "Exportar o painel da granja toda para planilha",
+        description = "O painel da granja no período, como planilha do Excel: os quatro indicadores somados com o "
+            + "valor, o anterior e a variação; os 7 dias, com a meta da granja e os setores com relatório em cada "
+            + "dia; a classificação dos ovos; e a comparação dos setores. Os números são os da consulta do painel da "
+            + "granja. O arquivo se chama `painel-granja-<data de hoje da granja>.xlsx`.")
+    @ApiResponse(
+        responseCode = "200",
+        description = "Planilha do painel da granja",
+        headers = @Header(
+            name = "Content-Disposition",
+            description = "O nome do arquivo, para salvar.",
+            schema = @Schema(type = "string", example = "attachment; filename=\"painel-granja-28-09-2026.xlsx\"")),
+        content = @Content(
+            mediaType = SpreadsheetResponses.SPREADSHEET,
+            schema = @Schema(type = "string", format = "binary")))
+    @ApiResponse(
+        responseCode = "400",
+        description = "Período fora de `TODAY`, `YESTERDAY` e `LAST_7_DAYS` (`VALIDATION_FAILED`), com o nome do "
+            + "parâmetro em `details`.",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(name = "periodoInvalido", summary = "Período que não existe", value = DashboardExamples.FARM_EXPORT_400_PERIODO_INVALIDO)))
+    @ApiResponse(
+        responseCode = "401",
+        description = "Sem sessão válida (`UNAUTHENTICATED`), ou responsável inativado com a sessão aberta "
+            + "(`CARETAKER_UNAVAILABLE`).",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(name = "semSessao", summary = "Sem sessão", value = DashboardExamples.FARM_EXPORT_401_SEM_SESSAO)))
+    @ApiResponse(
+        responseCode = "403",
+        description = "Troca de senha pendente (`PASSWORD_CHANGE_REQUIRED`).",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(name = "trocaDeSenhaPendente", summary = "Senha provisória ainda não trocada", value = DashboardExamples.FARM_EXPORT_403_TROCA_DE_SENHA_PENDENTE)))
+    @ApiResponse(
+        responseCode = "406",
+        description = "Formato de resposta indisponível (`REQUEST_NOT_ACCEPTABLE`).",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(value = DashboardExamples.FARM_EXPORT_406)))
+    @ApiResponse(
+        responseCode = "500",
+        description = "Falha inesperada (`INTERNAL_ERROR`), sem detalhe da causa.",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(value = DashboardExamples.FARM_EXPORT_500)))
+    ResponseEntity<?> exportFarmDashboard(
+        @Parameter(description = "O período do painel exportado. Sem ele, vale `TODAY`.", example = "LAST_7_DAYS")
+        DashboardPeriod period);
+
+    @Operation(
         summary = "Consultar o painel de um setor",
         description = "Os indicadores do período, comparados com o período anterior; a série dos últimos 7 dias, "
             + "para as tendências e os gráficos; a classificação dos ovos do período; os alertas e as "

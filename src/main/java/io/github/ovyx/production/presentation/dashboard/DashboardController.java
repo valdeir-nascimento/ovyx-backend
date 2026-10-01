@@ -3,6 +3,8 @@ package io.github.ovyx.production.presentation.dashboard;
 import io.github.ovyx.production.application.dashboard.DashboardPeriod;
 import io.github.ovyx.production.application.dashboard.ExportSectorDashboardQuery;
 import io.github.ovyx.production.application.dashboard.GetDashboardOverviewQuery;
+import io.github.ovyx.production.application.dashboard.ExportFarmDashboardQuery;
+import io.github.ovyx.production.application.dashboard.GetFarmDashboardQuery;
 import io.github.ovyx.production.application.dashboard.GetSectorDashboardQuery;
 import io.github.ovyx.shared.application.Dispatcher;
 import io.github.ovyx.shared.application.Result;
@@ -36,6 +38,23 @@ public class DashboardController implements DashboardApi {
     public ResponseEntity<Object> getDashboardOverview() {
         return resultHttpMapper.ok(
                 dispatcher.ask(new GetDashboardOverviewQuery()).map(DashboardOverviewResponse::from));
+    }
+
+    @Override
+    @GetMapping(path = "/api/v1/dashboard/farm", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<Object> getFarmDashboard(@RequestParam(required = false) DashboardPeriod period) {
+        return resultHttpMapper.ok(
+                dispatcher.ask(new GetFarmDashboardQuery(period)).map(FarmDashboardResponse::from));
+    }
+
+    /** A planilha da granja toda no periodo (US4 da 009): o arquivo no sucesso, o Problem Details na recusa. */
+    @Override
+    @GetMapping(path = "/api/v1/dashboard/farm/export")
+    public ResponseEntity<?> exportFarmDashboard(@RequestParam(required = false) DashboardPeriod period) {
+        Result<SpreadsheetFile> exported = dispatcher.ask(new ExportFarmDashboardQuery(period));
+        return exported.isSuccess()
+                ? SpreadsheetResponses.of(exported.value())
+                : resultHttpMapper.problem(exported.error());
     }
 
     @Override

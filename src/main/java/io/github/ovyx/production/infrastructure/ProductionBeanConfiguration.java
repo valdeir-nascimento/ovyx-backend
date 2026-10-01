@@ -15,8 +15,10 @@ import io.github.ovyx.production.application.dailyreport.RecordProductionCommand
 import io.github.ovyx.production.application.dailyreport.SuggestDailyReportQueryHandler;
 import io.github.ovyx.production.application.dailyreport.SuggestFeedQueryHandler;
 import io.github.ovyx.production.application.dashboard.DashboardDirectory;
+import io.github.ovyx.production.application.dashboard.ExportFarmDashboardQueryHandler;
 import io.github.ovyx.production.application.dashboard.ExportSectorDashboardQueryHandler;
 import io.github.ovyx.production.application.dashboard.GetDashboardOverviewQueryHandler;
+import io.github.ovyx.production.application.dashboard.GetFarmDashboardQueryHandler;
 import io.github.ovyx.production.application.dashboard.GetSectorDashboardQueryHandler;
 import io.github.ovyx.production.domain.port.DailyReportRepository;
 import io.github.ovyx.production.domain.port.FarmStructure;
@@ -122,10 +124,22 @@ public class ProductionBeanConfiguration {
         return new GetSectorDashboardQueryHandler(directory, calendar);
     }
 
+    @Bean
+    GetFarmDashboardQueryHandler getFarmDashboardQueryHandler(
+            DashboardDirectory directory, FarmCalendar calendar) {
+        return new GetFarmDashboardQueryHandler(directory, calendar);
+    }
+
     /** A exportacao do painel compoe a consulta do painel, para os numeros serem os dela (R-008 da 007). */
     @Bean
     ExportSectorDashboardQueryHandler exportSectorDashboardQueryHandler(
             GetSectorDashboardQueryHandler dashboards, SpreadsheetWriter writer, FarmCalendar calendar) {
         return new ExportSectorDashboardQueryHandler(dashboards, writer, calendar);
+    }
+
+    @Bean
+    ExportFarmDashboardQueryHandler exportFarmDashboardQueryHandler(
+            GetFarmDashboardQueryHandler dashboards, SpreadsheetWriter writer, FarmCalendar calendar) {
+        return new ExportFarmDashboardQueryHandler(dashboards, writer, calendar);
     }
 }
