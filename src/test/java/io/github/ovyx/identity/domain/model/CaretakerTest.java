@@ -360,10 +360,95 @@ class CaretakerTest {
                 caretaker.role(),
                 caretaker.status(),
                 caretaker.mustChangePassword(),
+                caretaker.themePreference(),
                 caretaker.createdAt(),
                 caretaker.updatedAt());
 
         // then
         assertThat(reloaded).isEqualTo(caretaker).hasSameHashCodeAs(caretaker);
+    }
+
+    // ---------------------------------------------------------------- tema (011)
+
+    @Test
+    @DisplayName("registers a caretaker following the theme of the system")
+    void givenNewCaretaker_whenRegistering_thenFollowTheThemeOfTheSystem() {
+        // given
+        CaretakerTestDataBuilder builder = aValidCaretaker();
+
+        // when
+        Caretaker caretaker = builder.build();
+
+        // then
+        assertThat(caretaker.themePreference()).isEqualTo(ThemePreference.SYSTEM);
+    }
+
+    @Test
+    @DisplayName("chooses the theme without touching the instant of the last change of the record")
+    void givenCaretaker_whenChoosingTheDarkTheme_thenKeepItWithoutTouchingTheUpdatedAt() {
+        // given
+        Caretaker caretaker = aValidCaretaker().build();
+        clock.advance(java.time.Duration.ofHours(1));
+
+        // when
+        caretaker.chooseTheme("DARK");
+
+        // then
+        assertThat(caretaker.themePreference()).isEqualTo(ThemePreference.DARK);
+        assertThat(caretaker.updatedAt()).isEqualTo(java.time.Instant.parse("2026-09-19T12:00:00Z"));
+    }
+
+    @Test
+    @DisplayName("refuses a value that is not a theme and keeps the one chosen")
+    void givenCaretakerWithTheDarkTheme_whenChoosingSomethingElse_thenRefuseAndKeepTheDarkTheme() {
+        // given
+        Caretaker caretaker = aValidCaretaker().build();
+        caretaker.chooseTheme("DARK");
+
+        // when
+        Map<String, String> details = detailsOf(() -> caretaker.chooseTheme("AZUL"));
+
+        // then
+        assertThat(details).containsOnly(Map.entry("theme", "Escolha o tema claro, o escuro ou o igual ao sistema."));
+        assertThat(caretaker.themePreference()).isEqualTo(ThemePreference.DARK);
+    }
+
+    @Test
+    @DisplayName("refuses the choice of an inactive caretaker as unavailable")
+    void givenInactiveCaretaker_whenChoosingTheTheme_thenRefuseAsUnavailable() {
+        // given
+        Caretaker caretaker = aValidCaretaker().buildInactive();
+
+        // when
+        Object code = refusalCodeOf(() -> caretaker.chooseTheme("DARK"));
+
+        // then
+        assertThat(code).isEqualTo(IdentityErrorCode.CARETAKER_UNAVAILABLE);
+        assertThat(caretaker.themePreference()).isEqualTo(ThemePreference.SYSTEM);
+    }
+
+    @Test
+    @DisplayName("restores the theme it was given")
+    void givenStoredDarkTheme_whenRestoring_thenKeepIt() {
+        // given
+        Caretaker caretaker = aValidCaretaker().build();
+
+        // when
+        Caretaker reloaded = Caretaker.restore(
+                caretaker.id(),
+                caretaker.fullName(),
+                caretaker.cpf(),
+                caretaker.email(),
+                caretaker.mobilePhone(),
+                caretaker.passwordHash(),
+                caretaker.role(),
+                caretaker.status(),
+                caretaker.mustChangePassword(),
+                ThemePreference.DARK,
+                caretaker.createdAt(),
+                caretaker.updatedAt());
+
+        // then
+        assertThat(reloaded.themePreference()).isEqualTo(ThemePreference.DARK);
     }
 }

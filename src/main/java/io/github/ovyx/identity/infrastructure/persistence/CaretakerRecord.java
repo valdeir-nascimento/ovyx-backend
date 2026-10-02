@@ -1,5 +1,6 @@
 package io.github.ovyx.identity.infrastructure.persistence;
 
+import io.github.ovyx.identity.domain.model.ThemePreference;
 import io.github.ovyx.identity.domain.model.CaretakerStatus;
 import io.github.ovyx.identity.domain.model.Role;
 import jakarta.persistence.Column;
@@ -57,6 +58,11 @@ public class CaretakerRecord {
     @Column(name = "must_change_password", nullable = false)
     private boolean mustChangePassword;
 
+    /** A preferencia de tema (feature 011). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "theme_preference", nullable = false, length = 6)
+    private ThemePreference themePreference;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -88,6 +94,7 @@ public class CaretakerRecord {
             Role role,
             CaretakerStatus status,
             boolean mustChangePassword,
+            ThemePreference themePreference,
             Instant createdAt,
             Instant updatedAt) {
         this.id = id;
@@ -99,6 +106,7 @@ public class CaretakerRecord {
         this.role = role;
         this.status = status;
         this.mustChangePassword = mustChangePassword;
+        this.themePreference = themePreference;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -139,6 +147,10 @@ public class CaretakerRecord {
         return mustChangePassword;
     }
 
+    ThemePreference getThemePreference() {
+        return themePreference;
+    }
+
     Instant getCreatedAt() {
         return createdAt;
     }
@@ -157,6 +169,7 @@ public class CaretakerRecord {
             Role role,
             CaretakerStatus status,
             boolean mustChangePassword,
+            ThemePreference themePreference,
             Instant updatedAt) {
         this.fullName = fullName;
         this.cpf = cpf;
@@ -166,6 +179,7 @@ public class CaretakerRecord {
         this.role = role;
         this.status = status;
         this.mustChangePassword = mustChangePassword;
+        this.themePreference = themePreference;
         this.updatedAt = updatedAt;
     }
 }

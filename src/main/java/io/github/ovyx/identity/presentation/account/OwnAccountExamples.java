@@ -108,4 +108,91 @@ public final class OwnAccountExamples {
 
     private OwnAccountExamples() {
     }
+
+    // ------------------------------------------------------------------------ tema (feature 011)
+
+    public static final String THEME_DARK =
+        """
+            {
+              "theme": "DARK"
+            }""";
+
+    public static final String THEME_SYSTEM =
+        """
+            {
+              "theme": "SYSTEM"
+            }""";
+
+    public static final String THEME_INVALID =
+        """
+            {
+              "code": "VALIDATION_FAILED",
+              "title": "Dados inválidos",
+              "status": 400,
+              "detail": "Dados inválidos.",
+              "instance": "/api/v1/me/theme",
+              "details": {
+                "theme": "Escolha o tema claro, o escuro ou o igual ao sistema."
+              }
+            }""";
+
+    public static final String THEME_PASSWORD_CHANGE_REQUIRED =
+        """
+            {
+              "code": "PASSWORD_CHANGE_REQUIRED",
+              "title": "Troca de senha obrigatória",
+              "status": 403,
+              "detail": "É necessário trocar a senha antes de executar qualquer outra operação.",
+              "instance": "/api/v1/me/theme"
+            }""";
+
+    public static final String THEME_UNAUTHENTICATED =
+        """
+            {
+              "code": "UNAUTHENTICATED",
+              "title": "Não autenticado",
+              "status": 401,
+              "detail": "Sua sessão expirou. Entre novamente para continuar.",
+              "instance": "/api/v1/me/theme"
+            }""";
+
+    public static final String THEME_CARETAKER_UNAVAILABLE =
+        """
+            {
+              "code": "CARETAKER_UNAVAILABLE",
+              "title": "Não autenticado",
+              "status": 401,
+              "detail": "Responsável não encontrado ou inativo.",
+              "instance": "/api/v1/me/theme"
+            }""";
+
+    public static final String THEME_CSRF_TOKEN_INVALID =
+        """
+            {
+              "code": "CSRF_TOKEN_INVALID",
+              "title": "Proteção da requisição ausente",
+              "status": 403,
+              "detail": "O token de proteção da requisição está ausente ou expirou. Recarregue a página e tente novamente.",
+              "instance": "/api/v1/me/theme"
+            }""";
+
+    public static final String THEME_UNSUPPORTED_MEDIA_TYPE =
+        """
+            {
+              "code": "REQUEST_NOT_ACCEPTABLE",
+              "title": "Requisição não suportada",
+              "status": 415,
+              "detail": "A requisição não é suportada por este endereço.",
+              "instance": "/api/v1/me/theme"
+            }""";
+
+    public static final String THEME_INTERNAL_ERROR =
+        """
+            {
+              "code": "INTERNAL_ERROR",
+              "title": "Erro inesperado",
+              "status": 500,
+              "detail": "Não foi possível concluir a operação. Tente novamente em instantes.",
+              "instance": "/api/v1/me/theme"
+            }""";
 }

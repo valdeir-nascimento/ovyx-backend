@@ -101,6 +101,11 @@ public class OpenApiConfiguration {
                         API usa, recebe 403 `FORBIDDEN` antes de qualquer outra verificação, inclusive a do token de \
                         proteção.
 
+                        **Tema** (feature 011): cada responsável guarda na conta a preferência de tema: claro, \
+                        escuro ou igual ao sistema (`theme`). A entrada e a consulta da própria identidade a \
+                        devolvem, para o cliente abrir a primeira tela já no tema dela; só o próprio responsável a \
+                        muda, e a troca não entra no histórico de acessos.
+
                         **Falha inesperada**: defeito técnico responde 500 com `code` `INTERNAL_ERROR`, sem nenhum \
                         detalhe da causa, que vai apenas para o log do servidor.
 

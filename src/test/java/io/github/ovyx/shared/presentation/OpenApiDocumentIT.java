@@ -123,7 +123,7 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
 
     /** Os contratos originais, fora do repositório; existem na máquina de quem mantém as specs. */
     private static final Map<String, Path> SPEC_CONTRACTS = Map.of(
-            IDENTITY_CONTRACT, Path.of("../specs/001-auth-foundation/contracts/identity-api.yaml"),
+            IDENTITY_CONTRACT, Path.of("../specs/011-theme-preference/contracts/identity-api.yaml"),
             FARM_CONTRACT, Path.of("../specs/010-weighing-schedule/contracts/farm-api.yaml"),
             FEED_FORMULA_CONTRACT, Path.of("../specs/004-feed-formulas/contracts/feed-formulas-api.yaml"),
             PRODUCTION_CONTRACT, Path.of("../specs/010-weighing-schedule/contracts/production-api.yaml"));
@@ -406,7 +406,7 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
         Map<String, List<String>> published = operationsWithResponses(published());
 
         // then
-        assertThat(contract).hasSize(9 + 18 + 6 + 18 - PENDING_PATHS.size());
+        assertThat(contract).hasSize(10 + 18 + 6 + 18 - PENDING_PATHS.size());
         assertThat(published).isEqualTo(contract);
     }
 
