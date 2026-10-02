@@ -63,6 +63,7 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
     private Role role;
     private CaretakerStatus status;
     private boolean mustChangePassword;
+    private ThemePreference themePreference;
     private Instant updatedAt;
 
     private Caretaker(
@@ -75,6 +76,7 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
         Role role,
         CaretakerStatus status,
         boolean mustChangePassword,
+        ThemePreference themePreference,
         Instant createdAt,
         Instant updatedAt) {
         super(id);
@@ -86,6 +88,7 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
         this.role = role;
         this.status = status;
         this.mustChangePassword = mustChangePassword;
+        this.themePreference = themePreference;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -143,7 +146,7 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
             hasher.hash(rawPassword),
             Role.of(rawRole),
             CaretakerStatus.ACTIVE,
-            mustChangePassword,
+            mustChangePassword, ThemePreference.SYSTEM,
             now,
             now
         );
@@ -195,6 +198,7 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
         Role role,
         CaretakerStatus status,
         boolean mustChangePassword,
+        ThemePreference themePreference,
         Instant createdAt,
         Instant updatedAt
     ) {
@@ -208,6 +212,7 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
             role,
             status,
             mustChangePassword,
+            themePreference,
             createdAt,
             updatedAt
         );
@@ -470,6 +475,28 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
 
     public CaretakerStatus status() {
         return status;
+    }
+
+    /** O tema em que o responsavel ve o Ovyx (feature 011). */
+    public ThemePreference themePreference() {
+        return themePreference;
+    }
+
+    /**
+     * Escolhe o proprio tema (FR-005 da 011). E uma preferencia de exibicao, e nao um dado de cadastro: nao muda o
+     * instante da ultima alteracao, que a lista de responsaveis mostra.
+     *
+     * <p>O inativo e recusado com {@code CARETAKER_UNAVAILABLE}, como na troca da propria senha: a sessao pode
+     * sobreviver a inativacao.
+     *
+     * @throws DomainException quando o responsavel esta inativo ou quando o texto nao e um dos tres temas
+     */
+    public void chooseTheme(String rawTheme) {
+        if (!isActive()) {
+            throw new DomainException(
+                    IdentityErrorCode.CARETAKER_UNAVAILABLE, IdentityErrorCode.CARETAKER_UNAVAILABLE_MESSAGE);
+        }
+        this.themePreference = ThemePreference.of(rawTheme);
     }
 
     public boolean mustChangePassword() {

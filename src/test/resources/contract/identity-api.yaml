@@ -31,6 +31,10 @@ info:
     dos que a API usa, recebe 403 `FORBIDDEN` antes de qualquer outra verificação, inclusive a do
     token de proteção.
 
+    **Tema** (feature 011): cada responsável guarda na conta a preferência de tema: claro, escuro ou igual ao
+    sistema (`theme`). A entrada e a consulta da própria identidade a devolvem, para o cliente abrir a primeira tela
+    já no tema dela; só o próprio responsável a muda, e a troca não entra no histórico de acessos.
+
     **Falha inesperada**: defeito técnico responde 500 com `code` `INTERNAL_ERROR`, sem nenhum detalhe da causa, que vai apenas para o log do servidor.
 servers:
 - url: http://localhost:8080
@@ -89,6 +93,7 @@ paths:
                     fullName: Maria Silva
                     role: USER
                     mustChangePassword: false
+                    theme: DARK
                 administradorSemeado:
                   summary: Administrador inicial, ainda com senha provisória
                   value:
@@ -96,6 +101,7 @@ paths:
                     fullName: Administrador do Sistema
                     role: ADMINISTRATOR
                     mustChangePassword: true
+                    theme: SYSTEM
         '401':
           description: |
             Credencial inválida. Resposta **idêntica** para identificador inexistente, senha
@@ -194,6 +200,7 @@ paths:
                 fullName: Maria Silva
                 role: USER
                 mustChangePassword: false
+                theme: DARK
         '401':
           description: |
             Sem sessão válida (`UNAUTHENTICATED`), ou responsável inativado com a sessão aberta
@@ -697,6 +704,80 @@ paths:
           $ref: '#/components/responses/RequisicaoNaoSuportada'
         '500':
           $ref: '#/components/responses/ErroInesperado'
+  /api/v1/me/theme:
+    put:
+      tags:
+      - Minha conta
+      summary: Escolher o próprio tema
+      description: |
+        Disponível a qualquer perfil, só para a própria conta. Guarda a preferência de tema, que a entrada e a
+        consulta da própria identidade passam a devolver em `theme`. A troca não exige a senha, não entra no
+        histórico de acessos e não muda o instante da última alteração do cadastro (feature 011).
+
+        Enquanto `mustChangePassword` for `true`, responde 403 `PASSWORD_CHANGE_REQUIRED`, como as demais
+        operações fora da troca de senha.
+      operationId: changeOwnTheme
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangeThemeRequest'
+            examples:
+              escuro:
+                summary: Tema escuro
+                value:
+                  theme: DARK
+              igualAoSistema:
+                summary: Volta a acompanhar o aparelho
+                value:
+                  theme: SYSTEM
+      responses:
+        '204':
+          description: Tema guardado na conta.
+        '400':
+          description: Tema ausente ou fora de `LIGHT`, `DARK` e `SYSTEM`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                temaInvalido:
+                  summary: Valor que não é um tema
+                  value:
+                    code: VALIDATION_FAILED
+                    title: Dados inválidos
+                    status: 400
+                    detail: Dados inválidos.
+                    details:
+                      theme: Escolha o tema claro, o escuro ou o igual ao sistema.
+        '401':
+          $ref: '#/components/responses/SessaoInvalida'
+        '403':
+          description: Token de proteção ausente ou vencido (`CSRF_TOKEN_INVALID`) ou troca de senha pendente (`PASSWORD_CHANGE_REQUIRED`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                trocaDeSenhaPendente:
+                  summary: Senha provisória ainda não trocada
+                  value:
+                    code: PASSWORD_CHANGE_REQUIRED
+                    title: Troca de senha obrigatória
+                    status: 403
+                    detail: É necessário trocar a senha antes de executar qualquer outra operação.
+                tokenCsrfAusente:
+                  summary: Token de proteção ausente
+                  value:
+                    code: CSRF_TOKEN_INVALID
+                    title: Proteção da requisição ausente
+                    status: 403
+                    detail: O token de proteção da requisição está ausente ou expirou. Recarregue a página e tente novamente.
+        '415':
+          $ref: '#/components/responses/RequisicaoNaoSuportada'
+        '500':
+          $ref: '#/components/responses/ErroInesperado'
 components:
   securitySchemes:
     sessionCookie:
@@ -910,6 +991,7 @@ components:
       - fullName
       - role
       - mustChangePassword
+      - theme
       properties:
         id:
           type: string
@@ -926,6 +1008,25 @@ components:
             Quando `true`, só a troca de senha, a saída, a consulta da própria identidade e uma nova
             entrada são aceitas até que a troca seja concluída.
           example: false
+        theme:
+          $ref: '#/components/schemas/ThemePreference'
+    ThemePreference:
+      type: string
+      enum: [LIGHT, DARK, SYSTEM]
+      description: >-
+        A preferência de tema do responsável: claro, escuro ou igual ao sistema, que acompanha o tema do aparelho.
+        Começa em `SYSTEM` (feature 011).
+      example: DARK
+    ChangeThemeRequest:
+      type: object
+      required:
+      - theme
+      properties:
+        theme:
+          type: string
+          description: >-
+            `LIGHT`, `DARK` ou `SYSTEM`. Outro valor, ou a falta dele, é recusado no campo `theme`.
+          example: DARK
     RegisterCaretakerRequest:
       type: object
       required:

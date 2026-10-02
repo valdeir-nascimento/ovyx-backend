@@ -1,5 +1,6 @@
 package io.github.ovyx.identity.presentation.authentication;
 
+import io.github.ovyx.identity.domain.model.ThemePreference;
 import io.github.ovyx.identity.application.authentication.AuthenticatedCaretaker;
 import io.github.ovyx.identity.domain.model.Role;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -15,10 +16,14 @@ public record AuthenticatedCaretakerResponse(
         description = "Quando verdadeiro, só a troca de senha, a saída, a consulta da própria "
             + "identidade e uma nova entrada são aceitas até que a troca seja concluída",
         example = "false")
-    boolean mustChangePassword) {
+    boolean mustChangePassword,
+    @Schema(
+        description = "A preferência de tema do responsável: claro, escuro ou igual ao sistema (feature 011)",
+        example = "DARK")
+    ThemePreference theme) {
 
     public static AuthenticatedCaretakerResponse from(AuthenticatedCaretaker model) {
         return new AuthenticatedCaretakerResponse(
-            model.id().value(), model.fullName(), model.role(), model.mustChangePassword());
+            model.id().value(), model.fullName(), model.role(), model.mustChangePassword(), model.theme());
     }
 }

@@ -29,6 +29,8 @@ public class IdentityRouteAuthorization implements RouteAuthorization {
                 .authenticated()
                 .requestMatchers(HttpMethod.PUT, "/api/v1/me/password")
                 .authenticated()
+                .requestMatchers(HttpMethod.PUT, "/api/v1/me/theme")
+                .authenticated()
                 // Rotas da Historia 2: a administracao de responsaveis e so do perfil Administrador
                 // (FR-008), uma rota por vez, para que um metodo novo nasca negado.
                 .requestMatchers(HttpMethod.POST, "/api/v1/caretakers")

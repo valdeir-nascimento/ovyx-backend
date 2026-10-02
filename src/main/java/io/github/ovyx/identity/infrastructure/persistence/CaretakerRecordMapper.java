@@ -31,6 +31,7 @@ final class CaretakerRecordMapper {
                 caretaker.role(),
                 caretaker.status(),
                 caretaker.mustChangePassword(),
+                caretaker.themePreference(),
                 caretaker.createdAt(),
                 caretaker.updatedAt());
     }
@@ -45,6 +46,7 @@ final class CaretakerRecordMapper {
                 caretaker.role(),
                 caretaker.status(),
                 caretaker.mustChangePassword(),
+                caretaker.themePreference(),
                 caretaker.updatedAt());
     }
 
@@ -59,6 +61,7 @@ final class CaretakerRecordMapper {
                 record.getRole(),
                 record.getStatus(),
                 record.isMustChangePassword(),
+                record.getThemePreference(),
                 record.getCreatedAt(),
                 record.getUpdatedAt());
     }

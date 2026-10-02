@@ -93,4 +93,73 @@ public interface OwnAccountApi {
             examples = @ExampleObject(value = OwnAccountExamples.PASSWORD_INTERNAL_ERROR)))
     ResponseEntity<Object> changeOwnPassword(
         ChangePasswordRequest body, HttpServletRequest request, HttpServletResponse response);
+
+    @Operation(
+        operationId = "changeOwnTheme",
+        summary = "Escolher o próprio tema",
+        description = "Disponível a qualquer perfil, só para a própria conta. Guarda a preferência de tema, que a"
+            + " entrada e a consulta da própria identidade passam a devolver em `theme`. A troca não exige a senha,"
+            + " não entra no histórico de acessos e não muda o instante da última alteração do cadastro (feature"
+            + " 011). Enquanto `mustChangePassword` for verdadeiro, responde 403 `PASSWORD_CHANGE_REQUIRED`.")
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(
+        content = @Content(
+            schema = @Schema(implementation = ChangeThemeRequest.class),
+            examples = {
+                @ExampleObject(name = "escuro", summary = "Tema escuro", value = OwnAccountExamples.THEME_DARK),
+                @ExampleObject(
+                    name = "igualAoSistema",
+                    summary = "Volta a acompanhar o aparelho",
+                    value = OwnAccountExamples.THEME_SYSTEM)
+            }))
+    @ApiResponse(responseCode = "204", description = "Tema guardado na conta.", content = @Content)
+    @ApiResponse(
+        responseCode = "400",
+        description = "Tema ausente ou fora de `LIGHT`, `DARK` e `SYSTEM` (`VALIDATION_FAILED`).",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(
+                name = "temaInvalido",
+                summary = "Valor que não é um tema",
+                value = OwnAccountExamples.THEME_INVALID)))
+    @ApiResponse(
+        responseCode = "401",
+        description = "Sem sessão válida (`UNAUTHENTICATED`), ou responsável inativado com a sessão aberta"
+            + " (`CARETAKER_UNAVAILABLE`), caso em que a sessão é encerrada.",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = {
+                @ExampleObject(name = "semSessao", value = OwnAccountExamples.THEME_UNAUTHENTICATED),
+                @ExampleObject(name = "responsavelIndisponivel", value = OwnAccountExamples.THEME_CARETAKER_UNAVAILABLE)
+            }))
+    @ApiResponse(
+        responseCode = "403",
+        description = "Token de proteção ausente (`CSRF_TOKEN_INVALID`) ou troca de senha pendente"
+            + " (`PASSWORD_CHANGE_REQUIRED`).",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = {
+                @ExampleObject(
+                    name = "trocaDeSenhaPendente",
+                    summary = "Senha provisória ainda não trocada",
+                    value = OwnAccountExamples.THEME_PASSWORD_CHANGE_REQUIRED),
+                @ExampleObject(name = "tokenCsrfAusente", value = OwnAccountExamples.THEME_CSRF_TOKEN_INVALID)
+            }))
+    @ApiResponse(
+        responseCode = "415",
+        description = "Corpo em formato diferente de JSON (`REQUEST_NOT_ACCEPTABLE`).",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(value = OwnAccountExamples.THEME_UNSUPPORTED_MEDIA_TYPE)))
+    @ApiResponse(
+        responseCode = "500",
+        description = "Falha inesperada (`INTERNAL_ERROR`), sem nenhum detalhe da causa.",
+        content = @Content(
+            mediaType = PROBLEM_JSON,
+            schema = @Schema(implementation = ProblemResponse.class),
+            examples = @ExampleObject(value = OwnAccountExamples.THEME_INTERNAL_ERROR)))
+    ResponseEntity<Object> changeOwnTheme(ChangeThemeRequest body, HttpServletRequest request);
 }

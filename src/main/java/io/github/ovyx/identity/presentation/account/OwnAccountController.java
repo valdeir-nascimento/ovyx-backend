@@ -1,5 +1,6 @@
 package io.github.ovyx.identity.presentation.account;
 
+import io.github.ovyx.identity.application.account.ChangeOwnThemeCommand;
 import io.github.ovyx.identity.application.account.ChangeOwnPasswordCommand;
 import io.github.ovyx.identity.domain.IdentityErrorCode;
 import io.github.ovyx.identity.domain.model.CaretakerId;
@@ -55,6 +56,24 @@ public class OwnAccountController implements OwnAccountApi {
         // Encerra a obrigacao de trocar sem obrigar a pessoa a entrar de novo.
         sessionAuthenticator.refresh(user.withPasswordChanged(), request, response);
 
+        return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    @PutMapping(path = "/theme", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<Object> changeOwnTheme(@RequestBody ChangeThemeRequest body, HttpServletRequest request) {
+        AuthenticatedUser user = SessionAuthenticator.currentUser();
+
+        Result<CaretakerId> result =
+                dispatcher.dispatch(new ChangeOwnThemeCommand(CaretakerId.of(user.id()), body.theme()));
+
+        if (!result.isSuccess()) {
+            if (IdentityErrorCode.CARETAKER_UNAVAILABLE.code().equals(result.error().code())) {
+                // Mesma regra da troca de senha: a sessao sobreviveu ao responsavel e e encerrada.
+                sessionAuthenticator.invalidate(request);
+            }
+            return resultHttpMapper.problem(result.error());
+        }
         return ResponseEntity.noContent().build();
     }
 }

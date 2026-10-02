@@ -1,5 +1,6 @@
 package io.github.ovyx.identity.integration;
 
+import io.github.ovyx.identity.domain.model.ThemePreference;
 import static io.github.ovyx.identity.domain.model.CaretakerTestDataBuilder.aUniqueCaretaker;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -177,5 +178,22 @@ class CaretakerRepositoryIT extends IntegrationTestSupport {
         // then
         assertThat(reloaded.id()).isEqualTo(caretaker.id());
         assertThat(reloaded.isActive()).isFalse();
+    }
+
+    // ---------------------------------------------------------------- tema (011)
+
+    @Test
+    @DisplayName("saves the theme chosen and reads it back")
+    void givenCaretakerWithTheDarkTheme_whenSavingAndReadingBack_thenKeepTheDarkTheme() {
+        // given
+        Caretaker caretaker = saved(aCaretakerForThisDatabase());
+        Caretaker loaded = repository.findById(caretaker.id()).orElseThrow();
+        loaded.chooseTheme("DARK");
+
+        // when
+        repository.save(loaded);
+
+        // then
+        assertThat(repository.findById(caretaker.id()).orElseThrow().themePreference()).isEqualTo(ThemePreference.DARK);
     }
 }

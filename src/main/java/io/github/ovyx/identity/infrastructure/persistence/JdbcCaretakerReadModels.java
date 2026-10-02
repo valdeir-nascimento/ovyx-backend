@@ -1,5 +1,6 @@
 package io.github.ovyx.identity.infrastructure.persistence;
 
+import io.github.ovyx.identity.domain.model.ThemePreference;
 import io.github.ovyx.identity.application.authentication.AuthenticatedCaretaker;
 import io.github.ovyx.identity.application.authentication.CaretakerReadModels;
 import io.github.ovyx.identity.domain.model.CaretakerId;
@@ -29,7 +30,7 @@ public class JdbcCaretakerReadModels implements CaretakerReadModels {
         return jdbcClient
                 .sql(
                         """
-                        select id, full_name, role, must_change_password
+                        select id, full_name, role, must_change_password, theme_preference
                         from caretaker
                         where id = :id and status = 'ACTIVE'
                         """)
@@ -38,7 +39,8 @@ public class JdbcCaretakerReadModels implements CaretakerReadModels {
                         CaretakerId.of(rs.getObject("id", java.util.UUID.class)),
                         rs.getString("full_name"),
                         Role.valueOf(rs.getString("role")),
-                        rs.getBoolean("must_change_password")))
+                        rs.getBoolean("must_change_password"),
+                        ThemePreference.valueOf(rs.getString("theme_preference"))))
                 .optional();
     }
 }
