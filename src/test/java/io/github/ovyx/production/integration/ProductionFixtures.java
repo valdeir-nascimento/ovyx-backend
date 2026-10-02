@@ -52,6 +52,21 @@ final class ProductionFixtures {
         return cage(sectorId, battery, number, birdCount, "ACTIVE");
     }
 
+    /**
+     * Uma pesagem valida da gaiola no dia dado: com ela, a gaiola fica em dia na agenda de pesagem e nao entra no
+     * aviso de pesagem do painel (feature 010).
+     */
+    void weighing(UUID sectorId, UUID cageId, LocalDate day) {
+        jdbc.update(
+                "insert into weighing (id, sector_id, cage_id, weighed_on, average_weight, status, recorded_by_id,"
+                        + " recorded_by_name, recorded_at) values (?, ?, ?, ?, 160.0, 'VALID', ?, 'Marina Alves', now())",
+                UUID.randomUUID(),
+                sectorId,
+                cageId,
+                day,
+                UUID.randomUUID());
+    }
+
     /** Um setor ativo com a A-01 (48 aves) e a B-07 (50 aves). */
     UUID sectorWithTwoCages() {
         UUID sectorId = activeSector();

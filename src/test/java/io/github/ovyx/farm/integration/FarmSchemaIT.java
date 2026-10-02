@@ -384,4 +384,69 @@ class FarmSchemaIT extends IntegrationTestSupport {
         // then
         assertThatCode(insertion).doesNotThrowAnyException();
     }
+
+    // ---------------------------------------------------------------- dia da pesagem (010)
+
+    private void insertSectorWithWeighingDay(String weighingDay) {
+        jdbc.update(
+                "insert into sector (id, name, status, laying_rate_target, weighing_day, created_at, updated_at)"
+                        + " values (?, ?, 'ACTIVE', 85.0, ?, now(), now())",
+                UUID.randomUUID(),
+                "Galpão " + UUID.randomUUID(),
+                weighingDay);
+    }
+
+    @Test
+    @DisplayName("keeps the weighing day in an optional column of up to 9 characters")
+    void givenMigratedSchema_whenReadingTheWeighingDayColumn_thenFindAnOptionalVarcharOf9() {
+        // given
+        String sql = "select data_type, character_maximum_length, is_nullable from information_schema.columns"
+                + " where table_name = 'sector' and column_name = 'weighing_day'";
+
+        // when
+        List<String> column = jdbc.queryForObject(
+                sql, (rs, row) -> List.of(rs.getString(1), rs.getString(2), rs.getString(3)));
+
+        // then
+        assertThat(column).containsExactly("character varying", "9", "YES");
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"})
+    @DisplayName("accepts each day of the week as the weighing day")
+    void givenDayOfTheWeek_whenInsertingASectorWithIt_thenAcceptIt(String weighingDay) {
+        // given — o dia vindo do @ValueSource
+
+        // when
+        ThrowingCallable insertion = () -> insertSectorWithWeighingDay(weighingDay);
+
+        // then
+        assertThatCode(insertion).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("accepts a sector without a weighing day")
+    void givenNoWeighingDay_whenInsertingASector_thenAcceptIt() {
+        // given
+        String weighingDay = null;
+
+        // when
+        ThrowingCallable insertion = () -> insertSectorWithWeighingDay(weighingDay);
+
+        // then
+        assertThatCode(insertion).doesNotThrowAnyException();
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"FUNDAY", "friday", ""})
+    @DisplayName("rejects a weighing day that is not a day of the week in capitals")
+    void givenTextThatIsNotADayOfTheWeek_whenInsertingASectorWithIt_thenRejectIt(String weighingDay) {
+        // given — o valor vindo do @ValueSource
+
+        // when
+        ThrowingCallable insertion = () -> insertSectorWithWeighingDay(weighingDay);
+
+        // then
+        assertThatThrownBy(insertion).isInstanceOf(DataIntegrityViolationException.class);
+    }
 }

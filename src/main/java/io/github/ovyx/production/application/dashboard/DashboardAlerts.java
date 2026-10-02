@@ -2,12 +2,15 @@ package io.github.ovyx.production.application.dashboard;
 
 import io.github.ovyx.production.application.dailyreport.DailyReportTotals;
 import io.github.ovyx.production.domain.model.MortalityStatus;
+import io.github.ovyx.shared.domain.WeighingSchedule;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 
 /**
  * Os alertas e as pendencias de hoje (US3 da 006; FR-015 a FR-018, R-007), calculados sem banco a partir do
@@ -17,6 +20,9 @@ import java.util.List;
  * das gaiolas. Os limites vem do prototipo: a mortalidade acima do dobro da media diaria por gaiola, com ao
  * menos 2 aves; a produtividade abaixo da meta do setor nos ultimos 3 relatorios (feature 008); e a pesagem
  * fora da faixa.
+ *
+ * <p>Por ultimo, no maximo um aviso de pesagem por setor, pela agenda dele (feature 010): no dia da pesagem, a
+ * informacao das gaiolas que faltam pesar; depois dele, ou sem dia definido, a atencao das atrasadas.
  */
 public final class DashboardAlerts {
 
@@ -28,6 +34,9 @@ public final class DashboardAlerts {
     private static final int RECENT_REPORTS = 3;
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter DAY_AND_MONTH = DateTimeFormatter.ofPattern("dd/MM");
+    /** O dia da pesagem como a granja o le: "sexta-feira, 25/09". */
+    private static final DateTimeFormatter WEEKDAY_AND_DAY =
+            DateTimeFormatter.ofPattern("EEEE, dd/MM", Locale.forLanguageTag("pt-BR"));
 
     private DashboardAlerts() {}
 
@@ -56,6 +65,9 @@ public final class DashboardAlerts {
                     .filter(cage -> cage.lastWeight() != null && !reading.range().contains(cage.lastWeight()))
                     .map(cage -> weightOutOfRange(cage, reading.range()))
                     .forEach(alerts::add);
+        }
+        if (reading.schedule() != null) {
+            weighing(today, reading.cages(), reading.schedule()).ifPresent(alerts::add);
         }
         return List.copyOf(alerts);
     }
@@ -153,6 +165,50 @@ public final class DashboardAlerts {
                 grams(cage.lastWeight()) + " g em " + DAY.format(cage.lastWeighedOn()) + "; a faixa do setor é "
                         + range.minimum() + "–" + range.maximum() + " g.",
                 new AlertTarget(null, cage.cageId(), cage.code()));
+    }
+
+    // ---------------------------------------------------------------- agenda de pesagem (010)
+
+    /**
+     * O aviso de pesagem do setor: as gaiolas ativas sem a pesagem da semana, pela mesma regra da lista de
+     * gaiolas ({@link WeighingSchedule}); nenhum, com todas em dia.
+     */
+    private static Optional<DashboardAlert> weighing(LocalDate today, List<CageWatch> cages, WeighingSchedule schedule) {
+        List<CageWatch> pending = cages.stream()
+                .filter(cage -> schedule.standingOf(today, cage.lastWeighedOn()).isPending())
+                .toList();
+        if (pending.isEmpty()) {
+            return Optional.empty();
+        }
+        String batteries = batteriesOf(pending);
+        AlertTarget target = new AlertTarget(null, null, null);
+        if (schedule.isWeighingDay(today)) {
+            return Optional.of(new DashboardAlert(
+                    AlertKind.WEIGHING_DUE,
+                    AlertTone.INFO,
+                    "Pesagem semanal hoje",
+                    cages(pending.size()) + " a pesar, " + batteries + ".",
+                    target));
+        }
+        String missed = schedule.weighingDay() == null
+                ? " sem pesagem há mais de 7 dias, "
+                : " sem a pesagem de " + WEEKDAY_AND_DAY.format(schedule.dueOn(today)) + ", ";
+        return Optional.of(new DashboardAlert(
+                AlertKind.WEIGHING_LATE,
+                AlertTone.WARNING,
+                "Pesagem atrasada",
+                cages(pending.size()) + missed + batteries + ".",
+                target));
+    }
+
+    /** As baterias das gaiolas, sem repetir, na ordem delas: "bateria B", "baterias A, B e C". */
+    private static String batteriesOf(List<CageWatch> cages) {
+        List<String> batteries = cages.stream().map(CageWatch::battery).distinct().toList();
+        if (batteries.size() == 1) {
+            return "bateria " + batteries.get(0);
+        }
+        return "baterias " + String.join(", ", batteries.subList(0, batteries.size() - 1)) + " e "
+                + batteries.get(batteries.size() - 1);
     }
 
     // ---------------------------------------------------------------- numeros como a tela os escreve

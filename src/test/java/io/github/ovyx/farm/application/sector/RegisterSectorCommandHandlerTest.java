@@ -1,5 +1,7 @@
 package io.github.ovyx.farm.application.sector;
 
+import java.time.DayOfWeek;
+import io.github.ovyx.farm.domain.valueobject.WeighingDay;
 import static io.github.ovyx.farm.domain.model.SectorTestDataBuilder.aSector;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -27,7 +29,7 @@ class RegisterSectorCommandHandlerTest {
     void givenValidNameAndDescription_whenRegistering_thenSaveTheSector() {
         // given
         RegisterSectorCommand command =
-                new RegisterSectorCommand("Codornas — Galpão 4", "Codornas japonesas em postura, baterias A e B", null, null, "85");
+                new RegisterSectorCommand("Codornas — Galpão 4", "Codornas japonesas em postura, baterias A e B", null, null, "85", null);
 
         // when
         Result<SectorId> result = handler.handle(command);
@@ -42,7 +44,7 @@ class RegisterSectorCommandHandlerTest {
     @DisplayName("fails as validation with every invalid field, and saves nothing")
     void givenShortNameAndLongDescription_whenRegistering_thenFailAsValidationWithEveryField() {
         // given
-        RegisterSectorCommand command = new RegisterSectorCommand("A", "d".repeat(501), null, null, "85");
+        RegisterSectorCommand command = new RegisterSectorCommand("A", "d".repeat(501), null, null, "85", null);
 
         // when
         Result<SectorId> result = handler.handle(command);
@@ -59,7 +61,7 @@ class RegisterSectorCommandHandlerTest {
     void givenNameOfAnotherActiveSector_whenRegistering_thenFailAsConflict() {
         // given
         repository.save(aSector().named("Codornas — Galpão 4").withRoster(repository).build());
-        RegisterSectorCommand command = new RegisterSectorCommand("CODORNAS — GALPÃO 4", null, null, null, "85");
+        RegisterSectorCommand command = new RegisterSectorCommand("CODORNAS — GALPÃO 4", null, null, null, "85", null);
 
         // when
         Result<SectorId> result = handler.handle(command);
@@ -78,7 +80,7 @@ class RegisterSectorCommandHandlerTest {
     @DisplayName("registers the sector with the reference weight range")
     void givenReferenceWeight_whenRegistering_thenSaveTheRange() {
         // given
-        RegisterSectorCommand command = new RegisterSectorCommand("Codornas — Galpão 4", null, "155", "175", "85");
+        RegisterSectorCommand command = new RegisterSectorCommand("Codornas — Galpão 4", null, "155", "175", "85", null);
 
         // when
         Result<SectorId> result = handler.handle(command);
@@ -92,7 +94,7 @@ class RegisterSectorCommandHandlerTest {
     @DisplayName("fails as validation with an incomplete range, in the missing field, and saves nothing")
     void givenOnlyTheMinimum_whenRegistering_thenFailAsValidationInTheMaximumField() {
         // given
-        RegisterSectorCommand command = new RegisterSectorCommand("Codornas — Galpão 4", null, "155", null, "85");
+        RegisterSectorCommand command = new RegisterSectorCommand("Codornas — Galpão 4", null, "155", null, "85", null);
 
         // when
         Result<SectorId> result = handler.handle(command);
@@ -109,7 +111,7 @@ class RegisterSectorCommandHandlerTest {
     @DisplayName("registers the sector with the laying rate target")
     void givenTargetWithComma_whenRegistering_thenSaveTheTarget() {
         // given
-        RegisterSectorCommand command = new RegisterSectorCommand("Codornas — Galpão 4", null, null, null, "82,5");
+        RegisterSectorCommand command = new RegisterSectorCommand("Codornas — Galpão 4", null, null, null, "82,5", null);
 
         // when
         Result<SectorId> result = handler.handle(command);
@@ -123,7 +125,7 @@ class RegisterSectorCommandHandlerTest {
     @DisplayName("fails as validation with an invalid target, in its field, and saves nothing")
     void givenTargetWithTwoDecimals_whenRegistering_thenFailAsValidationInTheTargetField() {
         // given
-        RegisterSectorCommand command = new RegisterSectorCommand("Codornas — Galpão 4", null, null, null, "82,55");
+        RegisterSectorCommand command = new RegisterSectorCommand("Codornas — Galpão 4", null, null, null, "82,55", null);
 
         // when
         Result<SectorId> result = handler.handle(command);
@@ -132,6 +134,39 @@ class RegisterSectorCommandHandlerTest {
         assertThat(result.error().type()).isEqualTo(ErrorType.VALIDATION);
         assertThat(result.error().details())
                 .containsOnly(Map.entry("layingRateTarget", "Informe a meta em porcentagem, com até uma casa decimal."));
+        assertThat(repository.saves()).isZero();
+    }
+
+    // ---------------------------------------------------------------- dia da pesagem (010)
+
+    @Test
+    @DisplayName("registers the sector with the weighing day")
+    void givenFriday_whenRegistering_thenSaveTheWeighingDay() {
+        // given
+        RegisterSectorCommand command = new RegisterSectorCommand("Codornas — Galpão 4", null, null, null, "85", "FRIDAY");
+
+        // when
+        Result<SectorId> result = handler.handle(command);
+
+        // then
+        assertThat(repository.findById(result.value()).orElseThrow().weighingDay())
+                .map(WeighingDay::value)
+                .contains(DayOfWeek.FRIDAY);
+    }
+
+    @Test
+    @DisplayName("fails as validation with a day that is not a day of the week, in its field, and saves nothing")
+    void givenInvalidDay_whenRegistering_thenFailAsValidationInTheWeighingDayField() {
+        // given
+        RegisterSectorCommand command = new RegisterSectorCommand("Codornas — Galpão 4", null, null, null, "85", "FUNDAY");
+
+        // when
+        Result<SectorId> result = handler.handle(command);
+
+        // then
+        assertThat(result.error().type()).isEqualTo(ErrorType.VALIDATION);
+        assertThat(result.error().details())
+                .containsOnly(Map.entry("weighingDay", "Escolha um dia da semana, de segunda a domingo."));
         assertThat(repository.saves()).isZero();
     }
 }

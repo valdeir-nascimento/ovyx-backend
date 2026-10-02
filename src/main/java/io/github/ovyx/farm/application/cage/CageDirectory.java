@@ -1,6 +1,5 @@
 package io.github.ovyx.farm.application.cage;
 
-import io.github.ovyx.farm.application.common.StatusFilter;
 import io.github.ovyx.farm.domain.model.CageId;
 import io.github.ovyx.farm.domain.model.SectorId;
 import io.github.ovyx.shared.application.PageResponse;
@@ -14,23 +13,19 @@ import java.util.Optional;
 public interface CageDirectory {
 
     /**
-     * Se o setor existe, ativo ou inativo: a pesquisa num setor que nao existe e "setor nao encontrado".
+     * A agenda de pesagem do setor, ativo ou inativo: a situacao e o dia da pesagem (feature 010). Vazia quando o
+     * setor nao existe, e a pesquisa nele e "setor nao encontrado".
      */
-    boolean sectorExists(SectorId sectorId);
+    Optional<SectorSchedule> scheduleOf(SectorId sectorId);
 
-    /**
-     * As gaiolas do setor, por bateria e numero, numa pagina.
-     *
-     * @param code    trecho do codigo, sem distinguir maiusculas; {@code null} nao filtra
-     * @param battery a bateria exata, em maiusculas; {@code null} nao filtra
-     */
-    PageResponse<CageSummary> search(SectorId sectorId, String code, String battery, StatusFilter status, int page, int size);
+    /** As gaiolas do setor dos filtros, por bateria e numero, numa pagina. A situacao na agenda fica nula. */
+    PageResponse<CageSummary> search(SectorId sectorId, CageFilter filter, int page, int size);
 
     /**
      * Todas as gaiolas do setor com os mesmos filtros e a mesma ordem da {@link #search}, sem pagina, com a
      * ultima pesagem valida de cada uma (R-009 da 007).
      */
-    List<CageSummary> searchAll(SectorId sectorId, String code, String battery, StatusFilter status);
+    List<CageSummary> searchAll(SectorId sectorId, CageFilter filter);
 
     /**
      * A gaiola, se for deste setor.

@@ -1,5 +1,7 @@
 package io.github.ovyx.farm.application.sector;
 
+import java.time.DayOfWeek;
+import io.github.ovyx.farm.domain.valueobject.WeighingDay;
 import static io.github.ovyx.farm.domain.model.SectorTestDataBuilder.aSector;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -38,7 +40,7 @@ class UpdateSectorCommandHandlerTest {
         Sector sector = saved("Codornas — Galpão 1");
         clock.advance(Duration.ofHours(1));
         UpdateSectorCommand command = new UpdateSectorCommand(
-                sector.id().toString(), "Codornas — Galpão 1 (norte)", "Baterias A a D, ala norte", null, null, "85");
+                sector.id().toString(), "Codornas — Galpão 1 (norte)", "Baterias A a D, ala norte", null, null, "85", null);
 
         // when
         Result<SectorId> result = handler.handle(command);
@@ -55,7 +57,7 @@ class UpdateSectorCommandHandlerTest {
     @DisplayName("fails as not found for an unknown or malformed identifier")
     void givenUnknownOrMalformedIdentifier_whenUpdating_thenFailAsNotFound(String sectorId) {
         // given
-        UpdateSectorCommand command = new UpdateSectorCommand(sectorId, "Codornas — Galpão 1", null, null, null, "85");
+        UpdateSectorCommand command = new UpdateSectorCommand(sectorId, "Codornas — Galpão 1", null, null, null, "85", null);
 
         // when
         Result<SectorId> result = handler.handle(command);
@@ -71,7 +73,7 @@ class UpdateSectorCommandHandlerTest {
     void givenMissingNameAndLongDescription_whenUpdating_thenFailAsValidationAndSaveNothing() {
         // given
         Sector sector = saved("Codornas — Galpão 1");
-        UpdateSectorCommand command = new UpdateSectorCommand(sector.id().toString(), " ", "d".repeat(501), null, null, "85");
+        UpdateSectorCommand command = new UpdateSectorCommand(sector.id().toString(), " ", "d".repeat(501), null, null, "85", null);
 
         // when
         Result<SectorId> result = handler.handle(command);
@@ -89,7 +91,7 @@ class UpdateSectorCommandHandlerTest {
         saved("Poedeiras brancas — Galpão 2");
         Sector sector = saved("Codornas — Galpão 1");
         UpdateSectorCommand command =
-                new UpdateSectorCommand(sector.id().toString(), "Poedeiras Brancas — Galpão 2", null, null, null, "85");
+                new UpdateSectorCommand(sector.id().toString(), "Poedeiras Brancas — Galpão 2", null, null, null, "85", null);
 
         // when
         Result<SectorId> result = handler.handle(command);
@@ -108,7 +110,7 @@ class UpdateSectorCommandHandlerTest {
         // given
         Sector sector = saved("Codornas — Galpão 1");
         UpdateSectorCommand command =
-                new UpdateSectorCommand(sector.id().toString(), sector.name().value(), null, "155", "175", "85");
+                new UpdateSectorCommand(sector.id().toString(), sector.name().value(), null, "155", "175", "85", null);
 
         // when
         handler.handle(command);
@@ -126,7 +128,7 @@ class UpdateSectorCommandHandlerTest {
         // given
         Sector sector = saved("Codornas — Galpão 1");
         UpdateSectorCommand command =
-                new UpdateSectorCommand(sector.id().toString(), sector.name().value(), null, null, null, "72");
+                new UpdateSectorCommand(sector.id().toString(), sector.name().value(), null, null, null, "72", null);
 
         // when
         Result<SectorId> result = handler.handle(command);
@@ -143,7 +145,7 @@ class UpdateSectorCommandHandlerTest {
         // given
         Sector sector = saved("Codornas — Galpão 1");
         UpdateSectorCommand command =
-                new UpdateSectorCommand(sector.id().toString(), sector.name().value(), null, null, null, null);
+                new UpdateSectorCommand(sector.id().toString(), sector.name().value(), null, null, null, null, null);
 
         // when
         Result<SectorId> result = handler.handle(command);
@@ -154,5 +156,44 @@ class UpdateSectorCommandHandlerTest {
                 .containsOnly(Map.entry("layingRateTarget", "Informe a meta de produtividade, de 1 a 100%."));
         assertThat(repository.findById(sector.id()).orElseThrow().layingRateTarget().value())
                 .isEqualByComparingTo("85.0");
+    }
+
+    // ---------------------------------------------------------------- dia da pesagem (010)
+
+    @Test
+    @DisplayName("takes the weighing day away when it comes empty")
+    void givenSectorWeighedOnFridays_whenUpdatingWithoutTheDay_thenSaveNoWeighingDay() {
+        // given
+        Sector sector = aSector().withWeighingDay("FRIDAY").withRoster(repository).withClock(clock).build();
+        repository.save(sector);
+        UpdateSectorCommand command =
+                new UpdateSectorCommand(sector.id().toString(), sector.name().value(), null, null, null, "85", "");
+
+        // when
+        Result<SectorId> result = handler.handle(command);
+
+        // then
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(repository.findById(sector.id()).orElseThrow().weighingDay()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("fails as validation with a day that is not a day of the week, and keeps the one saved")
+    void givenInvalidDay_whenUpdating_thenFailAsValidationAndKeepTheDay() {
+        // given
+        Sector sector = aSector().withWeighingDay("FRIDAY").withRoster(repository).withClock(clock).build();
+        repository.save(sector);
+        UpdateSectorCommand command =
+                new UpdateSectorCommand(sector.id().toString(), sector.name().value(), null, null, null, "85", "SEXTA");
+
+        // when
+        Result<SectorId> result = handler.handle(command);
+
+        // then
+        assertThat(result.error().details())
+                .containsOnly(Map.entry("weighingDay", "Escolha um dia da semana, de segunda a domingo."));
+        assertThat(repository.findById(sector.id()).orElseThrow().weighingDay())
+                .map(WeighingDay::value)
+                .contains(DayOfWeek.FRIDAY);
     }
 }

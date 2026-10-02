@@ -39,6 +39,10 @@ public final class WeighingExamples {
                 "since": "2026-08-27"
               },
               "rangeStatus": "WITHIN",
+              "schedule": {
+                "situation": "UP_TO_DATE",
+                "nextOn": "2026-10-01"
+              },
               "chart": [
                 {
                   "weighedOn": "2026-08-27",
@@ -133,6 +137,9 @@ public final class WeighingExamples {
                 "id": "3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11",
                 "name": "Codornas — Galpão 1",
                 "status": "ACTIVE"
+              },
+              "schedule": {
+                "situation": "NEVER_WEIGHED"
               },
               "chart": [],
               "history": []

@@ -1,5 +1,6 @@
 package io.github.ovyx.farm.integration;
 
+import java.time.DayOfWeek;
 import static io.github.ovyx.farm.domain.model.SectorTestDataBuilder.aUniqueSector;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -183,5 +184,23 @@ class WeighingDirectoryIT extends IntegrationTestSupport {
         // then
         assertThat(read.referenceWeight()).isEqualTo(new ReferenceWeight(155, 175));
         assertThat(readWithout.referenceWeight()).isNull();
+    }
+
+    // ---------------------------------------------------------------- agenda de pesagem (010)
+
+    @Test
+    @DisplayName("reads the weighing day of the sector of the weighed cage, and none for a sector without it")
+    void givenSectorsWithAndWithoutWeighingDay_whenReadingTheSector_thenFindTheDayOnlyWhereItExists() {
+        // given
+        Sector fridays = saved(aUniqueSector().withWeighingDay("FRIDAY").withCage("A", 1, 48).build());
+        Sector everySevenDays = saved(aUniqueSector().withCage("A", 1, 48).build());
+
+        // when
+        WeighedSector ofFridays = directory.sectorOf(fridays.id()).orElseThrow();
+        WeighedSector ofEverySevenDays = directory.sectorOf(everySevenDays.id()).orElseThrow();
+
+        // then
+        assertThat(ofFridays.weighingDay()).isEqualTo(DayOfWeek.FRIDAY);
+        assertThat(ofEverySevenDays.weighingDay()).isNull();
     }
 }

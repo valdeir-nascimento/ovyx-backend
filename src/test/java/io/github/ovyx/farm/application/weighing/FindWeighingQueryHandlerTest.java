@@ -33,7 +33,7 @@ class FindWeighingQueryHandlerTest {
     private final FindWeighingQueryHandler handler = new FindWeighingQueryHandler(directory);
 
     FindWeighingQueryHandlerTest() {
-        directory.knowSector(new WeighedSector(SectorId.of(SECTOR), "Codornas — Galpão 1", Status.ACTIVE, null));
+        directory.knowSector(new WeighedSector(SectorId.of(SECTOR), "Codornas — Galpão 1", Status.ACTIVE, null, null));
         directory.knowCage(SECTOR, new WeighedCage(CageId.of(CAGE), "A-01", "A", 1, 48, Status.ACTIVE));
         directory.knowWeighing(CAGE, new WeighingDetail(
                 WEIGHING,

@@ -49,6 +49,10 @@ public class SectorRecord {
     @Column(name = "laying_rate_target", nullable = false, precision = 4, scale = 1)
     private BigDecimal layingRateTarget;
 
+    /** O dia da semana da pesagem, como {@code FRIDAY}; nulo sem dia fixo (feature 010). */
+    @Column(name = "weighing_day", length = 9)
+    private String weighingDay;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 10)
     private Status status;
@@ -88,6 +92,7 @@ public class SectorRecord {
             Integer referenceWeightMin,
             Integer referenceWeightMax,
             BigDecimal layingRateTarget,
+            String weighingDay,
             Status status,
             Instant createdAt,
             Instant updatedAt) {
@@ -97,6 +102,7 @@ public class SectorRecord {
         this.referenceWeightMin = referenceWeightMin;
         this.referenceWeightMax = referenceWeightMax;
         this.layingRateTarget = layingRateTarget;
+        this.weighingDay = weighingDay;
         this.status = status;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
@@ -109,6 +115,7 @@ public class SectorRecord {
             Integer referenceWeightMin,
             Integer referenceWeightMax,
             BigDecimal layingRateTarget,
+            String weighingDay,
             Status status,
             Instant updatedAt) {
         this.name = name;
@@ -116,6 +123,7 @@ public class SectorRecord {
         this.referenceWeightMin = referenceWeightMin;
         this.referenceWeightMax = referenceWeightMax;
         this.layingRateTarget = layingRateTarget;
+        this.weighingDay = weighingDay;
         this.status = status;
         this.updatedAt = updatedAt;
     }
@@ -146,6 +154,10 @@ public class SectorRecord {
 
     BigDecimal getLayingRateTarget() {
         return layingRateTarget;
+    }
+
+    String getWeighingDay() {
+        return weighingDay;
     }
 
     Status getStatus() {

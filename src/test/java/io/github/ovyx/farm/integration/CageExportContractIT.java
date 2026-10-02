@@ -171,4 +171,23 @@ class CageExportContractIT extends IntegrationTestSupport {
                 .andExpect(content().contentTypeCompatibleWith(PROBLEM_JSON))
                 .andExpect(jsonPath("$.code").value("SECTOR_NOT_FOUND"));
     }
+
+    // ---------------------------------------------------------------- agenda de pesagem (010)
+
+    @Test
+    @DisplayName("exports the pending cages with the weighing filter, with their standing")
+    void givenCagesNeverWeighed_whenExportingThePendingOnes_thenAnswerThemWithTheirStanding() throws Exception {
+        // given
+        Sector sector = sector();
+
+        // when
+        ResultActions response = export(get("/api/v1/sectors/" + sector.id() + "/cages/export?weighing=PENDING"));
+
+        // then
+        List<Row> rows = rowsOf(response.andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray());
+        assertThat(rows).hasSize(6 + 1 + 30);
+        assertThat(rows.get(2).getCellText(0)).isEqualTo("Filtros: pesagem pendente, só as ativas");
+        assertThat(rows.get(6).getCellText(8)).isEqualTo("Pesagem");
+        assertThat(rows.get(7).getCellText(8)).isEqualTo("Nunca pesada");
+    }
 }

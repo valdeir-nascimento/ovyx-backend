@@ -9,6 +9,7 @@ import io.github.ovyx.farm.domain.valueobject.LayingRateTarget;
 import io.github.ovyx.farm.domain.valueobject.ReferenceWeight;
 import io.github.ovyx.farm.domain.valueobject.SectorDescription;
 import io.github.ovyx.farm.domain.valueobject.SectorName;
+import io.github.ovyx.farm.domain.valueobject.WeighingDay;
 import io.github.ovyx.shared.domain.AggregateRoot;
 import io.github.ovyx.shared.domain.DomainException;
 import io.github.ovyx.shared.domain.Notification;
@@ -40,6 +41,8 @@ import java.util.Optional;
  *       as violacoes dela voltam junto das do nome e da descricao (FR-001 e R-006 da 005)
  *   <li>Todo setor tem a meta de produtividade, de 1 a 100%, com uma casa, e as violacoes dela voltam junto
  *       das do nome, da descricao e da faixa (FR-001 e R-006 da 008)
+ *   <li>O dia da pesagem, quando ha, e um dia da semana, e a violacao dele volta junto das demais (FR-001 e
+ *       FR-003 da 010)
  * </ol>
  *
  * <p>O setor contem as gaiolas (R-003): toda escrita numa gaiola passa por ele, e muda o instante da
@@ -66,6 +69,7 @@ public final class Sector extends AggregateRoot<SectorId> {
     private SectorDescription description;
     private ReferenceWeight referenceWeight;
     private LayingRateTarget layingRateTarget;
+    private WeighingDay weighingDay;
     private Status status;
     private Instant updatedAt;
 
@@ -75,6 +79,7 @@ public final class Sector extends AggregateRoot<SectorId> {
             SectorDescription description,
             ReferenceWeight referenceWeight,
             LayingRateTarget layingRateTarget,
+            WeighingDay weighingDay,
             Status status,
             List<Cage> cages,
             Instant createdAt,
@@ -84,6 +89,7 @@ public final class Sector extends AggregateRoot<SectorId> {
         this.description = description;
         this.referenceWeight = referenceWeight;
         this.layingRateTarget = layingRateTarget;
+        this.weighingDay = weighingDay;
         this.status = status;
         this.cages = new ArrayList<>(cages);
         this.createdAt = createdAt;
@@ -105,9 +111,10 @@ public final class Sector extends AggregateRoot<SectorId> {
             String rawMinimumWeight,
             String rawMaximumWeight,
             String rawLayingRateTarget,
+            String rawWeighingDay,
             SectorRoster roster,
             Clock clock) {
-        validate(rawName, rawDescription, rawMinimumWeight, rawMaximumWeight, rawLayingRateTarget);
+        validate(rawName, rawDescription, rawMinimumWeight, rawMaximumWeight, rawLayingRateTarget, rawWeighingDay);
 
         SectorId id = SectorId.generate();
         SectorName name = SectorName.of(rawName);
@@ -120,6 +127,7 @@ public final class Sector extends AggregateRoot<SectorId> {
                 SectorDescription.optionalOf(rawDescription).orElse(null),
                 ReferenceWeight.optionalOf(rawMinimumWeight, rawMaximumWeight).orElse(null),
                 LayingRateTarget.of(rawLayingRateTarget),
+                WeighingDay.optionalOf(rawWeighingDay).orElse(null),
                 Status.ACTIVE,
                 List.of(),
                 now,
@@ -135,6 +143,7 @@ public final class Sector extends AggregateRoot<SectorId> {
      * @param description a descricao, ou {@code null} quando o setor nao tem
      * @param referenceWeight a faixa de peso de referencia, ou {@code null} quando o setor nao tem
      * @param layingRateTarget a meta de produtividade (feature 008)
+     * @param weighingDay o dia da pesagem, ou {@code null} quando o setor nao tem (feature 010)
      * @param cages todas as gaiolas do setor, ativas e inativas
      */
     public static Sector restore(
@@ -143,18 +152,28 @@ public final class Sector extends AggregateRoot<SectorId> {
             SectorDescription description,
             ReferenceWeight referenceWeight,
             LayingRateTarget layingRateTarget,
+            WeighingDay weighingDay,
             Status status,
             List<Cage> cages,
             Instant createdAt,
             Instant updatedAt) {
         return new Sector(
-                id, name, description, referenceWeight, layingRateTarget, status, cages, createdAt, updatedAt);
+                id,
+                name,
+                description,
+                referenceWeight,
+                layingRateTarget,
+                weighingDay,
+                status,
+                cages,
+                createdAt,
+                updatedAt);
     }
 
     /**
-     * Edita o nome, a descricao, a faixa de peso de referencia e a meta de produtividade, com as mesmas
-     * regras do cadastro (FR-003 da 002; FR-001 da 005; FR-002 da 008). Sem os dois limites, o setor fica sem
-     * faixa. Recusada, a edicao nao altera nada.
+     * Edita o nome, a descricao, a faixa de peso de referencia, a meta de produtividade e o dia da pesagem,
+     * com as mesmas regras do cadastro (FR-003 da 002; FR-001 da 005; FR-002 da 008; FR-001 da 010). Sem os dois
+     * limites, o setor fica sem faixa; sem o dia, sem dia fixo. Recusada, a edicao nao altera nada.
      *
      * @throws DomainException quando algum campo viola uma regra, ou quando outro setor ativo ja usa o
      *     nome
@@ -165,9 +184,10 @@ public final class Sector extends AggregateRoot<SectorId> {
             String rawMinimumWeight,
             String rawMaximumWeight,
             String rawLayingRateTarget,
+            String rawWeighingDay,
             SectorRoster roster,
             Clock clock) {
-        validate(rawName, rawDescription, rawMinimumWeight, rawMaximumWeight, rawLayingRateTarget);
+        validate(rawName, rawDescription, rawMinimumWeight, rawMaximumWeight, rawLayingRateTarget, rawWeighingDay);
 
         SectorName newName = SectorName.of(rawName);
         refuseIfNameInUse(newName, id(), roster);
@@ -176,6 +196,7 @@ public final class Sector extends AggregateRoot<SectorId> {
         this.description = SectorDescription.optionalOf(rawDescription).orElse(null);
         this.referenceWeight = ReferenceWeight.optionalOf(rawMinimumWeight, rawMaximumWeight).orElse(null);
         this.layingRateTarget = LayingRateTarget.of(rawLayingRateTarget);
+        this.weighingDay = WeighingDay.optionalOf(rawWeighingDay).orElse(null);
         touch(clock);
     }
 
@@ -185,12 +206,14 @@ public final class Sector extends AggregateRoot<SectorId> {
             String rawDescription,
             String rawMinimumWeight,
             String rawMaximumWeight,
-            String rawLayingRateTarget) {
+            String rawLayingRateTarget,
+            String rawWeighingDay) {
         Notification notification = new Notification();
         SectorName.validate(rawName, notification);
         SectorDescription.validate(rawDescription, notification);
         ReferenceWeight.validate(rawMinimumWeight, rawMaximumWeight, notification);
         LayingRateTarget.validate(rawLayingRateTarget, notification);
+        WeighingDay.validate(rawWeighingDay, notification);
         notification.throwIfAny(FarmErrorCode.VALIDATION_FAILED);
     }
 
@@ -404,6 +427,11 @@ public final class Sector extends AggregateRoot<SectorId> {
     /** A meta de produtividade do setor, que o painel e o alerta de baixa postura usam (feature 008). */
     public LayingRateTarget layingRateTarget() {
         return layingRateTarget;
+    }
+
+    /** O dia da pesagem, quando o administrador o definiu; sem ele, o prazo de 7 dias (feature 010). */
+    public Optional<WeighingDay> weighingDay() {
+        return Optional.ofNullable(weighingDay);
     }
 
     public Optional<SectorDescription> description() {

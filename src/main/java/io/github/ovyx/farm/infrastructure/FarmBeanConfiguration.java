@@ -97,8 +97,8 @@ public class FarmBeanConfiguration {
     }
 
     @Bean
-    SearchCagesQueryHandler searchCagesQueryHandler(CageDirectory cageDirectory) {
-        return new SearchCagesQueryHandler(cageDirectory);
+    SearchCagesQueryHandler searchCagesQueryHandler(CageDirectory cageDirectory, FarmCalendar calendar) {
+        return new SearchCagesQueryHandler(cageDirectory, calendar);
     }
 
     @Bean
@@ -159,8 +159,9 @@ public class FarmBeanConfiguration {
     }
 
     @Bean
-    GetWeighingOverviewQueryHandler getWeighingOverviewQueryHandler(WeighingDirectory weighingDirectory) {
-        return new GetWeighingOverviewQueryHandler(weighingDirectory);
+    GetWeighingOverviewQueryHandler getWeighingOverviewQueryHandler(
+            WeighingDirectory weighingDirectory, FarmCalendar calendar) {
+        return new GetWeighingOverviewQueryHandler(weighingDirectory, calendar);
     }
 
     @Bean

@@ -253,9 +253,16 @@ public final class DashboardExamples {
                     "cageId": "4b6d8f0b-2c4e-4a6c-9e0b-2d4f6a8c0e99",
                     "cageCode": "A-02"
                   }
+                },
+                {
+                  "kind": "WEIGHING_LATE",
+                  "tone": "WARNING",
+                  "title": "Pesagem atrasada",
+                  "detail": "2 gaiolas sem a pesagem de quarta-feira, 23/09, baterias B e C.",
+                  "target": {}
                 }
               ],
-              "openAlerts": 3,
+              "openAlerts": 4,
               "latestReports": [
                 {
                   "id": "6b1d3f5a-7c9e-4a2b-8d4f-1e3a5c7b9d55",

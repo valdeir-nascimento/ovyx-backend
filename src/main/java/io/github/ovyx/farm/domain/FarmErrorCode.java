@@ -63,6 +63,8 @@ public enum FarmErrorCode implements ErrorCode {
     LAYING_RATE_TARGET_INVALID,
     /** Fora de 1% a 100%. */
     LAYING_RATE_TARGET_OUT_OF_RANGE,
+    /** Nao e um dia da semana, de {@code MONDAY} a {@code SUNDAY}, no campo {@code weighingDay} (010). */
+    WEIGHING_DAY_INVALID,
 
     /** Peso medio da pesagem ausente (feature 005). */
     WEIGHT_REQUIRED,

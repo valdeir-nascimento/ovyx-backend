@@ -1,5 +1,7 @@
 package io.github.ovyx.production.integration;
 
+import java.time.DayOfWeek;
+import io.github.ovyx.shared.domain.WeighingSchedule;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.ovyx.IntegrationTestSupport;
@@ -431,5 +433,33 @@ class DashboardDirectoryIT extends IntegrationTestSupport {
         assertThat(days.get(one))
                 .usingRecursiveFieldByFieldElementComparator()
                 .containsExactlyElementsOf(directory.reportDays(SectorId.of(one), FARM_DAY.minusDays(13), FARM_DAY));
+    }
+
+    // ---------------------------------------------------------------- agenda de pesagem (010)
+
+    @Test
+    @DisplayName("reads the schedule of the sector with the cages, and none for an inactive sector")
+    void givenSectorsWithAndWithoutWeighingDay_whenWatchingTheCages_thenBringTheScheduleOfEach() {
+        // given
+        UUID fridays = fixtures.activeSector();
+        jdbc.update("update sector set weighing_day = 'FRIDAY' where id = ?", fridays);
+        UUID b07 = fixtures.activeCage(fridays, "B", 7, 50);
+        UUID everySevenDays = fixtures.activeSector();
+        UUID inactive = fixtures.activeSector();
+        jdbc.update("update sector set weighing_day = 'MONDAY', status = 'INACTIVE' where id = ?", inactive);
+        weighing(fridays, b07, TODAY.minusDays(2), "160.0", "VALID");
+        weighing(fridays, b07, TODAY, "161.0", "VOIDED");
+
+        // when
+        CageWatchReading weighedOnFridays = directory.cageWatch(SectorId.of(fridays), TODAY);
+        CageWatchReading weighedEverySevenDays = directory.cageWatch(SectorId.of(everySevenDays), TODAY);
+        CageWatchReading ofInactive = directory.cageWatch(SectorId.of(inactive), TODAY);
+
+        // then
+        assertThat(weighedOnFridays.schedule()).isEqualTo(new WeighingSchedule(DayOfWeek.FRIDAY));
+        assertThat(weighedOnFridays.cages()).extracting(CageWatch::battery).containsExactly("B");
+        assertThat(weighedOnFridays.cages()).extracting(CageWatch::lastWeighedOn).containsExactly(TODAY.minusDays(2));
+        assertThat(weighedEverySevenDays.schedule()).isEqualTo(new WeighingSchedule(null));
+        assertThat(ofInactive.schedule()).isNull();
     }
 }

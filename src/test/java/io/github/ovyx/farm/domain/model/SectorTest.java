@@ -13,10 +13,12 @@ import io.github.ovyx.farm.domain.valueobject.LayingRateTarget;
 import io.github.ovyx.farm.domain.valueobject.ReferenceWeight;
 import io.github.ovyx.farm.domain.valueobject.SectorDescription;
 import io.github.ovyx.farm.domain.valueobject.SectorName;
+import io.github.ovyx.farm.domain.valueobject.WeighingDay;
 import io.github.ovyx.farm.fixtures.InMemorySectorRepository;
 import io.github.ovyx.shared.domain.FixedClock;
 import io.github.ovyx.shared.domain.Violation;
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -50,7 +52,7 @@ class SectorTest {
         String name = "Codornas — Galpão 4";
 
         // when
-        Sector sector = Sector.register(name, "Codornas japonesas em postura, baterias A e B", null, null, "85", roster, clock);
+        Sector sector = Sector.register(name, "Codornas japonesas em postura, baterias A e B", null, null, "85", null, roster, clock);
 
         // then
         assertThat(sector.name().value()).isEqualTo(name);
@@ -69,7 +71,7 @@ class SectorTest {
         String blank = "   ";
 
         // when
-        Sector sector = Sector.register("Codornas — Galpão 4", blank, null, null, "85", roster, clock);
+        Sector sector = Sector.register("Codornas — Galpão 4", blank, null, null, "85", null, roster, clock);
 
         // then
         assertThat(sector.description()).isEmpty();
@@ -83,7 +85,7 @@ class SectorTest {
         String longDescription = "d".repeat(501);
 
         // when
-        List<Violation> violations = violationsOf(() -> Sector.register(shortName, longDescription, null, null, "85", roster, clock));
+        List<Violation> violations = violationsOf(() -> Sector.register(shortName, longDescription, null, null, "85", null, roster, clock));
 
         // then
         assertThat(violations)
@@ -92,7 +94,7 @@ class SectorTest {
                         tuple("name", FarmErrorCode.SECTOR_NAME_TOO_SHORT),
                         tuple(
                                 "description", FarmErrorCode.SECTOR_DESCRIPTION_TOO_LONG));
-        assertThat(refusalCodeOf(() -> Sector.register(shortName, longDescription, null, null, "85", roster, clock)))
+        assertThat(refusalCodeOf(() -> Sector.register(shortName, longDescription, null, null, "85", null, roster, clock)))
                 .isEqualTo(FarmErrorCode.VALIDATION_FAILED);
     }
 
@@ -104,13 +106,13 @@ class SectorTest {
 
         // when
         Map<String, String> details =
-                detailsOf(() -> Sector.register(" codornas — galpão 4 ", null, null, null, "85", roster, clock));
+                detailsOf(() -> Sector.register(" codornas — galpão 4 ", null, null, null, "85", null, roster, clock));
 
         // then
         assertThat(details).containsExactly(Map.entry("name", NAME_IN_USE));
-        assertThat(refusalCodeOf(() -> Sector.register(" codornas — galpão 4 ", null, null, null, "85", roster, clock)))
+        assertThat(refusalCodeOf(() -> Sector.register(" codornas — galpão 4 ", null, null, null, "85", null, roster, clock)))
                 .isEqualTo(FarmErrorCode.SECTOR_NAME_IN_USE);
-        assertThat(refusalMessageOf(() -> Sector.register(" codornas — galpão 4 ", null, null, null, "85", roster, clock)))
+        assertThat(refusalMessageOf(() -> Sector.register(" codornas — galpão 4 ", null, null, null, "85", null, roster, clock)))
                 .isEqualTo(NAME_IN_USE);
     }
 
@@ -121,7 +123,7 @@ class SectorTest {
         saved(aSector().named("Codornas — Galpão 4").inactive());
 
         // when
-        Sector sector = Sector.register("Codornas — Galpão 4", null, null, null, "85", roster, clock);
+        Sector sector = Sector.register("Codornas — Galpão 4", null, null, null, "85", null, roster, clock);
 
         // then
         assertThat(sector.isActive()).isTrue();
@@ -137,7 +139,7 @@ class SectorTest {
 
         // when
         FarmErrorCode code = (FarmErrorCode)
-                refusalCodeOf(() -> Sector.register("Codornas — Galpão 4", longDescription, null, null, "85", roster, clock));
+                refusalCodeOf(() -> Sector.register("Codornas — Galpão 4", longDescription, null, null, "85", null, roster, clock));
 
         // then
         assertThat(code).isEqualTo(FarmErrorCode.VALIDATION_FAILED);
@@ -151,7 +153,7 @@ class SectorTest {
         clock.advance(Duration.ofHours(2));
 
         // when
-        sector.update("Codornas — Galpão 1 (norte)", "Baterias A a D, ala norte", null, null, "85", roster, clock);
+        sector.update("Codornas — Galpão 1 (norte)", "Baterias A a D, ala norte", null, null, "85", null, roster, clock);
 
         // then
         assertThat(sector.name().value()).isEqualTo("Codornas — Galpão 1 (norte)");
@@ -167,7 +169,7 @@ class SectorTest {
         Sector sector = saved(aSector().named("Codornas — Galpão 1"));
 
         // when
-        sector.update("CODORNAS — GALPÃO 1", null, null, null, "85", roster, clock);
+        sector.update("CODORNAS — GALPÃO 1", null, null, null, "85", null, roster, clock);
 
         // then
         assertThat(sector.name().value()).isEqualTo("CODORNAS — GALPÃO 1");
@@ -183,7 +185,7 @@ class SectorTest {
 
         // when
         FarmErrorCode code = (FarmErrorCode) refusalCodeOf(
-                () -> sector.update("poedeiras brancas — galpão 2", null, null, null, "85", roster, clock));
+                () -> sector.update("poedeiras brancas — galpão 2", null, null, null, "85", null, roster, clock));
 
         // then
         assertThat(code).isEqualTo(FarmErrorCode.SECTOR_NAME_IN_USE);
@@ -197,7 +199,7 @@ class SectorTest {
         Sector sector = saved(aSector());
 
         // when
-        Map<String, String> details = detailsOf(() -> sector.update("  ", "d".repeat(501), null, null, "85", roster, clock));
+        Map<String, String> details = detailsOf(() -> sector.update("  ", "d".repeat(501), null, null, "85", null, roster, clock));
 
         // then
         assertThat(details)
@@ -216,7 +218,7 @@ class SectorTest {
         String minimum = "155";
 
         // when
-        Sector sector = Sector.register("Codornas — Galpão 4", null, minimum, "175", "85", roster, clock);
+        Sector sector = Sector.register("Codornas — Galpão 4", null, minimum, "175", "85", null, roster, clock);
 
         // then
         assertThat(sector.referenceWeight()).contains(new ReferenceWeight(155, 175));
@@ -229,7 +231,7 @@ class SectorTest {
         String blankName = "  ";
 
         // when
-        Map<String, String> details = detailsOf(() -> Sector.register(blankName, null, "180", "170", "85", roster, clock));
+        Map<String, String> details = detailsOf(() -> Sector.register(blankName, null, "180", "170", "85", null, roster, clock));
 
         // then
         assertThat(details)
@@ -245,9 +247,9 @@ class SectorTest {
         Sector sector = saved(aSector());
 
         // when
-        sector.update(sector.name().value(), null, "155", "175", "85", roster, clock);
+        sector.update(sector.name().value(), null, "155", "175", "85", null, roster, clock);
         Optional<ReferenceWeight> set = sector.referenceWeight();
-        sector.update(sector.name().value(), null, null, null, "85", roster, clock);
+        sector.update(sector.name().value(), null, null, null, "85", null, roster, clock);
 
         // then
         assertThat(set).contains(new ReferenceWeight(155, 175));
@@ -261,7 +263,7 @@ class SectorTest {
         Sector sector = saved(aSector().withReferenceWeight(155, 175));
 
         // when
-        detailsOf(() -> sector.update(sector.name().value(), null, "155", null, "85", roster, clock));
+        detailsOf(() -> sector.update(sector.name().value(), null, "155", null, "85", null, roster, clock));
 
         // then
         assertThat(sector.referenceWeight()).contains(new ReferenceWeight(155, 175));
@@ -276,7 +278,7 @@ class SectorTest {
         String target = "82,5";
 
         // when
-        Sector sector = Sector.register("Codornas — Galpão 4", null, null, null, target, roster, clock);
+        Sector sector = Sector.register("Codornas — Galpão 4", null, null, null, target, null, roster, clock);
 
         // then
         assertThat(sector.layingRateTarget()).isEqualTo(new LayingRateTarget(new BigDecimal("82.5")));
@@ -289,7 +291,7 @@ class SectorTest {
         Sector sector = saved(aSector());
 
         // when
-        sector.update(sector.name().value(), null, null, null, "72", roster, clock);
+        sector.update(sector.name().value(), null, null, null, "72", null, roster, clock);
 
         // then
         assertThat(sector.layingRateTarget().value()).isEqualByComparingTo("72.0");
@@ -303,7 +305,7 @@ class SectorTest {
 
         // when
         Map<String, String> details =
-                detailsOf(() -> Sector.register("  ", "d".repeat(501), "180", "170", blankTarget, roster, clock));
+                detailsOf(() -> Sector.register("  ", "d".repeat(501), "180", "170", blankTarget, null, roster, clock));
 
         // then
         assertThat(details)
@@ -324,7 +326,7 @@ class SectorTest {
 
         // when
         Map<String, String> details = detailsOf(
-                () -> sector.update("Codornas — Galpão 1 (norte)", null, "150", "180", "101", roster, clock));
+                () -> sector.update("Codornas — Galpão 1 (norte)", null, "150", "180", "101", null, roster, clock));
 
         // then
         assertThat(details).containsOnly(Map.entry("layingRateTarget", "A meta deve ficar entre 1% e 100%."));
@@ -361,6 +363,7 @@ class SectorTest {
                 null,
                 null,
                 stored,
+                null,
                 Status.ACTIVE,
                 List.of(),
                 clock.instant(),
@@ -368,5 +371,115 @@ class SectorTest {
 
         // then
         assertThat(sector.layingRateTarget()).isEqualTo(stored);
+    }
+
+    // ---------------------------------------------------------------- dia da pesagem (010)
+
+    @Test
+    @DisplayName("registers a sector with the weighing day")
+    void givenFriday_whenRegistering_thenKeepTheWeighingDay() {
+        // given
+        String weighingDay = "FRIDAY";
+
+        // when
+        Sector sector = Sector.register("Codornas — Galpão 4", null, null, null, "85", weighingDay, roster, clock);
+
+        // then
+        assertThat(sector.weighingDay()).map(WeighingDay::value).contains(DayOfWeek.FRIDAY);
+    }
+
+    @Test
+    @DisplayName("registers a sector without a weighing day when none is given")
+    void givenNoWeighingDay_whenRegistering_thenFindNoWeighingDay() {
+        // given
+        String weighingDay = null;
+
+        // when
+        Sector sector = Sector.register("Codornas — Galpão 4", null, null, null, "85", weighingDay, roster, clock);
+
+        // then
+        assertThat(sector.weighingDay()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("takes the weighing day away on update")
+    void givenSectorWeighedOnFridays_whenUpdatingWithoutTheDay_thenFindNoWeighingDay() {
+        // given
+        Sector sector = saved(aSector().withWeighingDay("FRIDAY"));
+
+        // when
+        sector.update(sector.name().value(), null, null, null, "85", null, roster, clock);
+
+        // then
+        assertThat(sector.weighingDay()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("changes the weighing day on update")
+    void givenSectorWeighedOnFridays_whenUpdatingToMonday_thenKeepMonday() {
+        // given
+        Sector sector = saved(aSector().withWeighingDay("FRIDAY"));
+
+        // when
+        sector.update(sector.name().value(), null, null, null, "85", "MONDAY", roster, clock);
+
+        // then
+        assertThat(sector.weighingDay()).map(WeighingDay::value).contains(DayOfWeek.MONDAY);
+    }
+
+    @Test
+    @DisplayName("refuses an invalid weighing day together with the other fields, in the order of the form")
+    void givenMissingNameAndInvalidDay_whenRegistering_thenRefuseBothAtOnceInOrder() {
+        // given
+        String invalidDay = "FUNDAY";
+
+        // when
+        Map<String, String> details =
+                detailsOf(() -> Sector.register("  ", null, null, null, "85", invalidDay, roster, clock));
+
+        // then
+        assertThat(details)
+                .containsExactly(
+                        Map.entry("name", "Informe o nome do setor."),
+                        Map.entry("weighingDay", "Escolha um dia da semana, de segunda a domingo."));
+    }
+
+    @Test
+    @DisplayName("keeps the weighing day when an update is refused for it")
+    void givenSectorWeighedOnFridays_whenTheUpdateIsRefusedForTheDay_thenChangeNothing() {
+        // given
+        Sector sector = saved(aSector().withWeighingDay("FRIDAY"));
+
+        // when
+        Map<String, String> details =
+                detailsOf(() -> sector.update("Outro nome", null, null, null, "85", "FUNDAY", roster, clock));
+
+        // then
+        assertThat(details).containsOnlyKeys("weighingDay");
+        assertThat(sector.name().value()).isEqualTo("Codornas — Galpão 1");
+        assertThat(sector.weighingDay()).map(WeighingDay::value).contains(DayOfWeek.FRIDAY);
+    }
+
+    @Test
+    @DisplayName("restores the weighing day it was given")
+    void givenStoredWeighingDay_whenRestoring_thenKeepIt() {
+        // given
+        WeighingDay stored = new WeighingDay(DayOfWeek.SATURDAY);
+
+        // when
+        Sector sector = Sector.restore(
+                SectorId.generate(),
+                SectorName.of("Poedeiras — Galpão 2"),
+                null,
+                null,
+                LayingRateTarget.of("85"),
+                stored,
+                Status.ACTIVE,
+                List.of(),
+                clock.instant(),
+                clock.instant());
+
+        // then
+        assertThat(sector.weighingDay()).contains(stored);
     }
 }

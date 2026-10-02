@@ -46,7 +46,15 @@ public final class CageExamples {
                   "battery": "B",
                   "number": 7,
                   "birdCount": 50,
-                  "status": "ACTIVE"
+                  "status": "ACTIVE",
+                  "lastWeighing": {
+                    "weighedOn": "2026-09-18",
+                    "averageWeight": 161.0
+                  },
+                  "weighing": {
+                    "situation": "LATE",
+                    "lateSince": "2026-09-25"
+                  }
                 }
               ],
               "page": 0,

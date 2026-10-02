@@ -24,7 +24,7 @@ public class FindCageByIdQueryHandler implements QueryHandler<FindCageByIdQuery,
 
     @Override
     public Result<CageDetail> handle(FindCageByIdQuery query) {
-        Optional<SectorId> sectorId = SectorId.parse(query.sectorId()).filter(cageDirectory::sectorExists);
+        Optional<SectorId> sectorId = SectorId.parse(query.sectorId()).filter(id -> cageDirectory.scheduleOf(id).isPresent());
         if (sectorId.isEmpty()) {
             return Result.failure(FarmRefusals.sectorNotFound());
         }

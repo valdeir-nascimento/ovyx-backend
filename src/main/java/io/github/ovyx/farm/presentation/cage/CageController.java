@@ -1,5 +1,6 @@
 package io.github.ovyx.farm.presentation.cage;
 
+import io.github.ovyx.farm.application.cage.WeighingFilter;
 import io.github.ovyx.farm.application.cage.CageDetail;
 import io.github.ovyx.farm.application.cage.DeactivateCageCommand;
 import io.github.ovyx.farm.application.cage.ExportCagesQuery;
@@ -54,10 +55,11 @@ public class CageController implements CageApi {
             @RequestParam(required = false) String code,
             @RequestParam(required = false) String battery,
             @RequestParam(required = false) StatusFilter status,
+            @RequestParam(required = false) WeighingFilter weighing,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return resultHttpMapper.ok(dispatcher
-                .ask(new SearchCagesQuery(sectorId, code, battery, status, page, size))
+                .ask(new SearchCagesQuery(sectorId, code, battery, status, page, size, weighing))
                 .map(CagePageResponse::from));
     }
 
@@ -71,8 +73,10 @@ public class CageController implements CageApi {
             @PathVariable String sectorId,
             @RequestParam(required = false) String code,
             @RequestParam(required = false) String battery,
-            @RequestParam(required = false) StatusFilter status) {
-        Result<SpreadsheetFile> exported = dispatcher.ask(new ExportCagesQuery(sectorId, code, battery, status));
+            @RequestParam(required = false) StatusFilter status,
+            @RequestParam(required = false) WeighingFilter weighing) {
+        Result<SpreadsheetFile> exported =
+                dispatcher.ask(new ExportCagesQuery(sectorId, code, battery, status, weighing));
         return exported.isSuccess()
                 ? SpreadsheetResponses.of(exported.value())
                 : resultHttpMapper.problem(exported.error());

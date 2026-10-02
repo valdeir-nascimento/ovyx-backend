@@ -1,5 +1,7 @@
 package io.github.ovyx.farm.integration;
 
+import java.time.LocalDate;
+import io.github.ovyx.shared.application.FarmCalendar;
 import static io.github.ovyx.farm.domain.model.SectorTestDataBuilder.aUniqueSector;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -488,5 +490,30 @@ class WeighingContractIT extends IntegrationTestSupport {
 
         // then
         response.andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("CAGE_INACTIVE"));
+    }
+
+    // ---------------------------------------------------------------- agenda de pesagem (010)
+
+    @Autowired
+    private FarmCalendar calendar;
+
+    @Test
+    @DisplayName("answers the next weighing of a cage weighed today, and the cage never weighed as such")
+    void givenCageWeighedTodayAndCageNeverWeighed_whenAskingTheOverview_thenAnswerTheScheduleOfEach()
+            throws Exception {
+        // given
+        LocalDate today = calendar.today();
+        recorded(cagePath, today.toString(), "160");
+        String b07 = "/api/v1/sectors/" + sector.id() + "/cages/" + sector.cages().get(1).id();
+
+        // when
+        ResultActions weighed = overviewOf(cagePath);
+        ResultActions never = overviewOf(b07);
+
+        // then
+        weighed.andExpect(status().isOk())
+                .andExpect(jsonPath("$.schedule.situation").value("UP_TO_DATE"))
+                .andExpect(jsonPath("$.schedule.nextOn").value(today.plusDays(7).toString()));
+        never.andExpect(status().isOk()).andExpect(jsonPath("$.schedule.situation").value("NEVER_WEIGHED"));
     }
 }

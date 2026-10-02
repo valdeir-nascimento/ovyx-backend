@@ -37,6 +37,12 @@ info:
     relatórios com a ração completa. Setor sem relatório não conta como zero. A meta da granja é a média
     das metas dos setores ponderada pelas aves do início do dia dos relatórios (feature 009).
 
+    **Avisos de pesagem**: o painel do setor avisa a pesagem semanal pela agenda do setor (API da Granja,
+    feature 010): no dia da pesagem, "Pesagem semanal hoje", como informação; depois dele, ou sem dia
+    definido, "Pesagem atrasada", como atenção. Cada um é um aviso só por setor, com a quantidade de
+    gaiolas ativas que faltam pesar e as baterias delas, e entra na contagem de alertas abertos, também na
+    comparação da granja toda.
+
     **Planilhas**: o painel de um setor e os relatórios de um intervalo também saem como planilha do
     Excel (.xlsx), com os mesmos números da tela. Quantidades, valores em reais, porcentagens e datas
     são números e datas na planilha, e não texto; o valor sem dados fica em branco. Texto digitado por
@@ -510,7 +516,12 @@ paths:
                       target:
                         cageId: 4b6d8f0b-2c4e-4a6c-9e0b-2d4f6a8c0e99
                         cageCode: A-02
-                    openAlerts: 3
+                    - kind: WEIGHING_LATE
+                      tone: WARNING
+                      title: Pesagem atrasada
+                      detail: 2 gaiolas sem a pesagem de quarta-feira, 23/09, baterias B e C.
+                      target: {}
+                    openAlerts: 4
                     latestReports:
                     - id: 6b1d3f5a-7c9e-4a2b-8d4f-1e3a5c7b9d55
                       collectionDate: '2026-09-24'
@@ -3101,7 +3112,7 @@ components:
             $ref: '#/components/schemas/EggGradeShare'
     AlertTarget:
       type: object
-      description: Para onde o alerta leva. Sem campo, é a abertura do relatório de hoje.
+      description: Para onde o alerta leva. Sem campo, o tipo decide - a abertura do relatório de hoje, ou, nos avisos de pesagem (`WEIGHING_DUE`, `WEIGHING_LATE`), a lista de gaiolas do setor filtrada pelas que faltam pesar.
       properties:
         reportId:
           type: string
@@ -3136,6 +3147,12 @@ components:
           - HIGH_MORTALITY
           - LOW_LAYING
           - WEIGHT_OUT_OF_RANGE
+          - WEIGHING_DUE
+          - WEIGHING_LATE
+          description: >-
+            `WEIGHING_DUE` (informação) aparece no dia da pesagem do setor, com as gaiolas ativas que faltam pesar;
+            `WEIGHING_LATE` (atenção), depois do dia, ou sem dia definido, com as gaiolas sem a pesagem. Os dois levam
+            à lista de gaiolas filtrada pelas pendentes e vêm com o alvo vazio (feature 010).
           example: HIGH_MORTALITY
         tone:
           type: string

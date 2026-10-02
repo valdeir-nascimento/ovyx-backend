@@ -124,9 +124,9 @@ class OpenApiDocumentIT extends IntegrationTestSupport {
     /** Os contratos originais, fora do repositório; existem na máquina de quem mantém as specs. */
     private static final Map<String, Path> SPEC_CONTRACTS = Map.of(
             IDENTITY_CONTRACT, Path.of("../specs/001-auth-foundation/contracts/identity-api.yaml"),
-            FARM_CONTRACT, Path.of("../specs/008-sector-laying-target/contracts/farm-api.yaml"),
+            FARM_CONTRACT, Path.of("../specs/010-weighing-schedule/contracts/farm-api.yaml"),
             FEED_FORMULA_CONTRACT, Path.of("../specs/004-feed-formulas/contracts/feed-formulas-api.yaml"),
-            PRODUCTION_CONTRACT, Path.of("../specs/009-farm-dashboard/contracts/production-api.yaml"));
+            PRODUCTION_CONTRACT, Path.of("../specs/010-weighing-schedule/contracts/production-api.yaml"));
 
     /**
      * Os caminhos do contrato que a feature em curso ainda não entregou, fora da comparação até a tarefa que os

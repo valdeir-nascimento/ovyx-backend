@@ -100,6 +100,9 @@ class DashboardContractIT extends IntegrationTestSupport {
             fixtures.feed(report, a01, formula, 1344);
             fixtures.feed(report, b07, formula, 1400);
         }
+        // Pesadas hoje: em dia na agenda, sem o aviso de pesagem (feature 010).
+        fixtures.weighing(sectorId, a01, today);
+        fixtures.weighing(sectorId, b07, today);
         return sectorId;
     }
 
@@ -209,6 +212,8 @@ class DashboardContractIT extends IntegrationTestSupport {
         UUID sectorId = fixtures.activeSector();
         UUID a01 = fixtures.activeCage(sectorId, "A", 1, 48);
         UUID b07 = fixtures.activeCage(sectorId, "B", 7, 50);
+        fixtures.weighing(sectorId, a01, today);
+        fixtures.weighing(sectorId, b07, today);
         UUID formula = fixtures.posturaPlus();
         UUID report = fixtures.report(sectorId, today, 98, true);
         fixtures.cageIn(report, a01, 48);
@@ -400,5 +405,29 @@ class DashboardContractIT extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.targetStatus").value("BELOW"))
                 .andExpect(jsonPath("$.alerts[?(@.kind == 'LOW_LAYING')].detail")
                         .value("75,0% nos últimos 3 relatórios, abaixo da meta de 85% do setor; o setor fez 76,0% hoje."));
+    }
+
+    // ---------------------------------------------------------------- avisos de pesagem (010)
+
+    @Test
+    @DisplayName("informs the weighing of today on the weighing day, with an empty target")
+    void givenSectorWeighedTodayOfTheWeekAndACageNeverWeighed_whenReadingToday_thenInformTheWeighingOfToday()
+            throws Exception {
+        // given
+        UUID sectorId = fixtures.activeSector();
+        jdbc.update("update sector set weighing_day = ? where id = ?", today.getDayOfWeek().name(), sectorId);
+        fixtures.activeCage(sectorId, "B", 7, 50);
+
+        // when
+        ResultActions response = read(dashboardOf(sectorId) + "?period=TODAY");
+
+        // then
+        response.andExpect(status().isOk())
+                .andExpect(jsonPath("$.alerts[?(@.kind == 'WEIGHING_DUE')].tone").value("INFO"))
+                .andExpect(jsonPath("$.alerts[?(@.kind == 'WEIGHING_DUE')].title").value("Pesagem semanal hoje"))
+                .andExpect(jsonPath("$.alerts[?(@.kind == 'WEIGHING_DUE')].detail")
+                        .value("1 gaiola a pesar, bateria B."))
+                .andExpect(jsonPath("$.alerts[?(@.kind == 'WEIGHING_DUE')].target.reportId").isEmpty())
+                .andExpect(jsonPath("$.alerts[?(@.kind == 'WEIGHING_LATE')]").isEmpty());
     }
 }

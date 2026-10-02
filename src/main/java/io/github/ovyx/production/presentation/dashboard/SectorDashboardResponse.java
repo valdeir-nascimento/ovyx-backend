@@ -186,8 +186,15 @@ public record SectorDashboardResponse(
         }
     }
 
-    /** Para onde o alerta leva; sem campo, a abertura do relatorio de hoje. */
-    @Schema(name = "AlertTarget", description = "Para onde o alerta leva. Sem campo, é a abertura do relatório de hoje.")
+    /**
+     * Para onde o alerta leva; sem campo, o tipo decide: a abertura do relatorio de hoje, ou a lista de gaiolas
+     * filtrada nos avisos de pesagem (feature 010).
+     */
+    @Schema(
+            name = "AlertTarget",
+            description = "Para onde o alerta leva. Sem campo, o tipo decide - a abertura do relatório de hoje, ou, nos"
+                    + " avisos de pesagem (`WEIGHING_DUE`, `WEIGHING_LATE`), a lista de gaiolas do setor filtrada"
+                    + " pelas que faltam pesar.")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record Target(
             @Schema(description = "O relatório de hoje, quando existe", example = "6b1d3f5a-7c9e-4a2b-8d4f-1e3a5c7b9d55")

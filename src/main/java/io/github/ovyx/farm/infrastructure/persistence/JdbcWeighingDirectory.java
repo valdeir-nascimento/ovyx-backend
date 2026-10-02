@@ -38,13 +38,15 @@ public class JdbcWeighingDirectory implements WeighingDirectory {
     @Override
     public Optional<WeighedSector> sectorOf(SectorId sectorId) {
         return jdbcClient
-                .sql("select id, name, status, reference_weight_min, reference_weight_max from sector where id = :id")
+                .sql("select id, name, status, reference_weight_min, reference_weight_max, weighing_day from sector"
+                        + " where id = :id")
                 .param("id", sectorId.value())
                 .query((rs, rowNumber) -> new WeighedSector(
                         SectorId.of(rs.getObject("id", UUID.class)),
                         rs.getString("name"),
                         Status.valueOf(rs.getString("status")),
-                        JdbcSectorDirectory.referenceWeightOf(rs)))
+                        JdbcSectorDirectory.referenceWeightOf(rs),
+                        JdbcSectorDirectory.weighingDayOf(rs)))
                 .optional();
     }
 

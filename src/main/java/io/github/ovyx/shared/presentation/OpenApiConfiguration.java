@@ -122,6 +122,12 @@ public class OpenApiConfiguration {
                         setor inativa junto as gaiolas ativas dele; reativá-lo traz de volta exatamente essas gaiolas. \
                         A pesagem excluída fica guardada como anulada, com quem a anulou e quando, e sai das leituras.
 
+                        **Agenda de pesagem** (feature 010): o setor pode ter um dia da semana para a pesagem \
+                        (`weighingDay`). A pesagem da semana é a feita nos 7 dias que terminam no último dia de \
+                        pesagem que já chegou, ou depois dele; sem dia definido, vale o prazo de 7 dias desde a última \
+                        pesagem. Cada gaiola ativa de setor ativo tem a situação (`WeighingStanding`): em dia, a pesar \
+                        hoje, atrasada ou nunca pesada. A situação depende de hoje, no fuso da granja, e não é gravada.
+
                         **Planilhas**: a lista de gaiolas de um setor também sai como planilha do Excel (.xlsx), com a \
                         busca e os filtros da tela e todas as páginas. Quantidades, pesos e datas são números e datas \
                         na planilha, e não texto; a gaiola nunca pesada fica com o peso em branco. A recusa de uma \
@@ -166,6 +172,12 @@ public class OpenApiConfiguration {
                         setor: a produtividade é a soma dos ovos sobre a soma das aves dos relatórios, e o custo conta só os \
                         relatórios com a ração completa. Setor sem relatório não conta como zero. A meta da granja é a média \
                         das metas dos setores ponderada pelas aves do início do dia dos relatórios (feature 009).
+
+                        **Avisos de pesagem**: o painel do setor avisa a pesagem semanal pela agenda do setor (API da \
+                        Granja, feature 010): no dia da pesagem, "Pesagem semanal hoje", como informação; depois \
+                        dele, ou sem dia definido, "Pesagem atrasada", como atenção. Cada um é um aviso só por setor, \
+                        com a quantidade de gaiolas ativas que faltam pesar e as baterias delas, e entra na contagem \
+                        de alertas abertos, também na comparação da granja toda.
 
                         **Planilhas**: o painel de um setor e os relatórios de um intervalo também saem como planilha \
                         do Excel (.xlsx), com os mesmos números da tela. Quantidades, valores em reais, porcentagens e \

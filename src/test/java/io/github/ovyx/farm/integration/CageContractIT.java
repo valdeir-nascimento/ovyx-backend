@@ -1,5 +1,7 @@
 package io.github.ovyx.farm.integration;
 
+import java.time.LocalDate;
+import io.github.ovyx.shared.application.FarmCalendar;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -478,5 +480,62 @@ class CageContractIT extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.content[0].lastWeighing.averageWeight").value(161.4))
                 .andExpect(jsonPath("$.content[1].code").value("B-07"))
                 .andExpect(jsonPath("$.content[1].lastWeighing").doesNotExist());
+    }
+
+    // ---------------------------------------------------------------- agenda de pesagem (010)
+
+    @Autowired
+    private FarmCalendar calendar;
+
+    private void weigh(String cagePath, LocalDate day) throws Exception {
+        send(post(cagePath + "/weighings"), """
+                {"weighedOn": "%s", "averageWeight": 160}
+                """.formatted(day))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    @DisplayName("answers the standing of each active cage in the schedule, and none for the inactive one")
+    void givenCagesWeighedLateAndInactive_whenSearching_thenAnswerTheStandingOfEachActiveCage() throws Exception {
+        // given
+        LocalDate today = calendar.today();
+        weigh(registered("A", 1, 48), today);
+        weigh(registered("B", 7, 50), today.minusDays(10));
+        String c03 = registered("C", 3, 50);
+        postTo(c03 + "/deactivation").andExpect(status().isOk());
+
+        // when
+        ResultActions response = mockMvc.perform(get(cagesPath + "?status=ALL").cookie(administrator));
+
+        // then
+        response.andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].weighing.situation").value("UP_TO_DATE"))
+                .andExpect(jsonPath("$.content[0].weighing.nextOn").value(today.plusDays(7).toString()))
+                .andExpect(jsonPath("$.content[0].weighing.lateSince").doesNotExist())
+                .andExpect(jsonPath("$.content[1].weighing.situation").value("LATE"))
+                .andExpect(jsonPath("$.content[1].weighing.lateSince").value(today.minusDays(2).toString()))
+                .andExpect(jsonPath("$.content[2].code").value("C-03"))
+                .andExpect(jsonPath("$.content[2].weighing").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("filters the active cages still to weigh, and refuses a filter that is not PENDING")
+    void givenCagesWeighedAndNot_whenFilteringThePendingOnes_thenAnswerOnlyThem() throws Exception {
+        // given
+        weigh(registered("A", 1, 48), calendar.today());
+        registered("B", 7, 50);
+
+        // when
+        ResultActions pending = mockMvc.perform(get(cagesPath + "?weighing=PENDING").cookie(administrator));
+        ResultActions invalid = mockMvc.perform(get(cagesPath + "?weighing=LATE").cookie(administrator));
+
+        // then
+        pending.andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].code").value("B-07"))
+                .andExpect(jsonPath("$.content[0].weighing.situation").value("NEVER_WEIGHED"));
+        invalid.andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.details.parameter").value("weighing"));
     }
 }

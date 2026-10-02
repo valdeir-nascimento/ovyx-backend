@@ -1,5 +1,8 @@
 package io.github.ovyx.farm.application.weighing;
 
+import java.time.DayOfWeek;
+import io.github.ovyx.shared.domain.WeighingStanding;
+import io.github.ovyx.shared.domain.WeighingSituation;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.ovyx.farm.domain.model.Actor;
@@ -26,12 +29,15 @@ import org.junit.jupiter.params.provider.CsvSource;
 @DisplayName("WeighingOverview")
 class WeighingOverviewTest {
 
+    /** Domingo, 27/09/2026: o dia da granja das contas, que a agenda de pesagem usa (010). */
+    private static final LocalDate TODAY = LocalDate.of(2026, 9, 27);
+
     private static final Actor MARINA = new Actor(UUID.fromString("5e7a9c1e-3b5d-4f7a-9c1e-3b5d7f9a1c22"), "Marina Alves");
 
     private static final WeighedCage A01 = new WeighedCage(
             CageId.of(UUID.fromString("2a4c6e8a-0b1d-4f3a-9c5e-7a9b1d3f5a66")), "A-01", "A", 1, 48, Status.ACTIVE);
     private static final WeighedSector GALPAO_1 = new WeighedSector(
-            SectorId.of(UUID.fromString("3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11")), "Codornas — Galpão 1", Status.ACTIVE, null);
+            SectorId.of(UUID.fromString("3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11")), "Codornas — Galpão 1", Status.ACTIVE, null, null);
 
     private static WeighingEntry entry(String day, String weight) {
         return new WeighingEntry(WeighingId.generate(), LocalDate.parse(day), new BigDecimal(weight), MARINA, null);
@@ -45,7 +51,7 @@ class WeighingOverviewTest {
                 List.of(entry("2026-09-10", "156.0"), entry("2026-09-17", "158.0"), entry("2026-09-24", "161.4"));
 
         // when
-        WeighingOverview overview = WeighingOverview.of(A01, GALPAO_1, entries);
+        WeighingOverview overview = WeighingOverview.of(A01, GALPAO_1, entries, TODAY);
 
         // then
         assertThat(overview.history())
@@ -64,7 +70,7 @@ class WeighingOverviewTest {
         List<WeighingEntry> entries = List.of(entry("2026-09-24", "161.0"), entry("2026-09-10", "150.0"));
 
         // when
-        WeighingOverview overview = WeighingOverview.of(A01, GALPAO_1, entries);
+        WeighingOverview overview = WeighingOverview.of(A01, GALPAO_1, entries, TODAY);
 
         // then
         assertThat(overview.latest().weighedOn()).isEqualTo(LocalDate.parse("2026-09-24"));
@@ -78,7 +84,7 @@ class WeighingOverviewTest {
         List<WeighingEntry> entries = List.of(entry("2026-09-17", "158.0"), entry("2026-09-24", "156.5"));
 
         // when
-        WeighingOverview overview = WeighingOverview.of(A01, GALPAO_1, entries);
+        WeighingOverview overview = WeighingOverview.of(A01, GALPAO_1, entries, TODAY);
 
         // then
         assertThat(overview.history().get(0).change()).isEqualByComparingTo("-1.5");
@@ -92,7 +98,7 @@ class WeighingOverviewTest {
         List<WeighingEntry> entries = List.of(entry("2026-09-17", "158.0"), latest);
 
         // when
-        WeighingOverview overview = WeighingOverview.of(A01, GALPAO_1, entries);
+        WeighingOverview overview = WeighingOverview.of(A01, GALPAO_1, entries, TODAY);
 
         // then
         assertThat(overview.cage()).isEqualTo(A01);
@@ -108,7 +114,7 @@ class WeighingOverviewTest {
         List<WeighingEntry> none = List.of();
 
         // when
-        WeighingOverview overview = WeighingOverview.of(A01, GALPAO_1, none);
+        WeighingOverview overview = WeighingOverview.of(A01, GALPAO_1, none, TODAY);
 
         // then
         assertThat(overview.latest()).isNull();
@@ -118,7 +124,7 @@ class WeighingOverviewTest {
     // ---------------------------------------------------------------- acompanhamento (US3)
 
     private static final WeighedSector GALPAO_1_WITH_RANGE = new WeighedSector(
-            GALPAO_1.id(), GALPAO_1.name(), Status.ACTIVE, new ReferenceWeight(155, 175));
+            GALPAO_1.id(), GALPAO_1.name(), Status.ACTIVE, new ReferenceWeight(155, 175), null);
 
     private static WeighingOverview weeklyOverview(WeighedSector sector, String... weights) {
         List<WeighingEntry> entries = new ArrayList<>();
@@ -127,7 +133,7 @@ class WeighingOverviewTest {
             entries.add(entry(day.toString(), weight));
             day = day.plusDays(7);
         }
-        return WeighingOverview.of(A01, sector, entries);
+        return WeighingOverview.of(A01, sector, entries, TODAY);
     }
 
     @Test
@@ -152,7 +158,7 @@ class WeighingOverviewTest {
                 entry("2026-08-27", "150"), entry("2026-08-28", "152"), entry("2026-09-24", "161"));
 
         // when
-        WeighingOverview overview = WeighingOverview.of(A01, GALPAO_1, entries);
+        WeighingOverview overview = WeighingOverview.of(A01, GALPAO_1, entries, TODAY);
 
         // then
         assertThat(overview.fourWeekChange().since()).isEqualTo(LocalDate.parse("2026-08-27"));
@@ -167,7 +173,7 @@ class WeighingOverviewTest {
                 entry("2026-08-20", "140"), entry("2026-08-27", "150"), entry("2026-09-24", "161"));
 
         // when
-        WeighingOverview overview = WeighingOverview.of(A01, GALPAO_1, entries);
+        WeighingOverview overview = WeighingOverview.of(A01, GALPAO_1, entries, TODAY);
 
         // then
         assertThat(overview.fourWeekChange().since()).isEqualTo(LocalDate.parse("2026-08-27"));
@@ -181,7 +187,7 @@ class WeighingOverviewTest {
         List<WeighingEntry> entries = List.of(entry("2026-08-28", "152"), entry("2026-09-24", "161"));
 
         // when
-        WeighingOverview overview = WeighingOverview.of(A01, GALPAO_1, entries);
+        WeighingOverview overview = WeighingOverview.of(A01, GALPAO_1, entries, TODAY);
 
         // then
         assertThat(overview.fourWeekChange()).isNull();
@@ -208,7 +214,7 @@ class WeighingOverviewTest {
         WeighingOverview withoutRange = weeklyOverview(GALPAO_1, "150");
 
         // when
-        WeighingOverview withoutWeighing = WeighingOverview.of(A01, GALPAO_1_WITH_RANGE, List.of());
+        WeighingOverview withoutWeighing = WeighingOverview.of(A01, GALPAO_1_WITH_RANGE, List.of(), TODAY);
 
         // then
         assertThat(withoutRange.rangeStatus()).isEqualTo(WeightRangeStatus.NO_RANGE);
@@ -231,5 +237,58 @@ class WeighingOverviewTest {
         assertThat(overview.chart().get(0).averageWeight()).isEqualByComparingTo("141");
         assertThat(overview.chart().get(11).averageWeight()).isEqualByComparingTo("152");
         assertThat(overview.chart().get(0).weighedOn()).isBefore(overview.chart().get(11).weighedOn());
+    }
+
+    // ---------------------------------------------------------------- agenda de pesagem (010)
+
+    private static final WeighedSector FRIDAYS = new WeighedSector(
+            GALPAO_1.id(), GALPAO_1.name(), Status.ACTIVE, null, DayOfWeek.FRIDAY);
+
+    @Test
+    @DisplayName("gives the next weighing of a cage weighed in the week")
+    void givenCageWeighedInTheWeek_whenBuildingTheOverview_thenGiveTheNextWeighing() {
+        // given
+        List<WeighingEntry> entries = List.of(entry("2026-09-17", "158.0"), entry("2026-09-24", "161.0"));
+
+        // when
+        WeighingOverview overview = WeighingOverview.of(A01, FRIDAYS, entries, TODAY);
+
+        // then
+        assertThat(overview.schedule())
+                .isEqualTo(new WeighingStanding(WeighingSituation.UP_TO_DATE, null, LocalDate.of(2026, 10, 2)));
+    }
+
+    @Test
+    @DisplayName("tells a cage late since the weighing day, and a cage never weighed")
+    void givenCageLateAndCageNeverWeighed_whenBuildingTheOverview_thenTellEachStanding() {
+        // given
+        List<WeighingEntry> late = List.of(entry("2026-09-18", "158.0"));
+
+        // when
+        WeighingOverview lateOverview = WeighingOverview.of(A01, FRIDAYS, late, TODAY);
+        WeighingOverview neverOverview = WeighingOverview.of(A01, FRIDAYS, List.of(), TODAY);
+
+        // then
+        assertThat(lateOverview.schedule())
+                .isEqualTo(new WeighingStanding(WeighingSituation.LATE, LocalDate.of(2026, 9, 25), null));
+        assertThat(neverOverview.schedule())
+                .isEqualTo(new WeighingStanding(WeighingSituation.NEVER_WEIGHED, null, null));
+    }
+
+    @Test
+    @DisplayName("gives no schedule to an inactive cage or to a cage of an inactive sector")
+    void givenInactiveCageOrSector_whenBuildingTheOverview_thenGiveNoSchedule() {
+        // given
+        WeighedCage inactiveCage = new WeighedCage(A01.id(), "A-01", "A", 1, 48, Status.INACTIVE);
+        WeighedSector inactiveSector =
+                new WeighedSector(GALPAO_1.id(), GALPAO_1.name(), Status.INACTIVE, null, DayOfWeek.FRIDAY);
+
+        // when
+        WeighingOverview ofInactiveCage = WeighingOverview.of(inactiveCage, FRIDAYS, List.of(), TODAY);
+        WeighingOverview ofInactiveSector = WeighingOverview.of(A01, inactiveSector, List.of(), TODAY);
+
+        // then
+        assertThat(ofInactiveCage.schedule()).isNull();
+        assertThat(ofInactiveSector.schedule()).isNull();
     }
 }

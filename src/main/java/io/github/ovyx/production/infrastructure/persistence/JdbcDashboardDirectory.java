@@ -1,5 +1,7 @@
 package io.github.ovyx.production.infrastructure.persistence;
 
+import java.time.DayOfWeek;
+import io.github.ovyx.shared.domain.WeighingSchedule;
 import io.github.ovyx.production.application.dailyreport.ReportingSector;
 import io.github.ovyx.production.application.dashboard.ActiveSector;
 import io.github.ovyx.production.application.dashboard.CageWatch;
@@ -235,7 +237,8 @@ public class JdbcDashboardDirectory implements DashboardDirectory {
                             row.getBigDecimal("average_weight"));
                 })
                 .list();
-        return new CageWatchReading(cages, range(sectorId), baseline(sectorId, today));
+        SectorWatch sector = sectorWatch(sectorId);
+        return new CageWatchReading(cages, sector.range(), baseline(sectorId, today), sector.schedule());
     }
 
     /** As aves removidas hoje em cada gaiola do relatorio de hoje. */
@@ -286,16 +289,28 @@ public class JdbcDashboardDirectory implements DashboardDirectory {
         return recent;
     }
 
-    /** A faixa de peso de referencia do setor; {@code null} sem faixa. */
-    private ReferenceWeight range(SectorId sectorId) {
+    /** A faixa de peso e a agenda de pesagem do setor, lidas juntas (feature 010). */
+    private record SectorWatch(ReferenceWeight range, WeighingSchedule schedule) {}
+
+    /**
+     * A faixa de peso de referencia do setor, {@code null} sem faixa, e a agenda de pesagem do setor ativo, com o
+     * dia dele ou sem dia; {@code null} no setor inativo, que nao tem aviso de pesagem (feature 010).
+     */
+    private SectorWatch sectorWatch(SectorId sectorId) {
         return jdbcClient
-                .sql("select reference_weight_min, reference_weight_max from sector"
-                        + " where id = :id and reference_weight_min is not null")
+                .sql("select status, weighing_day, reference_weight_min, reference_weight_max from sector where id = :id")
                 .param("id", sectorId.value())
-                .query((row, index) ->
-                        new ReferenceWeight(row.getInt("reference_weight_min"), row.getInt("reference_weight_max")))
+                .query((row, index) -> {
+                    Integer minimum = row.getObject("reference_weight_min", Integer.class);
+                    String day = row.getString("weighing_day");
+                    return new SectorWatch(
+                            minimum == null ? null : new ReferenceWeight(minimum, row.getInt("reference_weight_max")),
+                            "ACTIVE".equals(row.getString("status"))
+                                    ? new WeighingSchedule(day == null ? null : DayOfWeek.valueOf(day))
+                                    : null);
+                })
                 .optional()
-                .orElse(null);
+                .orElse(new SectorWatch(null, null));
     }
 
     @Override

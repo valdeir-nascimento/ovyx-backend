@@ -1,5 +1,11 @@
 package io.github.ovyx.farm.application.cage;
 
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import io.github.ovyx.shared.application.spreadsheet.Sheet;
+import io.github.ovyx.shared.application.spreadsheet.Column;
+import io.github.ovyx.shared.application.spreadsheet.Cell;
+import io.github.ovyx.farm.domain.model.CageId;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.ovyx.farm.application.common.StatusFilter;
@@ -45,7 +51,7 @@ class ExportCagesQueryHandlerTest {
             List.of("A"),
             Instant.parse("2026-09-01T10:00:00Z"),
             Instant.parse("2026-09-01T10:00:00Z"),
-            null, new BigDecimal("85.0"));
+            null, new BigDecimal("85.0"), null);
     private final RecordingCageDirectory cages = new RecordingCageDirectory().withSector(sectorId);
     private final SectorDirectory sectors = new SectorDirectory() {
         @Override
@@ -75,7 +81,7 @@ class ExportCagesQueryHandlerTest {
     @DisplayName("asks for every cage of the filters, the active ones when no status is asked, the battery in capitals")
     void givenFiltersAndNoStatus_whenExporting_thenAskForTheActiveCagesOfTheFilters() {
         // given
-        ExportCagesQuery query = new ExportCagesQuery(sectorId.toString(), " b-0 ", " b ", null);
+        ExportCagesQuery query = new ExportCagesQuery(sectorId.toString(), " b-0 ", " b ", null, null);
 
         // when
         Result<SpreadsheetFile> result = handler.handle(query);
@@ -83,7 +89,7 @@ class ExportCagesQueryHandlerTest {
         // then
         assertThat(result.value()).isEqualTo(new SpreadsheetFile("gaiolas-codornas-galpao-1.xlsx", CONTENT));
         assertThat(cages.everyCageAsked())
-                .containsExactly(new RecordingCageDirectory.All(sectorId, "b-0", "B", StatusFilter.ACTIVE));
+                .containsExactly(new RecordingCageDirectory.All(sectorId, "b-0", "B", StatusFilter.ACTIVE, null));
         assertThat(written.sheets().getFirst().heading())
                 .contains("Filtros: busca \"b-0\", bateria B, só as ativas", "Gerada em 28/09/2026 às 21:40 (horário da granja)");
     }
@@ -92,14 +98,14 @@ class ExportCagesQueryHandlerTest {
     @DisplayName("leaves a blank code and a blank battery out, and keeps the status asked")
     void givenBlankFiltersAndEveryStatus_whenExporting_thenAskWithoutThem() {
         // given
-        ExportCagesQuery query = new ExportCagesQuery(sectorId.toString(), " ", "", StatusFilter.ALL);
+        ExportCagesQuery query = new ExportCagesQuery(sectorId.toString(), " ", "", StatusFilter.ALL, null);
 
         // when
         handler.handle(query);
 
         // then
         assertThat(cages.everyCageAsked())
-                .containsExactly(new RecordingCageDirectory.All(sectorId, null, null, StatusFilter.ALL));
+                .containsExactly(new RecordingCageDirectory.All(sectorId, null, null, StatusFilter.ALL, null));
     }
 
     @ParameterizedTest(name = "\"{0}\"")
@@ -107,7 +113,7 @@ class ExportCagesQueryHandlerTest {
     @DisplayName("fails as sector not found for a sector that does not exist or a malformed identifier")
     void givenUnknownOrMalformedSector_whenExporting_thenFailAsSectorNotFound(String sector) {
         // given
-        ExportCagesQuery query = new ExportCagesQuery(sector, null, null, null);
+        ExportCagesQuery query = new ExportCagesQuery(sector, null, null, null, null);
 
         // when
         Result<SpreadsheetFile> result = handler.handle(query);
@@ -117,5 +123,87 @@ class ExportCagesQueryHandlerTest {
         assertThat(result.error().code()).isEqualTo("SECTOR_NOT_FOUND");
         assertThat(written).isNull();
         assertThat(cages.everyCageAsked()).isEmpty();
+    }
+
+    // ---------------------------------------------------------------- agenda de pesagem (010)
+
+    @Test
+    @DisplayName("asks for the pending cages since 7 days ago in a sector without a weighing day, and says the filter")
+    void givenPendingFilterInSectorWithoutWeighingDay_whenExporting_thenAskSinceSevenDaysAgo() {
+        // given
+        ExportCagesQuery query = new ExportCagesQuery(sectorId.toString(), null, null, null, WeighingFilter.PENDING);
+
+        // when
+        handler.handle(query);
+
+        // then
+        assertThat(cages.everyCageAsked())
+                .containsExactly(new RecordingCageDirectory.All(
+                        sectorId, null, null, StatusFilter.ACTIVE, LocalDate.of(2026, 9, 21)));
+        assertThat(written.sheets().getFirst().heading()).contains("Filtros: pesagem pendente, só as ativas");
+    }
+
+    @Test
+    @DisplayName("writes the standing of each active cage in the schedule of the sector")
+    void givenCagesWeighedAndNot_whenExporting_thenWriteTheStandingOfEach() {
+        // given
+        cages.answering(List.of(
+                new CageSummary(CageId.generate(), sectorId, "A-01", "A", 1, 50, Status.ACTIVE,
+                        new CageLastWeighing(LocalDate.of(2026, 9, 25), new BigDecimal("160.0")), null),
+                new CageSummary(CageId.generate(), sectorId, "B-07", "B", 7, 50, Status.ACTIVE,
+                        new CageLastWeighing(LocalDate.of(2026, 9, 18), new BigDecimal("160.0")), null)));
+
+        // when
+        handler.handle(new ExportCagesQuery(sectorId.toString(), null, null, null, null));
+
+        // then
+        Sheet sheet = written.sheets().getFirst();
+        int column = sheet.columns().stream().map(Column::title).toList().indexOf("Pesagem");
+        assertThat(sheet.rows()).extracting(row -> row.get(column)).containsExactly(Cell.text("Em dia"), Cell.text("Atrasada"));
+    }
+
+    @Test
+    @DisplayName("exports an empty sheet with the pending filter in an inactive sector, without asking for cages")
+    void givenInactiveSectorAndPendingFilter_whenExporting_thenWriteAnEmptySheetWithoutAskingForCages() {
+        // given
+        SectorDetail inactive = new SectorDetail(
+                sector.id(),
+                sector.name(),
+                null,
+                Status.INACTIVE,
+                0,
+                0,
+                List.of("A"),
+                sector.createdAt(),
+                sector.updatedAt(),
+                null,
+                new BigDecimal("85.0"),
+                DayOfWeek.FRIDAY);
+        ExportCagesQueryHandler onInactive = new ExportCagesQueryHandler(
+                cages,
+                new SectorDirectory() {
+                    @Override
+                    public List<SectorSummary> list(StatusFilter status) {
+                        return List.of();
+                    }
+
+                    @Override
+                    public Optional<SectorDetail> findDetail(SectorId id) {
+                        return Optional.of(inactive);
+                    }
+                },
+                spreadsheet -> {
+                    written = spreadsheet;
+                    return CONTENT;
+                },
+                calendar);
+
+        // when
+        onInactive.handle(new ExportCagesQuery(sectorId.toString(), null, null, null, WeighingFilter.PENDING));
+
+        // then
+        assertThat(cages.everyCageAsked()).isEmpty();
+        assertThat(written.sheets().getFirst().rows()).isEmpty();
+        assertThat(written.sheets().getFirst().heading()).contains("Filtros: pesagem pendente, só as ativas");
     }
 }

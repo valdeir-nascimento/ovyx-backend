@@ -1,5 +1,7 @@
 package io.github.ovyx.farm.infrastructure.persistence;
 
+import io.github.ovyx.farm.application.cage.SectorSchedule;
+import io.github.ovyx.farm.application.cage.CageFilter;
 import io.github.ovyx.farm.application.cage.CageDetail;
 import io.github.ovyx.farm.application.cage.CageDirectory;
 import io.github.ovyx.farm.application.cage.CageLastWeighing;
@@ -64,18 +66,18 @@ public class JdbcCageDirectory implements CageDirectory {
     }
 
     @Override
-    public boolean sectorExists(SectorId sectorId) {
+    public Optional<SectorSchedule> scheduleOf(SectorId sectorId) {
         return jdbcClient
-                .sql("select exists(select 1 from sector where id = :id)")
+                .sql("select status, weighing_day from sector where id = :id")
                 .param("id", sectorId.value())
-                .query(Boolean.class)
-                .single();
+                .query((rs, rowNumber) -> new SectorSchedule(
+                        Status.valueOf(rs.getString("status")), JdbcSectorDirectory.weighingDayOf(rs)))
+                .optional();
     }
 
     @Override
-    public PageResponse<CageSummary> search(
-            SectorId sectorId, String code, String battery, StatusFilter status, int page, int size) {
-        Filter filter = filterOf(sectorId, code, battery, status);
+    public PageResponse<CageSummary> search(SectorId sectorId, CageFilter cageFilter, int page, int size) {
+        Filter filter = filterOf(sectorId, cageFilter);
 
         long total = jdbcClient
                 .sql("select count(*) from cage" + filter.where())
@@ -102,8 +104,8 @@ public class JdbcCageDirectory implements CageDirectory {
 
     /** As gaiolas dos mesmos filtros e da mesma ordem da pesquisa, sem pagina (R-009 da 007). */
     @Override
-    public List<CageSummary> searchAll(SectorId sectorId, String code, String battery, StatusFilter status) {
-        Filter filter = filterOf(sectorId, code, battery, status);
+    public List<CageSummary> searchAll(SectorId sectorId, CageFilter cageFilter) {
+        Filter filter = filterOf(sectorId, cageFilter);
         return jdbcClient
                 .sql("select " + COLUMNS + ", last.last_weighed_on, last.last_average_weight from cage"
                         + LAST_WEIGHING
@@ -117,7 +119,10 @@ public class JdbcCageDirectory implements CageDirectory {
     /** O trecho {@code where} e os parametros de uma pesquisa, iguais na pagina e na exportacao. */
     private record Filter(String where, Map<String, Object> parameters) {}
 
-    private static Filter filterOf(SectorId sectorId, String code, String battery, StatusFilter status) {
+    private static Filter filterOf(SectorId sectorId, CageFilter cageFilter) {
+        String code = cageFilter.code();
+        String battery = cageFilter.battery();
+        StatusFilter status = cageFilter.status();
         // So entram na consulta os filtros informados: um parametro nulo chega ao PostgreSQL sem tipo.
         List<String> conditions = new ArrayList<>(List.of("sector_id = :sectorId"));
         Map<String, Object> parameters = new LinkedHashMap<>(Map.of("sectorId", sectorId.value()));
@@ -133,6 +138,13 @@ public class JdbcCageDirectory implements CageDirectory {
             conditions.add("((" + CODE + ") ilike :pattern escape '\\' or (" + CODE_WITHOUT_ZERO
                     + ") ilike :pattern escape '\\')");
             parameters.put("pattern", "%" + literal(code) + "%");
+        }
+        if (cageFilter.pendingSince() != null) {
+            // "Pesagem pendente" (feature 010): a gaiola ativa sem pesagem valida desde o inicio da semana. O
+            // indice parcial ux_weighing_cage_day atende a procura, e a condicao vale tambem na contagem.
+            conditions.add("status = 'ACTIVE' and not exists (select 1 from weighing w where w.cage_id = cage.id"
+                    + " and w.status = 'VALID' and w.weighed_on >= :pendingSince)");
+            parameters.put("pendingSince", cageFilter.pendingSince());
         }
         return new Filter(" where " + String.join(" and ", conditions), parameters);
     }
@@ -175,7 +187,7 @@ public class JdbcCageDirectory implements CageDirectory {
                 number,
                 rs.getInt("bird_count"),
                 Status.valueOf(rs.getString("status")),
-                lastWeighing);
+                lastWeighing, null);
     }
 
     /** O trecho como texto literal: {@code %} e {@code _} digitados sao procurados, e nao curingas. */

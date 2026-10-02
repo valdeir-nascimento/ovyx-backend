@@ -29,7 +29,7 @@ public final class InMemoryDashboardDirectory implements DashboardDirectory {
     private final Map<UUID, List<ReportDay>> farmDays = new LinkedHashMap<>();
     private final List<ActiveSector> activeSectors = new ArrayList<>();
     private DashboardSectors overview = new DashboardSectors(0, 0, List.of());
-    private CageWatchReading watch = new CageWatchReading(List.of(), null, new MortalityBaseline(0, 0));
+    private CageWatchReading watch = new CageWatchReading(List.of(), null, new MortalityBaseline(0, 0), null);
     private List<LatestReport> latest = List.of();
     private int askedLatest;
     private LocalDate askedFrom;

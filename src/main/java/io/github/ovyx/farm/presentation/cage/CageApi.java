@@ -1,5 +1,6 @@
 package io.github.ovyx.farm.presentation.cage;
 
+import io.github.ovyx.farm.application.cage.WeighingFilter;
 import io.github.ovyx.farm.application.common.StatusFilter;
 import io.github.ovyx.shared.presentation.ProblemResponse;
 import io.github.ovyx.shared.presentation.SpreadsheetResponses;
@@ -120,6 +121,12 @@ public interface CageApi {
                     description = "Situação das gaiolas — ativas, inativas ou todas (`ALL`); ausente, só as ativas.",
                     example = "ACTIVE")
             StatusFilter status,
+            @Parameter(
+                            description = "`PENDING` traz só as gaiolas ativas que faltam pesar: sem pesagem válida na"
+                                    + " semana do setor, ou há mais de 7 dias no setor sem dia definido. Combina com a"
+                                    + " busca e os outros filtros; ausente, sem filtro de pesagem.",
+                            example = "PENDING")
+                    WeighingFilter weighing,
             @Parameter(description = "Página, a partir de 0.", example = "0") int page,
             @Parameter(description = "Gaiolas por página, de 1 a 100.", example = "20") int size);
 
@@ -572,5 +579,11 @@ public interface CageApi {
             String sectorId,
             @Parameter(description = "Trecho do código, sem distinguir maiúsculas, como na pesquisa.", example = "B-0") String code,
             @Parameter(description = "Só as gaiolas desta bateria.", example = "B") String battery,
-            @Parameter(description = "Situação das gaiolas — ativas, inativas ou todas (`ALL`); ausente, só as ativas.", example = "ACTIVE") StatusFilter status);
+            @Parameter(description = "Situação das gaiolas — ativas, inativas ou todas (`ALL`); ausente, só as ativas.", example = "ACTIVE") StatusFilter status,
+            @Parameter(
+                            description = "`PENDING` traz só as gaiolas ativas que faltam pesar: sem pesagem válida na"
+                                    + " semana do setor, ou há mais de 7 dias no setor sem dia definido. Combina com a"
+                                    + " busca e os outros filtros; ausente, sem filtro de pesagem.",
+                            example = "PENDING")
+                    WeighingFilter weighing);
 }
