@@ -74,6 +74,55 @@ public record AccessEvent(
         return create(identifier, caretakerId, AccessOutcome.SIGNED_OUT, origin, clock);
     }
 
+    // ---------------------------------------------------------------- recuperacao de senha (feature 012, R-007)
+    //
+    // O identificador e o e-mail informado no pedido, ou o da conta do link. Um link que nao corresponde a ninguem nao
+    // tem e-mail: fica registrado como UNKNOWN_RECOVERY_LINK. O codigo do link nao tem por onde entrar aqui (FR-018).
+
+    /** O identificador do evento de um link que nao corresponde a nenhum responsavel. */
+    public static final String UNKNOWN_RECOVERY_LINK = "(link de recuperação)";
+
+    public static AccessEvent recoveryLinkSent(String identifier, CaretakerId caretakerId, String origin, Clock clock) {
+        return recovery(identifier, caretakerId, AccessOutcome.RECOVERY_LINK_SENT, origin, clock);
+    }
+
+    public static AccessEvent recoveryUnknownEmail(
+        String identifier, CaretakerId caretakerId, String origin, Clock clock) {
+        return recovery(identifier, caretakerId, AccessOutcome.RECOVERY_UNKNOWN_EMAIL, origin, clock);
+    }
+
+    public static AccessEvent recoveryInactive(String identifier, CaretakerId caretakerId, String origin, Clock clock) {
+        return recovery(identifier, caretakerId, AccessOutcome.RECOVERY_INACTIVE, origin, clock);
+    }
+
+    public static AccessEvent recoveryLimited(String identifier, CaretakerId caretakerId, String origin, Clock clock) {
+        return recovery(identifier, caretakerId, AccessOutcome.RECOVERY_LIMITED, origin, clock);
+    }
+
+    public static AccessEvent recoveryThrottled(String identifier, CaretakerId caretakerId, String origin, Clock clock) {
+        return recovery(identifier, caretakerId, AccessOutcome.RECOVERY_THROTTLED, origin, clock);
+    }
+
+    public static AccessEvent recoveryDeliveryFailed(
+        String identifier, CaretakerId caretakerId, String origin, Clock clock) {
+        return recovery(identifier, caretakerId, AccessOutcome.RECOVERY_DELIVERY_FAILED, origin, clock);
+    }
+
+    public static AccessEvent passwordRecovered(String identifier, CaretakerId caretakerId, String origin, Clock clock) {
+        return recovery(identifier, caretakerId, AccessOutcome.PASSWORD_RECOVERED, origin, clock);
+    }
+
+    public static AccessEvent recoveryLinkRefused(
+        String identifier, CaretakerId caretakerId, String origin, Clock clock) {
+        return recovery(identifier, caretakerId, AccessOutcome.RECOVERY_LINK_REFUSED, origin, clock);
+    }
+
+    private static AccessEvent recovery(
+        String identifier, CaretakerId caretakerId, AccessOutcome outcome, String origin, Clock clock) {
+        String named = identifier == null || identifier.isBlank() ? UNKNOWN_RECOVERY_LINK : identifier;
+        return create(named, caretakerId, outcome, origin, clock);
+    }
+
     private static AccessEvent create(
         String identifier, CaretakerId caretakerId, AccessOutcome outcome, String origin, Clock clock) {
         return new AccessEvent(UUID.randomUUID(), identifier, caretakerId, outcome, origin, clock.instant());

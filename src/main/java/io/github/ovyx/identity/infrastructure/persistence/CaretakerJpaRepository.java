@@ -45,6 +45,9 @@ interface CaretakerJpaRepository extends JpaRepository<CaretakerRecord, UUID> {
 
     Optional<CaretakerRecord> findByCpf(String cpf);
 
+    /** O responsavel do link de recuperacao pendente com este resumo; o indice unico parcial o torna unico. */
+    Optional<CaretakerRecord> findByRecoveryTokenHash(String recoveryTokenHash);
+
     boolean existsByCpfAndIdNot(String cpf, UUID id);
 
     boolean existsByEmailAndStatusAndIdNot(String email, CaretakerStatus status, UUID id);

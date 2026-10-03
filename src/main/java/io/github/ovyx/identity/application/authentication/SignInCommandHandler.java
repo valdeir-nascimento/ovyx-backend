@@ -18,7 +18,7 @@ import io.github.ovyx.shared.application.ErrorType;
 import java.time.Clock;
 import java.util.Optional;
 
-public class SignInCommandHandler implements CommandHandler<SignInCommand, CaretakerId> {
+public class SignInCommandHandler implements CommandHandler<SignInCommand, SignedIn> {
 
     /**
      * Senha usada so para gerar o hash de equalizacao de custo. O valor e irrelevante: o resultado
@@ -58,7 +58,7 @@ public class SignInCommandHandler implements CommandHandler<SignInCommand, Caret
     }
 
     @Override
-    public Result<CaretakerId> handle(SignInCommand command) {
+    public Result<SignedIn> handle(SignInCommand command) {
         String typed = command.identifier();
         String key = AccessIdentifier.of(typed).value();
         String origin = command.origin();
@@ -110,7 +110,7 @@ public class SignInCommandHandler implements CommandHandler<SignInCommand, Caret
 
         signInThrottle.clear(key, origin);
         accessEventRecorder.record(AccessEvent.granted(typed, caretaker.id(), origin, clock));
-        return Result.success(caretaker.id());
+        return Result.success(new SignedIn(caretaker.id(), caretaker.sessionGeneration()));
     }
 
     /**
@@ -126,7 +126,7 @@ public class SignInCommandHandler implements CommandHandler<SignInCommand, Caret
      * <p>Um unico ponto de construcao garante que os caminhos sejam indistinguiveis — inclusive
      * depois de alguem mexer em um deles sem lembrar dos outros.
      */
-    private Result<CaretakerId> invalidCredentials() {
+    private Result<SignedIn> invalidCredentials() {
         return Result.failure(ApplicationError.of(
             ErrorType.UNAUTHENTICATED,
             IdentityErrorCode.INVALID_CREDENTIALS.code(),

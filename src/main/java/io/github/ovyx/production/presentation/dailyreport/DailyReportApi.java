@@ -28,7 +28,7 @@ public interface DailyReportApi {
     String PROBLEM_JSON = "application/problem+json";
 
     String SESSION_REFUSED = "Sem sessão válida (`UNAUTHENTICATED`), ou responsável inativado com a sessão aberta"
-            + " (`CARETAKER_UNAVAILABLE`), caso em que a sessão é encerrada.";
+            + " (`CARETAKER_UNAVAILABLE`), ou sessão aberta antes de a senha ser redefinida pelo link de recuperação (`SESSION_REVOKED`); nesses dois últimos casos a sessão é encerrada.";
     String WRITE_REFUSED = "Sem o token de proteção (`CSRF_TOKEN_INVALID`) ou com a troca de senha pendente"
             + " (`PASSWORD_CHANGE_REQUIRED`). Qualquer perfil escreve; não há 403 de perfil.";
     String READ_REFUSED = "Troca de senha pendente (`PASSWORD_CHANGE_REQUIRED`).";
@@ -802,7 +802,8 @@ public interface DailyReportApi {
     @ApiResponse(
             responseCode = "401",
             description = "Sem sessão válida (`UNAUTHENTICATED`), ou responsável inativado com a sessão aberta "
-                    + "(`CARETAKER_UNAVAILABLE`).",
+                    + "(`CARETAKER_UNAVAILABLE`), ou sessão aberta antes de a senha ser redefinida pelo link de recuperação "
+            + "(`SESSION_REVOKED`).",
             content = @Content(
                     mediaType = PROBLEM_JSON,
                     schema = @Schema(implementation = ProblemResponse.class),
@@ -877,7 +878,8 @@ public interface DailyReportApi {
     @ApiResponse(
             responseCode = "401",
             description = "Sem sessão válida (`UNAUTHENTICATED`), ou responsável inativado com a sessão aberta "
-                    + "(`CARETAKER_UNAVAILABLE`).",
+                    + "(`CARETAKER_UNAVAILABLE`), ou sessão aberta antes de a senha ser redefinida pelo link de recuperação "
+            + "(`SESSION_REVOKED`).",
             content = @Content(
                     mediaType = PROBLEM_JSON,
                     schema = @Schema(implementation = ProblemResponse.class),
@@ -966,7 +968,8 @@ public interface DailyReportApi {
     @ApiResponse(
             responseCode = "401",
             description = "Sem sessão válida (`UNAUTHENTICATED`), ou responsável inativado com a sessão aberta "
-                    + "(`CARETAKER_UNAVAILABLE`).",
+                    + "(`CARETAKER_UNAVAILABLE`), ou sessão aberta antes de a senha ser redefinida pelo link de recuperação "
+            + "(`SESSION_REVOKED`).",
             content = @Content(
                     mediaType = PROBLEM_JSON,
                     schema = @Schema(implementation = ProblemResponse.class),
@@ -1061,7 +1064,8 @@ public interface DailyReportApi {
     @ApiResponse(
         responseCode = "401",
         description = "Sem sessão válida (`UNAUTHENTICATED`), ou responsável inativado com a sessão aberta "
-            + "(`CARETAKER_UNAVAILABLE`).",
+            + "(`CARETAKER_UNAVAILABLE`), ou sessão aberta antes de a senha ser redefinida pelo link de recuperação "
+            + "(`SESSION_REVOKED`).",
         content = @Content(
             mediaType = PROBLEM_JSON,
             schema = @Schema(implementation = ProblemResponse.class),

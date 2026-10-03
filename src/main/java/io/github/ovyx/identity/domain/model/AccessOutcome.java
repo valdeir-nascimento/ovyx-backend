@@ -15,5 +15,23 @@ public enum AccessOutcome {
     INVALID_CREDENTIALS,
     INACTIVE_CARETAKER,
     THROTTLED,
-    SIGNED_OUT
+    SIGNED_OUT,
+    // ---------------------------------------------------------------- recuperacao de senha (feature 012, R-007)
+    // A resposta ao pedido e sempre a mesma; a causa real so existe aqui.
+    /** Link emitido e e-mail aceito pelo servidor de envio. */
+    RECOVERY_LINK_SENT,
+    /** Nenhum responsavel com o e-mail informado. */
+    RECOVERY_UNKNOWN_EMAIL,
+    /** O responsavel do e-mail esta inativo: nao recebe link. */
+    RECOVERY_INACTIVE,
+    /** A conta ja recebeu 3 links na hora contada. */
+    RECOVERY_LIMITED,
+    /** A origem passou do limite de tentativas de recuperacao. */
+    RECOVERY_THROTTLED,
+    /** O servidor de envio recusou ou nao respondeu; o link ficou emitido. */
+    RECOVERY_DELIVERY_FAILED,
+    /** Senha redefinida pelo link. */
+    PASSWORD_RECOVERED,
+    /** Link que nao vale, na conferencia ou na redefinicao. */
+    RECOVERY_LINK_REFUSED
 }

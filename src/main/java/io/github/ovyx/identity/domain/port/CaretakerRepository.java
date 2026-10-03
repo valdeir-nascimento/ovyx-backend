@@ -44,6 +44,14 @@ public interface CaretakerRepository extends CaretakerRoster {
     Optional<Caretaker> findByEmailOrMobilePhone(String canonicalIdentifier);
 
     /**
+     * O responsavel cujo link de recuperacao pendente tem este resumo (feature 012).
+     *
+     * <p>Devolve tambem o inativo e o link vencido: quem decide se o link vale e o agregado, e o tratador precisa da
+     * conta para registrar a recusa na auditoria.
+     */
+    Optional<Caretaker> findByRecoveryTokenHash(String tokenHash);
+
+    /**
      * Localiza o responsavel com o CPF, ativo ou nao.
      *
      * <p>Ha no maximo um: o CPF nao se repete entre responsaveis, em nenhuma situacao (FR-016).

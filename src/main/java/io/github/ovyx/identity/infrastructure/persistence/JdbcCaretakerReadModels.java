@@ -30,7 +30,7 @@ public class JdbcCaretakerReadModels implements CaretakerReadModels {
         return jdbcClient
                 .sql(
                         """
-                        select id, full_name, role, must_change_password, theme_preference
+                        select id, full_name, role, must_change_password, theme_preference, session_generation
                         from caretaker
                         where id = :id and status = 'ACTIVE'
                         """)
@@ -40,7 +40,8 @@ public class JdbcCaretakerReadModels implements CaretakerReadModels {
                         rs.getString("full_name"),
                         Role.valueOf(rs.getString("role")),
                         rs.getBoolean("must_change_password"),
-                        ThemePreference.valueOf(rs.getString("theme_preference"))))
+                        ThemePreference.valueOf(rs.getString("theme_preference")),
+                        rs.getInt("session_generation")))
                 .optional();
     }
 }

@@ -32,7 +32,8 @@ import tools.jackson.databind.ObjectMapper;
  * <p>Roda antes da autorizacao, para que ela decida pelo perfil atual:
  *
  * <ul>
- *   <li>responsavel inativo ou inexistente: a sessao e encerrada, e a recusa do caso de uso sai
+ *   <li>responsavel inativo ou inexistente, ou senha redefinida pelo link depois que a sessao abriu
+ *       ({@code SESSION_REVOKED}, feature 012): a sessao e encerrada, e a recusa do caso de uso sai
  *       pelo {@link ResultHttpMapper}, como na consulta da propria identidade — 401
  *       {@code CARETAKER_UNAVAILABLE}, contado na metrica de falhas como qualquer outra;
  *   <li>perfil, nome ou obrigacao de troca de senha diferentes dos da sessao: a sessao e atualizada,
@@ -76,7 +77,7 @@ public class SessionRevalidationFilter extends OncePerRequestFilter {
         }
 
         Result<AuthenticatedCaretaker> current =
-            dispatcher.ask(new GetAuthenticatedCaretakerQuery(CaretakerId.of(user.id())));
+            dispatcher.ask(new GetAuthenticatedCaretakerQuery(CaretakerId.of(user.id()), user.sessionGeneration()));
 
         if (current.isFailure()) {
             // A sessao sobreviveu ao responsavel: e encerrada, e nao usada.
@@ -89,7 +90,8 @@ public class SessionRevalidationFilter extends OncePerRequestFilter {
             user.id(),
             current.value().fullName(),
             current.value().role().name(),
-            current.value().mustChangePassword());
+            current.value().mustChangePassword(),
+            current.value().sessionGeneration());
         if (!now.equals(user)) {
             sessionAuthenticator.refresh(now, request, response);
         }

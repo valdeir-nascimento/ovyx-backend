@@ -37,6 +37,19 @@ class AccessEventTest {
                 Arguments.of((EventFactory) AccessEvent::signedOut, AccessOutcome.SIGNED_OUT));
     }
 
+    private static Stream<Arguments> recoveryOutcomes() {
+        return Stream.of(
+                Arguments.of((EventFactory) AccessEvent::recoveryLinkSent, AccessOutcome.RECOVERY_LINK_SENT),
+                Arguments.of((EventFactory) AccessEvent::recoveryUnknownEmail, AccessOutcome.RECOVERY_UNKNOWN_EMAIL),
+                Arguments.of((EventFactory) AccessEvent::recoveryInactive, AccessOutcome.RECOVERY_INACTIVE),
+                Arguments.of((EventFactory) AccessEvent::recoveryLimited, AccessOutcome.RECOVERY_LIMITED),
+                Arguments.of((EventFactory) AccessEvent::recoveryThrottled, AccessOutcome.RECOVERY_THROTTLED),
+                Arguments.of(
+                        (EventFactory) AccessEvent::recoveryDeliveryFailed, AccessOutcome.RECOVERY_DELIVERY_FAILED),
+                Arguments.of((EventFactory) AccessEvent::passwordRecovered, AccessOutcome.PASSWORD_RECOVERED),
+                Arguments.of((EventFactory) AccessEvent::recoveryLinkRefused, AccessOutcome.RECOVERY_LINK_REFUSED));
+    }
+
     @Test
     @DisplayName("records granted access with the identified caretaker")
     void givenIdentifiedCaretaker_whenRecordingGrantedAccess_thenKeepWhoWhereAndWhen() {
@@ -82,6 +95,41 @@ class AccessEventTest {
 
         // then
         assertThat(event.outcome()).isEqualTo(expected);
+    }
+
+    @ParameterizedTest(name = "{1}")
+    @MethodSource("recoveryOutcomes")
+    @DisplayName("records each outcome of the password recovery (feature 012)")
+    void givenEachRecoveryOutcome_whenRecording_thenKeepWhoWhereWhenAndTheOutcome(
+            EventFactory factory, AccessOutcome expected) {
+        // given
+        CaretakerId caretakerId = CaretakerId.generate();
+
+        // when
+        AccessEvent event = factory.create(IDENTIFIER, caretakerId, ORIGIN, clock);
+
+        // then
+        assertThat(event.outcome()).isEqualTo(expected);
+        assertThat(event.attemptedIdentifier()).isEqualTo(IDENTIFIER);
+        assertThat(event.caretakerId()).isEqualTo(caretakerId);
+        assertThat(event.origin()).isEqualTo(ORIGIN);
+        assertThat(event.occurredAt()).isEqualTo(Instant.parse("2026-09-19T12:00:00Z"));
+    }
+
+    @ParameterizedTest(name = "{1}")
+    @MethodSource("recoveryOutcomes")
+    @DisplayName("names a recovery link that matches nobody instead of leaving the identifier empty")
+    void givenRecoveryEventWithoutIdentifier_whenRecording_thenNameTheRecoveryLink(
+            EventFactory factory, AccessOutcome expected) {
+        // given — o link que não corresponde a ninguém não tem e-mail a registrar
+
+        // when
+        AccessEvent event = factory.create(null, null, ORIGIN, clock);
+
+        // then
+        assertThat(event.attemptedIdentifier()).isEqualTo(AccessEvent.UNKNOWN_RECOVERY_LINK);
+        assertThat(AccessEvent.UNKNOWN_RECOVERY_LINK).isEqualTo("(link de recuperação)");
+        assertThat(event.caretakerId()).isNull();
     }
 
     @Test

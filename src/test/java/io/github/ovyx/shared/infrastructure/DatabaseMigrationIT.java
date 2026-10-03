@@ -67,7 +67,7 @@ class DatabaseMigrationIT extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("records the twelve migrations as successfully applied")
+    @DisplayName("records the thirteen migrations as successfully applied")
     void givenMigratedDatabase_whenReadingTheHistory_thenFindTheTwelveMigrationsApplied() {
         // given — o contentor compartilhado, migrado na subida
 
@@ -75,7 +75,7 @@ class DatabaseMigrationIT extends IntegrationTestSupport {
         List<String> versions = jdbc().queryForList(APPLIED_VERSIONS, String.class);
 
         // then
-        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12");
+        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13");
     }
 
     @ParameterizedTest
@@ -122,6 +122,7 @@ class DatabaseMigrationIT extends IntegrationTestSupport {
                 .containsExactlyInAnyOrder(
                         "caretaker",
                         "access_event",
+                        "recovery_attempt",
                         "sign_in_attempt",
                         "spring_session",
                         "spring_session_attributes",

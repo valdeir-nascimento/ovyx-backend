@@ -74,6 +74,18 @@ public enum IdentityErrorCode implements ErrorCode {
 
     /** O responsavel pedido nao existe. */
     CARETAKER_NOT_FOUND,
+    /**
+     * O link de recuperacao da senha nao vale: usado, vencido, substituido, anulado, alterado ou inexistente, ou a
+     * origem passou do limite de tentativas (feature 012).
+     *
+     * <p>Codigo unico de proposito, como {@link #INVALID_CREDENTIALS}: distinguir as causas diria a quem sonda se o
+     * link existe e de quem e.
+     */
+    RECOVERY_LINK_INVALID,
+    /** A conta ja recebeu 3 links de recuperacao na hora contada (FR-014 da 012); so a auditoria ve esta recusa. */
+    RECOVERY_LIMIT_REACHED,
+    /** A sessao foi aberta antes de a senha ser redefinida pelo link; a apresentacao a encerra (R-005 da 012). */
+    SESSION_REVOKED,
 
     // ---------------------------------------------------------------- conflitos com outros responsaveis
     // Cada um e, ao mesmo tempo, a regra violada num campo e a recusa da operacao: quando ha mais de
@@ -97,6 +109,17 @@ public enum IdentityErrorCode implements ErrorCode {
      * existem.
      */
     public static final String CARETAKER_UNAVAILABLE_MESSAGE = "Responsável não encontrado ou inativo.";
+
+    /** A mensagem de {@link #RECOVERY_LINK_INVALID}, a mesma para toda causa. */
+    public static final String RECOVERY_LINK_INVALID_MESSAGE =
+            "Este link de recuperação não vale mais. Peça um novo na tela de entrada.";
+
+    /** A mensagem de {@link #RECOVERY_LIMIT_REACHED}, que so a auditoria e o log veem. */
+    public static final String RECOVERY_LIMIT_REACHED_MESSAGE = "Limite de pedidos de recuperação atingido.";
+
+    /** A mensagem de {@link #SESSION_REVOKED}. */
+    public static final String SESSION_REVOKED_MESSAGE =
+            "Sua senha foi redefinida e esta sessão foi encerrada. Entre com a nova senha.";
 
     @Override
     public String code() {

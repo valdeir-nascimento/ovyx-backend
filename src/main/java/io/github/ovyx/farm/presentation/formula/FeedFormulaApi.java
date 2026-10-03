@@ -52,7 +52,8 @@ public interface FeedFormulaApi {
     @ApiResponse(
         responseCode = "401",
         description = "Sem sessão válida (`UNAUTHENTICATED`), ou responsável inativado com a sessão aberta "
-            + "(`CARETAKER_UNAVAILABLE`).",
+            + "(`CARETAKER_UNAVAILABLE`), ou sessão aberta antes de a senha ser redefinida pelo link de recuperação "
+            + "(`SESSION_REVOKED`).",
         content = @Content(
             mediaType = PROBLEM_JSON,
             schema = @Schema(implementation = ProblemResponse.class),
@@ -111,7 +112,8 @@ public interface FeedFormulaApi {
     @ApiResponse(
         responseCode = "401",
         description = "Sem sessão válida (`UNAUTHENTICATED`), ou responsável inativado com a sessão aberta "
-            + "(`CARETAKER_UNAVAILABLE`).",
+            + "(`CARETAKER_UNAVAILABLE`), ou sessão aberta antes de a senha ser redefinida pelo link de recuperação "
+            + "(`SESSION_REVOKED`).",
         content = @Content(
             mediaType = PROBLEM_JSON,
             schema = @Schema(implementation = ProblemResponse.class),
@@ -169,7 +171,8 @@ public interface FeedFormulaApi {
     @ApiResponse(
         responseCode = "401",
         description = "Sem sessão válida (`UNAUTHENTICATED`), ou responsável inativado com a sessão aberta "
-            + "(`CARETAKER_UNAVAILABLE`).",
+            + "(`CARETAKER_UNAVAILABLE`), ou sessão aberta antes de a senha ser redefinida pelo link de recuperação "
+            + "(`SESSION_REVOKED`).",
         content = @Content(
             mediaType = PROBLEM_JSON,
             schema = @Schema(implementation = ProblemResponse.class),
@@ -236,7 +239,8 @@ public interface FeedFormulaApi {
     @ApiResponse(
         responseCode = "401",
         description = "Sem sessão válida (`UNAUTHENTICATED`), ou responsável inativado com a sessão aberta "
-            + "(`CARETAKER_UNAVAILABLE`).",
+            + "(`CARETAKER_UNAVAILABLE`), ou sessão aberta antes de a senha ser redefinida pelo link de recuperação "
+            + "(`SESSION_REVOKED`).",
         content = @Content(
             mediaType = PROBLEM_JSON,
             schema = @Schema(implementation = ProblemResponse.class),
@@ -309,7 +313,8 @@ public interface FeedFormulaApi {
     @ApiResponse(
         responseCode = "401",
         description = "Sem sessão válida (`UNAUTHENTICATED`), ou responsável inativado com a sessão aberta "
-            + "(`CARETAKER_UNAVAILABLE`).",
+            + "(`CARETAKER_UNAVAILABLE`), ou sessão aberta antes de a senha ser redefinida pelo link de recuperação "
+            + "(`SESSION_REVOKED`).",
         content = @Content(
             mediaType = PROBLEM_JSON,
             schema = @Schema(implementation = ProblemResponse.class),
@@ -367,7 +372,8 @@ public interface FeedFormulaApi {
     @ApiResponse(
         responseCode = "401",
         description = "Sem sessão válida (`UNAUTHENTICATED`), ou responsável inativado com a sessão aberta "
-            + "(`CARETAKER_UNAVAILABLE`).",
+            + "(`CARETAKER_UNAVAILABLE`), ou sessão aberta antes de a senha ser redefinida pelo link de recuperação "
+            + "(`SESSION_REVOKED`).",
         content = @Content(
             mediaType = PROBLEM_JSON,
             schema = @Schema(implementation = ProblemResponse.class),

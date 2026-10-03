@@ -9,6 +9,9 @@ import io.github.ovyx.identity.domain.valueobject.Email;
 import io.github.ovyx.identity.domain.valueobject.FullName;
 import io.github.ovyx.identity.domain.valueobject.MobilePhone;
 import io.github.ovyx.identity.domain.valueobject.PasswordHash;
+import io.github.ovyx.identity.domain.valueobject.PasswordRecovery;
+import io.github.ovyx.identity.domain.valueobject.RecoveryAllowance;
+import io.github.ovyx.identity.domain.valueobject.RecoveryToken;
 import io.github.ovyx.shared.domain.AggregateRoot;
 import io.github.ovyx.shared.domain.DomainException;
 import io.github.ovyx.shared.domain.Notification;
@@ -64,6 +67,9 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
     private CaretakerStatus status;
     private boolean mustChangePassword;
     private ThemePreference themePreference;
+    private PasswordRecovery passwordRecovery;
+    private RecoveryAllowance recoveryAllowance;
+    private int sessionGeneration;
     private Instant updatedAt;
 
     private Caretaker(
@@ -77,6 +83,9 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
         CaretakerStatus status,
         boolean mustChangePassword,
         ThemePreference themePreference,
+        PasswordRecovery passwordRecovery,
+        RecoveryAllowance recoveryAllowance,
+        int sessionGeneration,
         Instant createdAt,
         Instant updatedAt) {
         super(id);
@@ -89,6 +98,9 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
         this.status = status;
         this.mustChangePassword = mustChangePassword;
         this.themePreference = themePreference;
+        this.passwordRecovery = passwordRecovery;
+        this.recoveryAllowance = recoveryAllowance;
+        this.sessionGeneration = sessionGeneration;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -147,6 +159,9 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
             Role.of(rawRole),
             CaretakerStatus.ACTIVE,
             mustChangePassword, ThemePreference.SYSTEM,
+            null,
+            RecoveryAllowance.NONE,
+            0,
             now,
             now
         );
@@ -199,6 +214,9 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
         CaretakerStatus status,
         boolean mustChangePassword,
         ThemePreference themePreference,
+        PasswordRecovery passwordRecovery,
+        RecoveryAllowance recoveryAllowance,
+        int sessionGeneration,
         Instant createdAt,
         Instant updatedAt
     ) {
@@ -213,6 +231,9 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
             status,
             mustChangePassword,
             themePreference,
+            passwordRecovery,
+            recoveryAllowance,
+            sessionGeneration,
             createdAt,
             updatedAt
         );
@@ -264,6 +285,8 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
 
         this.passwordHash = hasher.hash(newPassword);
         this.mustChangePassword = false;
+        // Toda troca de senha anula o link de recuperacao pendente (FR-007 da 012).
+        this.passwordRecovery = null;
         touch(clock);
     }
 
@@ -330,6 +353,8 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
             refuse(new Notification().add("status", IdentityErrorCode.LAST_ADMINISTRATOR, KEEP_AN_ADMINISTRATOR));
         }
         this.status = CaretakerStatus.INACTIVE;
+        // O inativo nao recupera a senha: o link pendente deixa de valer (FR-007 da 012).
+        this.passwordRecovery = null;
         touch(clock);
     }
 
@@ -378,6 +403,7 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
         this.role = Role.ADMINISTRATOR;
         this.status = CaretakerStatus.ACTIVE;
         this.mustChangePassword = true;
+        this.passwordRecovery = null;
         touch(clock);
     }
 
@@ -499,8 +525,103 @@ public final class Caretaker extends AggregateRoot<CaretakerId> {
         this.themePreference = ThemePreference.of(rawTheme);
     }
 
+    /**
+     * Emite o link de recuperacao da senha (US1 da 012): guarda o resumo do codigo e o fim da validade, 30 minutos
+     * depois do pedido. O link anterior, se havia, deixa de valer: so o mais recente vale (FR-006).
+     *
+     * <p>E um pedido de quem esqueceu a senha, e nao uma alteracao de cadastro: nao muda o instante da ultima
+     * alteracao.
+     *
+     * <p>A conta recebe no maximo 3 links por hora (FR-014): o quarto e recusado, e o link anterior continua valendo.
+     *
+     * @throws DomainException com {@code CARETAKER_UNAVAILABLE}, quando o responsavel esta inativo, ou com
+     *     {@code RECOVERY_LIMIT_REACHED}, quando a conta ja recebeu 3 links na hora
+     */
+    public void issuePasswordRecovery(RecoveryToken token, Clock clock) {
+        if (!isActive()) {
+            throw new DomainException(
+                    IdentityErrorCode.CARETAKER_UNAVAILABLE, IdentityErrorCode.CARETAKER_UNAVAILABLE_MESSAGE);
+        }
+        Instant now = clock.instant();
+        this.recoveryAllowance = recoveryAllowance.count(now);
+        this.passwordRecovery = PasswordRecovery.issue(token, now);
+    }
+
+    /**
+     * Redefine a senha pelo link de recuperacao (US2 da 012).
+     *
+     * <p>O link precisa ser o pendente, ainda valido, de um responsavel ativo; qualquer outro caso e a mesma recusa,
+     * {@code RECOVERY_LINK_INVALID}, sem dizer o motivo. A nova senha segue a politica da troca da propria senha, com
+     * todas as violacoes de uma vez em {@code newPassword}, e a recusa dela nao gasta o link.
+     *
+     * <p>Aceita, a redefinicao:
+     *
+     * <ul>
+     *   <li>troca a senha e anula o link, que serve uma unica vez;
+     *   <li>retira a obrigacao da senha provisoria: quem recuperou a senha ja escolheu a sua;
+     *   <li>soma 1 na geracao de sessao, o que encerra as sessoes abertas antes dela (R-005).
+     * </ul>
+     *
+     * @throws DomainException com {@code RECOVERY_LINK_INVALID}, quando o link nao vale, ou com
+     *     {@code VALIDATION_FAILED}, quando a nova senha viola a politica
+     */
+    public void recoverPassword(String rawToken, String newPassword, PasswordHasher hasher, Clock clock) {
+        refuseUnlessTheLinkHolds(rawToken, clock);
+
+        Notification notification = new Notification();
+        PasswordPolicy.validate(newPassword, "newPassword", email.value(), cpf.value(), notification);
+        notification.throwIfAny(IdentityErrorCode.VALIDATION_FAILED);
+
+        this.passwordHash = hasher.hash(newPassword);
+        this.mustChangePassword = false;
+        this.passwordRecovery = null;
+        this.sessionGeneration = sessionGeneration + 1;
+        touch(clock);
+    }
+
+    /**
+     * Confere o link de recuperacao, sem muda-lo (US2 da 012): a tela de redefinicao diz logo, ao abrir, se ele nao
+     * vale mais.
+     *
+     * @throws DomainException com {@code RECOVERY_LINK_INVALID}, quando o link nao vale
+     */
+    public void checkRecovery(String rawToken, Clock clock) {
+        refuseUnlessTheLinkHolds(rawToken, clock);
+    }
+
+    /**
+     * Se o link deste codigo ainda e o pendente: nao foi anulado nem substituido por um mais novo (FR-006). Nao olha o
+     * vencimento, porque serve a quem ja tem o codigo emitido em maos, como o envio do e-mail.
+     */
+    public boolean holdsPendingRecovery(RecoveryToken token) {
+        return passwordRecovery != null && passwordRecovery.tokenHash().equals(token.hash());
+    }
+
+    private void refuseUnlessTheLinkHolds(String rawToken, Clock clock) {
+        RecoveryToken token = RecoveryToken.of(rawToken);
+        if (!isActive() || passwordRecovery == null || !passwordRecovery.isValidFor(token.hash(), clock.instant())) {
+            throw new DomainException(
+                    IdentityErrorCode.RECOVERY_LINK_INVALID, IdentityErrorCode.RECOVERY_LINK_INVALID_MESSAGE);
+        }
+    }
+
     public boolean mustChangePassword() {
         return mustChangePassword;
+    }
+
+    /** O link de recuperacao pendente, ou {@code null} quando nao ha nenhum (feature 012). */
+    public PasswordRecovery passwordRecovery() {
+        return passwordRecovery;
+    }
+
+    /** Os links de recuperacao contados na hora, para o limite de 3 (feature 012). */
+    public RecoveryAllowance recoveryAllowance() {
+        return recoveryAllowance;
+    }
+
+    /** A geracao de sessao: a sessao aberta com outra e encerrada (R-005 da 012). */
+    public int sessionGeneration() {
+        return sessionGeneration;
     }
 
     public Instant createdAt() {

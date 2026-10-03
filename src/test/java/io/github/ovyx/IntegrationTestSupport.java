@@ -1,5 +1,7 @@
 package io.github.ovyx;
 
+import com.icegreen.greenmail.util.GreenMail;
+import com.icegreen.greenmail.util.ServerSetupTest;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -18,6 +20,10 @@ import org.testcontainers.utility.DockerImageName;
  * teste. Nao e parado explicitamente — o Ryuk, contentor sentinela do Testcontainers, remove tudo
  * ao fim da execucao.
  *
+ * <p>O servidor SMTP tambem e um singleton: o GreenMail, em processo, numa porta livre (feature
+ * 012). Ele recebe de verdade os e-mails que a aplicacao envia, e cada teste que os confere limpa
+ * a caixa antes, com {@code MAIL.purgeEmailFromAllMailboxes()}.
+ *
  * <p>Nota de versao: o Spring Boot 4.1.1 gerencia Testcontainers 2.0.5, cuja classe vive em
  * {@code org.testcontainers.postgresql} — e nao em {@code org.testcontainers.containers}, como na
  * linha 1.x.
@@ -32,8 +38,16 @@ public abstract class IntegrationTestSupport {
                     .withUsername("ovyx")
                     .withPassword("ovyx");
 
+    protected static final GreenMail MAIL = new GreenMail(ServerSetupTest.SMTP.dynamicPort());
+
+    /** O remetente e o endereco da aplicacao que os e-mails dos testes trazem. */
+    protected static final String MAIL_FROM = "ovyx@ovyx.test";
+
+    protected static final String APP_URL = "http://localhost:4200";
+
     static {
         POSTGRES.start();
+        MAIL.start();
     }
 
     @DynamicPropertySource
@@ -41,5 +55,15 @@ public abstract class IntegrationTestSupport {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
+    }
+
+    @DynamicPropertySource
+    static void registerMail(DynamicPropertyRegistry registry) {
+        registry.add("spring.mail.host", () -> "127.0.0.1");
+        registry.add("spring.mail.port", () -> MAIL.getSmtp().getPort());
+        registry.add("spring.mail.username", () -> "");
+        registry.add("spring.mail.password", () -> "");
+        registry.add("ovyx.mail.from", () -> MAIL_FROM);
+        registry.add("ovyx.mail.app-url", () -> APP_URL);
     }
 }

@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.github.ovyx.identity.domain.model.CaretakerId;
 import io.github.ovyx.identity.domain.model.Role;
 import io.github.ovyx.identity.domain.IdentityErrorCode;
+import io.github.ovyx.shared.application.ErrorType;
 import io.github.ovyx.shared.application.Result;
 import java.util.HashMap;
 import java.util.Map;
@@ -45,7 +46,7 @@ class GetAuthenticatedCaretakerQueryHandlerTest {
     void givenExistingCaretaker_whenAskingWhoIsAuthenticated_thenReturnTheReadModel() {
         // given
         CaretakerId id = CaretakerId.generate();
-        readModels.put(new AuthenticatedCaretaker(id, "Maria Silva", Role.USER, false, ThemePreference.SYSTEM));
+        readModels.put(new AuthenticatedCaretaker(id, "Maria Silva", Role.USER, false, ThemePreference.SYSTEM, 0));
 
         // when
         Result<AuthenticatedCaretaker> result = handler.handle(new GetAuthenticatedCaretakerQuery(id));
@@ -77,7 +78,7 @@ class GetAuthenticatedCaretakerQueryHandlerTest {
         // Invariante estrutural: AuthenticatedCaretaker nao tem campo de senha nem de hash.
         // Reusar a entidade de dominio como resposta arrastaria o hash ate a borda HTTP.
         CaretakerId id = CaretakerId.generate();
-        readModels.put(new AuthenticatedCaretaker(id, "Maria Silva", Role.USER, false, ThemePreference.SYSTEM));
+        readModels.put(new AuthenticatedCaretaker(id, "Maria Silva", Role.USER, false, ThemePreference.SYSTEM, 0));
 
         // when
         AuthenticatedCaretaker model = handler.handle(new GetAuthenticatedCaretakerQuery(id)).value();
@@ -86,7 +87,7 @@ class GetAuthenticatedCaretakerQueryHandlerTest {
         assertThat(model.toString()).doesNotContain("argon2");
         assertThat(AuthenticatedCaretaker.class.getRecordComponents())
                 .extracting(java.lang.reflect.RecordComponent::getName)
-                .containsExactly("id", "fullName", "role", "mustChangePassword", "theme");
+                .containsExactly("id", "fullName", "role", "mustChangePassword", "theme", "sessionGeneration");
     }
 
     @Test
@@ -94,12 +95,55 @@ class GetAuthenticatedCaretakerQueryHandlerTest {
     void givenCaretakerWithTheDarkTheme_whenAskingWhoIsAuthenticated_thenCarryTheTheme() {
         // given
         CaretakerId id = CaretakerId.generate();
-        readModels.put(new AuthenticatedCaretaker(id, "Maria Silva", Role.USER, false, ThemePreference.DARK));
+        readModels.put(new AuthenticatedCaretaker(id, "Maria Silva", Role.USER, false, ThemePreference.DARK, 0));
 
         // when
         AuthenticatedCaretaker model = handler.handle(new GetAuthenticatedCaretakerQuery(id)).value();
 
         // then
         assertThat(model.theme()).isEqualTo(ThemePreference.DARK);
+    }
+
+    @Test
+    @DisplayName("carries the session generation of the caretaker, for the revalidation of the session (012)")
+    void givenCaretakerWhosePasswordWasRecovered_whenAskingWhoIsAuthenticated_thenCarryTheSessionGeneration() {
+        // given
+        CaretakerId id = CaretakerId.generate();
+        readModels.put(new AuthenticatedCaretaker(id, "Maria Silva", Role.USER, false, ThemePreference.SYSTEM, 2));
+
+        // when
+        AuthenticatedCaretaker model = handler.handle(new GetAuthenticatedCaretakerQuery(id)).value();
+
+        // then
+        assertThat(model.sessionGeneration()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("refuses a session opened before the password was recovered by the link (012)")
+    void givenSessionWithAnOlderGeneration_whenAskingWhoIsAuthenticated_thenFailAsSessionRevoked() {
+        // given
+        CaretakerId id = CaretakerId.generate();
+        readModels.put(new AuthenticatedCaretaker(id, "Maria Silva", Role.USER, false, ThemePreference.SYSTEM, 1));
+
+        // when
+        Result<AuthenticatedCaretaker> result = handler.handle(new GetAuthenticatedCaretakerQuery(id, 0));
+
+        // then
+        assertThat(result.error().type()).isEqualTo(ErrorType.UNAUTHENTICATED);
+        assertThat(result.error().code()).isEqualTo("SESSION_REVOKED");
+        assertThat(result.error().message())
+                .isEqualTo("Sua senha foi redefinida e esta sessão foi encerrada. Entre com a nova senha.");
+    }
+
+    @Test
+    @DisplayName("accepts a session of the current generation, and a question without a session to check")
+    void givenCurrentGenerationOrNoneToCheck_whenAskingWhoIsAuthenticated_thenReturnTheReadModel() {
+        // given
+        CaretakerId id = CaretakerId.generate();
+        readModels.put(new AuthenticatedCaretaker(id, "Maria Silva", Role.USER, false, ThemePreference.SYSTEM, 1));
+
+        // when / then
+        assertThat(handler.handle(new GetAuthenticatedCaretakerQuery(id, 1)).isSuccess()).isTrue();
+        assertThat(handler.handle(new GetAuthenticatedCaretakerQuery(id)).isSuccess()).isTrue();
     }
 }

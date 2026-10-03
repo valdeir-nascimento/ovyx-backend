@@ -18,7 +18,7 @@ class AuthenticatedUserTest {
     private static final UUID ID = UUID.fromString("6f1b4c7e-9a2d-4f3b-8c1e-2d5a7b9c0e11");
 
     private static AuthenticatedUser administrator(boolean mustChangePassword) {
-        return new AuthenticatedUser(ID, "Maria Silva", "ADMINISTRATOR", mustChangePassword);
+        return new AuthenticatedUser(ID, "Maria Silva", "ADMINISTRATOR", mustChangePassword, 0);
     }
 
     @Test
@@ -45,7 +45,7 @@ class AuthenticatedUserTest {
 
         // then
         assertThat(changed.mustChangePassword()).isFalse();
-        assertThat(changed).isEqualTo(new AuthenticatedUser(ID, "Maria Silva", "ADMINISTRATOR", false));
+        assertThat(changed).isEqualTo(new AuthenticatedUser(ID, "Maria Silva", "ADMINISTRATOR", false, 0));
     }
 
     @Test

@@ -106,6 +106,15 @@ public class OpenApiConfiguration {
                         devolvem, para o cliente abrir a primeira tela já no tema dela; só o próprio responsável a \
                         muda, e a troca não entra no histórico de acessos.
 
+                        **Recuperação de senha** (feature 012): quem esqueceu a senha pede, pelo e-mail da conta, \
+                        um link de uso único que vale 30 minutos e chega por e-mail. O pedido responde 202 **sempre \
+                        igual e no mesmo tempo**, exista ou não a conta, esteja ela ativa ou não, e mesmo quando um \
+                        limite foi atingido: o trabalho acontece depois da resposta. Só o link mais recente de cada \
+                        conta vale, e qualquer troca de senha ou a inativação o anulam. A redefinição pelo link \
+                        encerra todas as sessões abertas da pessoa: a próxima requisição delas responde 401 \
+                        `SESSION_REVOKED`. O link nunca aparece na auditoria nem nas respostas; os pedidos e as \
+                        redefinições entram no histórico de acessos.
+
                         **Falha inesperada**: defeito técnico responde 500 com `code` `INTERNAL_ERROR`, sem nenhum \
                         detalhe da causa, que vai apenas para o log do servidor.
 

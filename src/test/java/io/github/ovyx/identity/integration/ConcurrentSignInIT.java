@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.zaxxer.hikari.HikariDataSource;
 import io.github.ovyx.IntegrationTestSupport;
 import io.github.ovyx.identity.application.authentication.SignInCommand;
-import io.github.ovyx.identity.domain.model.CaretakerId;
+import io.github.ovyx.identity.application.authentication.SignedIn;
 import io.github.ovyx.shared.application.Dispatcher;
 import io.github.ovyx.shared.application.Result;
 import java.time.Duration;
@@ -62,7 +62,7 @@ class ConcurrentSignInIT extends IntegrationTestSupport {
     }
 
     /** Uma entrada com identificador e origem proprios, para a contencao nao bloquear nenhuma. */
-    private CompletableFuture<Result<CaretakerId>> signInWhenReleased(CountDownLatch start, int attempt) {
+    private CompletableFuture<Result<SignedIn>> signInWhenReleased(CountDownLatch start, int attempt) {
         return CompletableFuture.supplyAsync(
                 () -> {
                     awaitQuietly(start);
@@ -90,7 +90,7 @@ class ConcurrentSignInIT extends IntegrationTestSupport {
         // given
         int attempts = 2 * poolSize();
         CountDownLatch start = new CountDownLatch(1);
-        List<CompletableFuture<Result<CaretakerId>>> inFlight = IntStream.range(0, attempts)
+        List<CompletableFuture<Result<SignedIn>>> inFlight = IntStream.range(0, attempts)
                 .mapToObj(attempt -> signInWhenReleased(start, attempt))
                 .toList();
 

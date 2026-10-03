@@ -50,6 +50,14 @@ public final class InMemoryCaretakerRepository implements CaretakerRepository {
     }
 
     @Override
+    public Optional<Caretaker> findByRecoveryTokenHash(String tokenHash) {
+        return stored.values().stream()
+            .filter(caretaker -> caretaker.passwordRecovery() != null
+                && caretaker.passwordRecovery().tokenHash().equals(tokenHash))
+            .findFirst();
+    }
+
+    @Override
     public Optional<Caretaker> findByCpf(Cpf cpf) {
         return stored.values().stream().filter(caretaker -> caretaker.cpf().equals(cpf)).findFirst();
     }

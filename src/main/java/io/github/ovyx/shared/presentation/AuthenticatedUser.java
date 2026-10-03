@@ -20,8 +20,12 @@ import java.util.UUID;
  * @param fullName nome exibido na interface
  * @param role perfil, no vocabulario do contexto que autenticou
  * @param mustChangePassword troca de senha provisoria pendente (FR-025)
+ * @param sessionGeneration a geracao de sessao do responsavel na entrada (R-005 da 012): a redefinicao da senha pelo
+ *     link a muda, e a sessao com a geracao antiga e encerrada. A sessao gravada antes da 012 nao a tem e, lida, vale
+ *     0, a geracao de todos ate a primeira redefinicao.
  */
-public record AuthenticatedUser(UUID id, String fullName, String role, boolean mustChangePassword)
+public record AuthenticatedUser(
+        UUID id, String fullName, String role, boolean mustChangePassword, int sessionGeneration)
         implements Serializable {
 
     /** Autoridade no formato que o Spring Security espera. */
@@ -31,7 +35,7 @@ public record AuthenticatedUser(UUID id, String fullName, String role, boolean m
 
     /** Copia com a obrigacao de trocar a senha encerrada, apos a troca. */
     public AuthenticatedUser withPasswordChanged() {
-        return new AuthenticatedUser(id, fullName, role, false);
+        return new AuthenticatedUser(id, fullName, role, false, sessionGeneration);
     }
 
     /** Nunca inclui o nome: identifica sem expor dado pessoal em log. */
