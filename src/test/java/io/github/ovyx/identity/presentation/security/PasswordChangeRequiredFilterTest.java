@@ -39,7 +39,7 @@ class PasswordChangeRequiredFilterTest {
 
     private static void authenticate(boolean mustChangePassword) {
         AuthenticatedUser principal = new AuthenticatedUser(
-                UUID.randomUUID(), "Administrador do Sistema", Role.ADMINISTRATOR.name(), mustChangePassword);
+                UUID.randomUUID(), "Administrador do Sistema", Role.ADMINISTRATOR.name(), mustChangePassword, 0);
         SecurityContextHolder.getContext()
                 .setAuthentication(new UsernamePasswordAuthenticationToken(
                         principal, null, List.of(new SimpleGrantedAuthority(principal.authority()))));

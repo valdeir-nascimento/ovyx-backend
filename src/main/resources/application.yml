@@ -42,6 +42,22 @@ spring:
       # As tabelas vem da migracao V4; o Spring Session nao deve cria-las.
       initialize-schema: never
 
+  mail:
+    # Servidor SMTP do envio do link de recuperacao da senha e do aviso da redefinicao (feature
+    # 012, R-006). Nenhum valor de producao no codigo: cada instalacao informa o seu (FR-019).
+    host: ${OVYX_MAIL_HOST:}
+    port: ${OVYX_MAIL_PORT:587}
+    username: ${OVYX_MAIL_USER:}
+    password: ${OVYX_MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          # Sem espera indefinida: o envio roda fora da requisicao, mas um servidor parado nao pode
+          # prender as threads dos comandos adiados.
+          connectiontimeout: 10000
+          timeout: 10000
+          writetimeout: 10000
+
 server:
   port: 8080
   # A origem de cada tentativa de acesso vem de request.getRemoteAddr(). Atras de um
@@ -110,6 +126,16 @@ ovyx:
       max-failures: 5
       window: 15m
       block-duration: 15m
+    # Contencao da recuperacao de senha por origem (FR-015 da 012): pedidos e links invalidos.
+    recovery-throttle:
+      max-attempts: 10
+      window: 15m
+      block-duration: 15m
+  mail:
+    # Remetente dos e-mails do Ovyx e endereco da aplicacao que os links abrem (feature 012).
+    # Obrigatorios fora do perfil dev: sem eles a aplicacao recusa subir, dizendo qual falta.
+    from: ${OVYX_MAIL_FROM:}
+    app-url: ${OVYX_APP_URL:}
   bootstrap:
     administrator:
       full-name: ${OVYX_BOOTSTRAP_ADMIN_NAME:Administrador do Sistema}
@@ -130,6 +156,18 @@ spring:
   config:
     activate:
       on-profile: dev
+  mail:
+    # Mailpit do docker-compose: guarda os e-mails sem entrega-los (interface em localhost:8025).
+    host: ${OVYX_MAIL_HOST:localhost}
+    port: ${OVYX_MAIL_PORT:1025}
+    properties:
+      mail:
+        smtp:
+          # O nome que o Jakarta Mail anuncia ao servidor (EHLO). Sem ele, cada envio pergunta o nome da maquina
+          # ao DNS, o que leva segundos no Windows (QA da 012).
+          localhost: localhost
+        # O mesmo nome no Message-ID, que tambem perguntava ao DNS (QA da 012, rodada 2).
+        host: localhost
 
 server:
   servlet:
@@ -139,6 +177,9 @@ server:
         secure: false
 
 ovyx:
+  mail:
+    from: ${OVYX_MAIL_FROM:ovyx@localhost}
+    app-url: ${OVYX_APP_URL:http://localhost:4200}
   api-docs:
     # A interface de documentacao (porta 9090) chama a API nesta porta: sem CORS, o
     # "Try it out" nao dispara. Fora do dev, liberar e decisao de cada ambiente.

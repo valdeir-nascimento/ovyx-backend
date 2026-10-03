@@ -32,6 +32,7 @@
         <archunit.version>1.5.0</archunit.version>
         <spotless.version>3.10.2</spotless.version>
         <fastexcel.version>0.20.2</fastexcel.version>
+        <greenmail.version>2.1.14</greenmail.version>
     </properties>
 
     <dependencies>
@@ -109,6 +110,15 @@
             <version>${fastexcel.version}</version>
         </dependency>
 
+        <!--
+          Envio de e-mail (feature 012): o link de recuperacao da senha e o aviso da redefinicao,
+          por SMTP. Fica so na infraestrutura do identity (R-006).
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
         <!-- ============================ Testes ============================ -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -137,6 +147,27 @@
             <artifactId>fastexcel-reader</artifactId>
             <version>${fastexcel.version}</version>
             <scope>test</scope>
+        </dependency>
+        <!-- Espera o que acontece fora da requisicao, como os comandos adiados da feature 012, sem Thread.sleep -->
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Servidor SMTP em processo, sem Docker, para os testes do envio de e-mail (feature 012) -->
+        <dependency>
+            <groupId>com.icegreen</groupId>
+            <artifactId>greenmail-junit5</artifactId>
+            <version>${greenmail.version}</version>
+            <scope>test</scope>
+            <exclusions>
+                <!-- O pacote unico do Angus repete as classes do jakarta.mail-api e do angus-mail que o
+                     starter de e-mail ja traz, nas mesmas versoes. -->
+                <exclusion>
+                    <groupId>org.eclipse.angus</groupId>
+                    <artifactId>jakarta.mail</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <!--
           Testcontainers 2.x renomeou os artefatos: postgresql virou

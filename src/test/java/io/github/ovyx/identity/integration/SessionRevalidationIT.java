@@ -277,4 +277,44 @@ class SessionRevalidationIT extends IntegrationTestSupport {
         // then
         response.andExpect(status().isOk());
     }
+
+    // ---------------------------------------------------------------- geração de sessão (012)
+
+    private ResultActions me(Cookie[] cookies) throws Exception {
+        return mockMvc.perform(get("/api/v1/auth/me").cookie(cookies));
+    }
+
+    @Test
+    @DisplayName("ends a session opened before the password was recovered by the link, saying why")
+    void givenSessionOpenedBeforeTheRecovery_whenUsingIt_thenEndItWithSessionRevoked() throws Exception {
+        // given
+        Caretaker maria = saved(Role.USER);
+        Cookie[] cookies = signedIn(maria);
+        jdbc.update("update caretaker set session_generation = session_generation + 1 where id = ?", maria.id().value());
+
+        // when
+        ResultActions response = me(cookies);
+
+        // then
+        response.andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("SESSION_REVOKED"))
+                .andExpect(jsonPath("$.detail")
+                        .value("Sua senha foi redefinida e esta sessão foi encerrada. Entre com a nova senha."));
+        me(cookies).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+    }
+
+    @Test
+    @DisplayName("keeps a session opened after the recovery, and the sessions of other caretakers")
+    void givenSessionOpenedAfterTheRecoveryAndOtherCaretaker_whenUsingThem_thenKeepBoth() throws Exception {
+        // given
+        Caretaker maria = saved(Role.USER);
+        Caretaker joao = saved(Role.USER);
+        Cookie[] joaoCookies = signedIn(joao);
+        jdbc.update("update caretaker set session_generation = session_generation + 1 where id = ?", maria.id().value());
+        Cookie[] mariaCookies = signedIn(maria);
+
+        // when / then
+        me(mariaCookies).andExpect(status().isOk());
+        me(joaoCookies).andExpect(status().isOk());
+    }
 }

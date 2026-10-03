@@ -41,7 +41,12 @@ public class PasswordChangeRequiredFilter extends OncePerRequestFilter {
             "PUT /api/v1/me/password",
             "POST /api/v1/auth/sign-out",
             "GET /api/v1/auth/me",
-            "POST /api/v1/auth/sign-in"
+            "POST /api/v1/auth/sign-in",
+            // A recuperacao de senha nao depende da sessao (feature 012): quem tem uma sessao pendente aberta
+            // continua podendo usar o link.
+            "POST /api/v1/auth/password-recovery",
+            "POST /api/v1/auth/password-recovery/verification",
+            "POST /api/v1/auth/password-reset"
         );
 
 

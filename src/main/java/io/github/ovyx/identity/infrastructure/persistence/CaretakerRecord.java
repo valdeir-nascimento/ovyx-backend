@@ -63,6 +63,22 @@ public class CaretakerRecord {
     @Column(name = "theme_preference", nullable = false, length = 6)
     private ThemePreference themePreference;
 
+    /** O resumo do codigo do link de recuperacao pendente; nunca o codigo (feature 012). */
+    @Column(name = "recovery_token_hash", length = 64)
+    private String recoveryTokenHash;
+
+    @Column(name = "recovery_expires_at")
+    private Instant recoveryExpiresAt;
+
+    @Column(name = "recovery_window_started_at")
+    private Instant recoveryWindowStartedAt;
+
+    @Column(name = "recovery_requests_in_window", nullable = false)
+    private short recoveryRequestsInWindow;
+
+    @Column(name = "session_generation", nullable = false)
+    private int sessionGeneration;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -151,6 +167,26 @@ public class CaretakerRecord {
         return themePreference;
     }
 
+    String getRecoveryTokenHash() {
+        return recoveryTokenHash;
+    }
+
+    Instant getRecoveryExpiresAt() {
+        return recoveryExpiresAt;
+    }
+
+    Instant getRecoveryWindowStartedAt() {
+        return recoveryWindowStartedAt;
+    }
+
+    int getRecoveryRequestsInWindow() {
+        return recoveryRequestsInWindow;
+    }
+
+    int getSessionGeneration() {
+        return sessionGeneration;
+    }
+
     Instant getCreatedAt() {
         return createdAt;
     }
@@ -181,5 +217,19 @@ public class CaretakerRecord {
         this.mustChangePassword = mustChangePassword;
         this.themePreference = themePreference;
         this.updatedAt = updatedAt;
+    }
+
+    /** Atualiza o estado da recuperacao de senha e a geracao de sessao (feature 012). */
+    void applyRecovery(
+            String recoveryTokenHash,
+            Instant recoveryExpiresAt,
+            Instant recoveryWindowStartedAt,
+            int recoveryRequestsInWindow,
+            int sessionGeneration) {
+        this.recoveryTokenHash = recoveryTokenHash;
+        this.recoveryExpiresAt = recoveryExpiresAt;
+        this.recoveryWindowStartedAt = recoveryWindowStartedAt;
+        this.recoveryRequestsInWindow = (short) recoveryRequestsInWindow;
+        this.sessionGeneration = sessionGeneration;
     }
 }

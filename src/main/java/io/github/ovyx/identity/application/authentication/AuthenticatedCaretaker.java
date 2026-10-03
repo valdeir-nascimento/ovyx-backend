@@ -12,4 +12,9 @@ import io.github.ovyx.identity.domain.model.Role;
  * hash escapar ate a borda HTTP por descuido.
  */
 public record AuthenticatedCaretaker(
-        CaretakerId id, String fullName, Role role, boolean mustChangePassword, ThemePreference theme) {}
+        CaretakerId id,
+        String fullName,
+        Role role,
+        boolean mustChangePassword,
+        ThemePreference theme,
+        int sessionGeneration) {}

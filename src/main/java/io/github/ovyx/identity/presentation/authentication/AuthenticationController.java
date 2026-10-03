@@ -4,8 +4,10 @@ import io.github.ovyx.identity.application.authentication.AuthenticatedCaretaker
 import io.github.ovyx.identity.application.authentication.GetAuthenticatedCaretakerQuery;
 import io.github.ovyx.identity.application.authentication.SignInCommand;
 import io.github.ovyx.identity.application.authentication.SignOutCommand;
+import io.github.ovyx.identity.application.authentication.SignedIn;
 import io.github.ovyx.identity.domain.IdentityErrorCode;
 import io.github.ovyx.identity.domain.model.CaretakerId;
+import io.github.ovyx.identity.presentation.security.RequestOrigin;
 import io.github.ovyx.identity.presentation.security.SessionAuthenticator;
 import io.github.ovyx.shared.application.ApplicationError;
 import io.github.ovyx.shared.application.Dispatcher;
@@ -28,10 +30,6 @@ public class AuthenticationController implements AuthenticationApi {
 
     private static final Logger log = LoggerFactory.getLogger(AuthenticationController.class);
 
-    /**
-     * Largura da coluna {@code origin} nas tabelas de auditoria e de contencao.
-     */
-    private static final int ORIGIN_MAX_LENGTH = 60;
 
     private final Dispatcher dispatcher;
     private final SessionAuthenticator sessionAuthenticator;
@@ -54,7 +52,7 @@ public class AuthenticationController implements AuthenticationApi {
     public ResponseEntity<Object> signIn(
         @Valid @RequestBody SignInRequest body, HttpServletRequest request, HttpServletResponse response) {
 
-        Result<CaretakerId> signedIn =
+        Result<SignedIn> signedIn =
             dispatcher.dispatch(new SignInCommand(body.identifier(), body.password(), originOf(request)));
 
         if (!signedIn.isSuccess()) {
@@ -64,7 +62,10 @@ public class AuthenticationController implements AuthenticationApi {
         }
 
         // O comando devolve so a identidade; nome e perfil vem da consulta (principio V).
-        Result<AuthenticatedCaretaker> identity = dispatcher.ask(new GetAuthenticatedCaretakerQuery(signedIn.value()));
+        // A geracao conferida na entrada vai na consulta: se a senha foi redefinida no intervalo, a consulta recusa e a
+        // sessao nao abre com a geracao nova (R-022 da 012).
+        Result<AuthenticatedCaretaker> identity = dispatcher.ask(new GetAuthenticatedCaretakerQuery(
+            signedIn.value().caretakerId(), signedIn.value().sessionGeneration()));
 
         if (!identity.isSuccess()) {
             // O responsavel foi inativado entre a autenticacao e a consulta. Falha fechada, e com a
@@ -120,7 +121,8 @@ public class AuthenticationController implements AuthenticationApi {
             caretaker.id().value(),
             caretaker.fullName(),
             caretaker.role().name(),
-            caretaker.mustChangePassword()
+            caretaker.mustChangePassword(),
+            caretaker.sessionGeneration()
         );
     }
 
@@ -131,22 +133,8 @@ public class AuthenticationController implements AuthenticationApi {
             "E-mail, celular ou senha inválidos."));
     }
 
-    /**
-     * Origem da requisicao, usada pela contencao de tentativas e pela auditoria.
-     *
-     * <p>Vem so de {@code getRemoteAddr()}, nunca de {@code X-Forwarded-For} lido a mao. Esse
-     * cabecalho e escrito pelo cliente: aceita-lo deixava cada tentativa inventar a propria origem,
-     * ganhar uma chave de contencao nova e registrar uma origem falsa na auditoria (FR-023).
-     *
-     * <p>Atras de um proxy confiavel, a origem real e obtida por configuracao
-     * ({@code server.forward-headers-strategy}), que o proprio container valida — e nao por este
-     * metodo.
-     */
+    /** A origem da requisicao, pela regra unica do {@link RequestOrigin}. */
     private static String originOf(HttpServletRequest request) {
-        String address = request.getRemoteAddr();
-        if (address == null || address.isBlank()) {
-            return "desconhecida";
-        }
-        return address.length() <= ORIGIN_MAX_LENGTH ? address : address.substring(0, ORIGIN_MAX_LENGTH);
+        return RequestOrigin.of(request);
     }
 }

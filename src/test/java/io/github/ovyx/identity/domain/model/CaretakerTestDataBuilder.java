@@ -4,6 +4,8 @@ import io.github.ovyx.identity.fixtures.InMemoryCaretakerRepository;
 import io.github.ovyx.identity.domain.FakePasswordHasher;
 import io.github.ovyx.identity.domain.port.CaretakerRoster;
 import io.github.ovyx.identity.domain.port.PasswordHasher;
+import io.github.ovyx.identity.domain.valueobject.PasswordRecovery;
+import io.github.ovyx.identity.domain.valueobject.RecoveryAllowance;
 import io.github.ovyx.shared.domain.FixedClock;
 import java.time.Clock;
 import java.util.UUID;
@@ -141,6 +143,34 @@ public final class CaretakerTestDataBuilder {
                 CaretakerStatus.INACTIVE,
                 active.mustChangePassword(),
                 active.themePreference(),
+                active.passwordRecovery(),
+                active.recoveryAllowance(),
+                active.sessionGeneration(),
+                active.createdAt(),
+                active.updatedAt());
+    }
+
+    /**
+     * Responsavel ativo com o estado da recuperacao de senha ja gravado (feature 012), reidratado como o adaptador de
+     * persistencia faz: o link pendente, os pedidos contados na hora e a geracao de sessao.
+     */
+    public Caretaker buildWithRecovery(
+            PasswordRecovery passwordRecovery, RecoveryAllowance recoveryAllowance, int sessionGeneration) {
+        Caretaker active = build();
+        return Caretaker.restore(
+                active.id(),
+                active.fullName(),
+                active.cpf(),
+                active.email(),
+                active.mobilePhone(),
+                active.passwordHash(),
+                active.role(),
+                active.status(),
+                active.mustChangePassword(),
+                active.themePreference(),
+                passwordRecovery,
+                recoveryAllowance,
+                sessionGeneration,
                 active.createdAt(),
                 active.updatedAt());
     }

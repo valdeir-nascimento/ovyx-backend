@@ -8,10 +8,14 @@ import io.github.ovyx.IntegrationTestSupport;
 import io.github.ovyx.identity.domain.model.Caretaker;
 import io.github.ovyx.identity.domain.model.CaretakerId;
 import io.github.ovyx.identity.domain.model.CaretakerTestDataBuilder;
+import io.github.ovyx.identity.domain.valueobject.PasswordRecovery;
+import io.github.ovyx.identity.domain.valueobject.RecoveryAllowance;
+import io.github.ovyx.identity.domain.valueobject.RecoveryToken;
 import io.github.ovyx.identity.domain.port.CaretakerRepository;
 import io.github.ovyx.identity.domain.port.PasswordHasher;
 import io.github.ovyx.identity.domain.valueobject.AccessIdentifier;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -195,5 +199,69 @@ class CaretakerRepositoryIT extends IntegrationTestSupport {
 
         // then
         assertThat(repository.findById(caretaker.id()).orElseThrow().themePreference()).isEqualTo(ThemePreference.DARK);
+    }
+
+    // ---------------------------------------------------------------- recuperação de senha (012)
+
+    private static final Instant REQUESTED_AT = Instant.parse("2026-10-02T12:00:00Z");
+
+    private static RecoveryToken randomToken() {
+        byte[] bytes = new byte[32];
+        new java.security.SecureRandom().nextBytes(bytes);
+        return RecoveryToken.of(java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes));
+    }
+
+    @Test
+    @DisplayName("saves the pending link, the counted requests and the session generation, and reads them back")
+    void givenCaretakerWithPendingRecovery_whenSavingAndReadingBack_thenKeepTheRecoveryState() {
+        // given
+        RecoveryToken token = randomToken();
+        PasswordRecovery recovery = PasswordRecovery.issue(token, REQUESTED_AT);
+        RecoveryAllowance allowance = new RecoveryAllowance(REQUESTED_AT, 2);
+        Caretaker caretaker = aCaretakerForThisDatabase().buildWithRecovery(recovery, allowance, 3);
+
+        // when
+        repository.save(caretaker);
+
+        // then
+        Caretaker loaded = repository.findById(caretaker.id()).orElseThrow();
+        assertThat(loaded.passwordRecovery()).isEqualTo(recovery);
+        assertThat(loaded.recoveryAllowance()).isEqualTo(allowance);
+        assertThat(loaded.sessionGeneration()).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("reads a caretaker without a pending link as having none")
+    void givenCaretakerWithoutPendingRecovery_whenReadingBack_thenFindNoLinkAndGenerationZero() {
+        // given
+        Caretaker caretaker = saved(aCaretakerForThisDatabase());
+
+        // when
+        Caretaker loaded = repository.findById(caretaker.id()).orElseThrow();
+
+        // then
+        assertThat(loaded.passwordRecovery()).isNull();
+        assertThat(loaded.recoveryAllowance()).isEqualTo(RecoveryAllowance.NONE);
+        assertThat(loaded.sessionGeneration()).isZero();
+    }
+
+    @Test
+    @DisplayName("finds the caretaker of a link digest, and nobody for another digest")
+    void givenTwoCaretakersWithPendingLinks_whenFindingByDigest_thenReturnOnlyTheOwnerOfEachDigest() {
+        // given
+        RecoveryToken mine = randomToken();
+        RecoveryToken theirs = randomToken();
+        Caretaker owner = aCaretakerForThisDatabase()
+                .buildWithRecovery(PasswordRecovery.issue(mine, REQUESTED_AT), RecoveryAllowance.NONE, 0);
+        Caretaker other = aCaretakerForThisDatabase()
+                .buildWithRecovery(PasswordRecovery.issue(theirs, REQUESTED_AT), RecoveryAllowance.NONE, 0);
+        repository.save(owner);
+        repository.save(other);
+
+        // when / then
+        assertThat(repository.findByRecoveryTokenHash(mine.hash()).map(Caretaker::id)).contains(owner.id());
+        assertThat(repository.findByRecoveryTokenHash(theirs.hash()).map(Caretaker::id)).contains(other.id());
+        assertThat(repository.findByRecoveryTokenHash(randomToken().hash())).isEmpty();
+        assertThat(repository.findByRecoveryTokenHash(null)).isEmpty();
     }
 }

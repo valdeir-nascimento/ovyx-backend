@@ -56,6 +56,15 @@ public class JpaCaretakerRepository implements CaretakerRepository {
 
     @Override
     @Transactional(readOnly = true)
+    public Optional<Caretaker> findByRecoveryTokenHash(String tokenHash) {
+        if (tokenHash == null || tokenHash.isEmpty()) {
+            return Optional.empty();
+        }
+        return jpaRepository.findByRecoveryTokenHash(tokenHash).map(CaretakerRecordMapper::toDomain);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Optional<Caretaker> findByCpf(Cpf cpf) {
         return jpaRepository.findByCpf(cpf.value()).map(CaretakerRecordMapper::toDomain);
     }

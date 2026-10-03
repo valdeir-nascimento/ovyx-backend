@@ -31,6 +31,13 @@ public class IdentityRouteAuthorization implements RouteAuthorization {
                 .authenticated()
                 .requestMatchers(HttpMethod.PUT, "/api/v1/me/theme")
                 .authenticated()
+                // Recuperacao de senha (feature 012): publica, porque quem a usa nao consegue entrar.
+                .requestMatchers(HttpMethod.POST, "/api/v1/auth/password-recovery")
+                .permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/auth/password-recovery/verification")
+                .permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/auth/password-reset")
+                .permitAll()
                 // Rotas da Historia 2: a administracao de responsaveis e so do perfil Administrador
                 // (FR-008), uma rota por vez, para que um metodo novo nasca negado.
                 .requestMatchers(HttpMethod.POST, "/api/v1/caretakers")

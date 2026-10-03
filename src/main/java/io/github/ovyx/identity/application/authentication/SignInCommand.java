@@ -1,6 +1,5 @@
 package io.github.ovyx.identity.application.authentication;
 
-import io.github.ovyx.identity.domain.model.CaretakerId;
 import io.github.ovyx.shared.application.Command;
 
 /**
@@ -10,7 +9,7 @@ import io.github.ovyx.shared.application.Command;
  * @param password   senha em texto claro; vive apenas em memoria, durante a requisicao
  * @param origin     endereco de origem, usado pela contencao de tentativas e pela auditoria
  */
-public record SignInCommand(String identifier, String password, String origin) implements Command<CaretakerId> {
+public record SignInCommand(String identifier, String password, String origin) implements Command<SignedIn> {
 
     @Override
     public String toString() {

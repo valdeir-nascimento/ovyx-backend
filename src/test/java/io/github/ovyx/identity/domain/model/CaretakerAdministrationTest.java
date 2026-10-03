@@ -82,6 +82,9 @@ class CaretakerAdministrationTest {
                 caretaker.status(),
                 caretaker.mustChangePassword(),
                 caretaker.themePreference(),
+                null,
+                io.github.ovyx.identity.domain.valueobject.RecoveryAllowance.NONE,
+                0,
                 caretaker.createdAt(),
                 caretaker.updatedAt());
     }

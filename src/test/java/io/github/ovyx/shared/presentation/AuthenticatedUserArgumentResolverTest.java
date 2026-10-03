@@ -43,7 +43,7 @@ class AuthenticatedUserArgumentResolverTest {
 
     private static AuthenticatedUser authenticate() {
         AuthenticatedUser user =
-                new AuthenticatedUser(UUID.randomUUID(), "Maria Silva", "ADMINISTRATOR", false);
+                new AuthenticatedUser(UUID.randomUUID(), "Maria Silva", "ADMINISTRATOR", false, 0);
         SecurityContextHolder.getContext()
                 .setAuthentication(new UsernamePasswordAuthenticationToken(
                         user, null, List.of(new SimpleGrantedAuthority(user.authority()))));

@@ -10,7 +10,6 @@ import io.github.ovyx.identity.domain.CountingPasswordHasher;
 import io.github.ovyx.identity.domain.model.AccessEvent;
 import io.github.ovyx.identity.domain.model.AccessOutcome;
 import io.github.ovyx.identity.domain.model.Caretaker;
-import io.github.ovyx.identity.domain.model.CaretakerId;
 import io.github.ovyx.shared.application.ApplicationError;
 import io.github.ovyx.shared.application.Result;
 import io.github.ovyx.shared.domain.FixedClock;
@@ -63,7 +62,7 @@ class SignInCommandHandlerTest {
         hasher.reset();
     }
 
-    private Result<CaretakerId> signIn(String identifier, String password) {
+    private Result<SignedIn> signIn(String identifier, String password) {
         return handler.handle(new SignInCommand(identifier, password, ORIGIN));
     }
 
@@ -94,11 +93,11 @@ class SignInCommandHandlerTest {
             // given — Maria foi cadastrada no setUp
 
             // when
-            Result<CaretakerId> result = signIn(EMAIL, PASSWORD);
+            Result<SignedIn> result = signIn(EMAIL, PASSWORD);
 
             // then
             assertThat(result.isSuccess()).isTrue();
-            assertThat(result.value()).isEqualTo(maria.id());
+            assertThat(result.value().caretakerId()).isEqualTo(maria.id());
             assertThat(recorder.lastOutcome()).isEqualTo(AccessOutcome.GRANTED);
         }
 
@@ -109,10 +108,10 @@ class SignInCommandHandlerTest {
             // given — celular vindo do @ValueSource
 
             // when
-            Result<CaretakerId> result = signIn(mobilePhone, PASSWORD);
+            Result<SignedIn> result = signIn(mobilePhone, PASSWORD);
 
             // then
-            assertThat(result.value()).isEqualTo(maria.id());
+            assertThat(result.value().caretakerId()).isEqualTo(maria.id());
         }
 
         @Test
@@ -184,7 +183,7 @@ class SignInCommandHandlerTest {
             // given — nenhuma conta usa UNKNOWN
 
             // when
-            Result<CaretakerId> result = signIn(UNKNOWN, PASSWORD);
+            Result<SignedIn> result = signIn(UNKNOWN, PASSWORD);
 
             // then
             assertThat(result.isFailure()).isTrue();
@@ -197,7 +196,7 @@ class SignInCommandHandlerTest {
             // given — Maria foi cadastrada no setUp
 
             // when
-            Result<CaretakerId> result = signIn(EMAIL, WRONG_PASSWORD);
+            Result<SignedIn> result = signIn(EMAIL, WRONG_PASSWORD);
 
             // then
             assertThat(result.isFailure()).isTrue();
@@ -211,7 +210,7 @@ class SignInCommandHandlerTest {
             deactivateMaria();
 
             // when
-            Result<CaretakerId> result = signIn(EMAIL, PASSWORD);
+            Result<SignedIn> result = signIn(EMAIL, PASSWORD);
 
             // then
             assertThat(result.isFailure()).isTrue();
@@ -225,7 +224,7 @@ class SignInCommandHandlerTest {
             blockMaria();
 
             // when
-            Result<CaretakerId> result = signIn(EMAIL, PASSWORD);
+            Result<SignedIn> result = signIn(EMAIL, PASSWORD);
 
             // then
             assertThat(result.isFailure()).isTrue();
@@ -241,7 +240,7 @@ class SignInCommandHandlerTest {
             // na conta de Maria, com uma chave de contencao propria.
 
             // when
-            Result<CaretakerId> result = signIn(garbled, PASSWORD);
+            Result<SignedIn> result = signIn(garbled, PASSWORD);
 
             // then
             assertThat(result.isFailure()).isTrue();
@@ -256,7 +255,7 @@ class SignInCommandHandlerTest {
             String blank = "   ";
 
             // when
-            Result<CaretakerId> result = signIn(blank, PASSWORD);
+            Result<SignedIn> result = signIn(blank, PASSWORD);
 
             // then
             assertThat(result.isFailure()).isTrue();
@@ -392,7 +391,7 @@ class SignInCommandHandlerTest {
             signIn("(91)98888-7777", "Errada2026eee");
 
             // when
-            Result<CaretakerId> sixth = signIn(MOBILE, PASSWORD);
+            Result<SignedIn> sixth = signIn(MOBILE, PASSWORD);
 
             // then
             assertThat(throttle.failureCount(MOBILE, ORIGIN)).isEqualTo(5);
@@ -412,5 +411,26 @@ class SignInCommandHandlerTest {
             // then
             assertThat(throttle.failureCount(EMAIL, ORIGIN)).isEqualTo(5);
         }
+    }
+
+    @org.junit.jupiter.api.Test
+    @org.junit.jupiter.api.DisplayName("returns the session generation the password was checked against (012)")
+    void givenCaretakerWhosePasswordWasRecoveredTwice_whenSigningIn_thenReturnThatSessionGeneration() {
+        // given
+        // A sessao nasce com esta geracao, e nao com a de uma consulta posterior: uma redefinicao no intervalo nao
+        // pode dar a geracao nova a quem entrou com a senha antiga (R-022).
+        io.github.ovyx.identity.domain.model.Caretaker recovered = io.github.ovyx.identity.domain.model.CaretakerTestDataBuilder
+                .aUniqueCaretaker()
+                .withPassword(PASSWORD)
+                .withHasher(hasher)
+                .buildWithRecovery(null, io.github.ovyx.identity.domain.valueobject.RecoveryAllowance.NONE, 2);
+        repository.save(recovered);
+
+        // when
+        Result<SignedIn> result = signIn(recovered.email().value(), PASSWORD);
+
+        // then
+        assertThat(result.value().caretakerId()).isEqualTo(recovered.id());
+        assertThat(result.value().sessionGeneration()).isEqualTo(2);
     }
 }

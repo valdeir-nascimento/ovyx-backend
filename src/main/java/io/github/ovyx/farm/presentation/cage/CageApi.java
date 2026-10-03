@@ -33,7 +33,7 @@ public interface CageApi {
     String SECTOR_ID_EXAMPLE = "3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11";
 
     String SESSION_REFUSED = "Sem sessão válida (`UNAUTHENTICATED`), ou responsável inativado com a sessão aberta"
-            + " (`CARETAKER_UNAVAILABLE`), caso em que a sessão é encerrada.";
+            + " (`CARETAKER_UNAVAILABLE`), ou sessão aberta antes de a senha ser redefinida pelo link de recuperação (`SESSION_REVOKED`); nesses dois últimos casos a sessão é encerrada.";
 
     String WRITE_REFUSED = "Sem o perfil Administrador (`FORBIDDEN`), sem o token de proteção"
             + " (`CSRF_TOKEN_INVALID`) ou com a troca de senha pendente (`PASSWORD_CHANGE_REQUIRED`). A recusa por"
@@ -541,7 +541,8 @@ public interface CageApi {
     @ApiResponse(
         responseCode = "401",
         description = "Sem sessão válida (`UNAUTHENTICATED`), ou responsável inativado com a sessão aberta "
-            + "(`CARETAKER_UNAVAILABLE`).",
+            + "(`CARETAKER_UNAVAILABLE`), ou sessão aberta antes de a senha ser redefinida pelo link de recuperação "
+            + "(`SESSION_REVOKED`).",
         content = @Content(
             mediaType = PROBLEM_JSON,
             schema = @Schema(implementation = ProblemResponse.class),

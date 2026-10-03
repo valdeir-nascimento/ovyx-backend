@@ -28,7 +28,7 @@ public interface CaretakerApi {
 
     /** O 401 de toda operacao de responsaveis: a sessao e reconferida a cada requisicao. */
     String SESSION_REFUSED = "Sem sessão válida (`UNAUTHENTICATED`), ou responsável inativado com a sessão aberta"
-        + " (`CARETAKER_UNAVAILABLE`), caso em que a sessão é encerrada.";
+        + " (`CARETAKER_UNAVAILABLE`), ou sessão aberta antes de a senha ser redefinida pelo link de recuperação (`SESSION_REVOKED`); nesses dois últimos casos a sessão é encerrada.";
 
     @Operation(
         summary = "Cadastrar responsável",
