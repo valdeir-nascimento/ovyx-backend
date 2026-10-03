@@ -1,5 +1,6 @@
 package io.github.ovyx.farm.integration;
 
+import org.springframework.jdbc.core.JdbcTemplate;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -72,6 +73,9 @@ class FarmAuthorizationIT extends IntegrationTestSupport {
 
     private IntegrationSessions sessions;
     private Cookie[] commonUser;
+    @Autowired
+    private JdbcTemplate jdbc;
+
     private String sectorPath;
     private String cagePath;
     private String formulaPath;
@@ -211,6 +215,29 @@ class FarmAuthorizationIT extends IntegrationTestSupport {
         mockMvc.perform(get(sectorPath).cookie(commonUser))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.layingRateTarget").value(85.0));
+    }
+
+    @Test
+    @DisplayName("lets a common user read the weighing day, and forbids changing it (010)")
+    void givenCommonUser_whenChangingTheWeighingDay_thenForbid() throws Exception {
+        // given
+        jdbc.update(
+                "update sector set weighing_day = 'MONDAY' where id = ?",
+                UUID.fromString(sectorPath.substring(sectorPath.lastIndexOf('/') + 1)));
+        MockHttpServletRequestBuilder update = put(sectorPath)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"name": "Codornas — Galpão 9", "layingRateTarget": 85, "weighingDay": "FRIDAY"}
+                        """);
+
+        // when
+        ResultActions response = mockMvc.perform(update.with(sessions.csrf()).cookie(commonUser));
+
+        // then
+        response.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("FORBIDDEN"));
+        mockMvc.perform(get(sectorPath).cookie(commonUser))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.weighingDay").value("MONDAY"));
     }
 
     @ParameterizedTest(name = "{0} {1}")

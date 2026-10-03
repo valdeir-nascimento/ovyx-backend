@@ -1,5 +1,6 @@
 package io.github.ovyx.farm.presentation.sector;
 
+import java.time.DayOfWeek;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.github.ovyx.farm.application.sector.SectorDetail;
 import io.github.ovyx.farm.domain.model.Status;
@@ -33,7 +34,13 @@ public record SectorDetailResponse(
         @Schema(
                 description = "Meta de produtividade do setor, em porcentagem, com uma casa decimal",
                 example = "85.0")
-        BigDecimal layingRateTarget) {
+        BigDecimal layingRateTarget,
+        @Schema(
+                description = "Dia da semana da pesagem das aves do setor; ausente quando o setor segue o prazo de 7"
+                        + " dias desde a última pesagem",
+                example = "FRIDAY")
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        DayOfWeek weighingDay) {
 
     public static SectorDetailResponse from(SectorDetail detail) {
         return new SectorDetailResponse(
@@ -47,6 +54,7 @@ public record SectorDetailResponse(
                 detail.createdAt(),
                 detail.updatedAt(),
                 ReferenceWeightResponse.from(detail.referenceWeight()),
-                detail.layingRateTarget());
+                detail.layingRateTarget(),
+                detail.weighingDay());
     }
 }

@@ -3,14 +3,14 @@ package io.github.ovyx.farm.application.cage;
 import io.github.ovyx.farm.application.common.StatusFilter;
 import io.github.ovyx.farm.domain.model.CageId;
 import io.github.ovyx.farm.domain.model.SectorId;
+import io.github.ovyx.farm.domain.model.Status;
 import io.github.ovyx.shared.application.PageResponse;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 /**
  * Dublê do diretório de gaiolas: responde o que o teste preparou e anota o que lhe perguntaram.
@@ -20,44 +20,51 @@ import java.util.Set;
  */
 final class RecordingCageDirectory implements CageDirectory {
 
-    /** Uma pesquisa, como o tratador a pediu. */
-    record Search(SectorId sectorId, String code, String battery, StatusFilter status, int page, int size) {}
+    /** Uma pesquisa, como o tratador a pediu; {@code pendingSince} so com o filtro de pesagem (010). */
+    record Search(
+            SectorId sectorId, String code, String battery, StatusFilter status, int page, int size, LocalDate pendingSince) {}
 
     /** Um pedido de todas as gaiolas dos filtros, sem pagina, como o tratador da exportacao o fez (007). */
-    record All(SectorId sectorId, String code, String battery, StatusFilter status) {}
+    record All(SectorId sectorId, String code, String battery, StatusFilter status, LocalDate pendingSince) {}
 
-    private final Set<SectorId> sectors = new HashSet<>();
+    private final Map<SectorId, SectorSchedule> schedules = new HashMap<>();
     private final Map<CageId, CageDetail> details = new HashMap<>();
     private final List<Search> searches = new ArrayList<>();
     private final List<All> everyCage = new ArrayList<>();
     private List<CageSummary> answer = List.of();
 
+    /** Um setor ativo, sem dia da pesagem. */
     RecordingCageDirectory withSector(SectorId sectorId) {
-        sectors.add(sectorId);
+        return withSchedule(sectorId, new SectorSchedule(Status.ACTIVE, null));
+    }
+
+    /** Um setor com a situacao e o dia da pesagem dados (010). */
+    RecordingCageDirectory withSchedule(SectorId sectorId, SectorSchedule schedule) {
+        schedules.put(sectorId, schedule);
         return this;
     }
 
     RecordingCageDirectory holding(CageDetail detail) {
-        sectors.add(detail.sectorId());
+        schedules.putIfAbsent(detail.sectorId(), new SectorSchedule(Status.ACTIVE, null));
         details.put(detail.id(), detail);
         return this;
     }
 
     @Override
-    public boolean sectorExists(SectorId sectorId) {
-        return sectors.contains(sectorId);
+    public Optional<SectorSchedule> scheduleOf(SectorId sectorId) {
+        return Optional.ofNullable(schedules.get(sectorId));
     }
 
     @Override
-    public PageResponse<CageSummary> search(
-            SectorId sectorId, String code, String battery, StatusFilter status, int page, int size) {
-        searches.add(new Search(sectorId, code, battery, status, page, size));
-        return PageResponse.of(List.of(), page, size, 0);
+    public PageResponse<CageSummary> search(SectorId sectorId, CageFilter filter, int page, int size) {
+        searches.add(new Search(
+                sectorId, filter.code(), filter.battery(), filter.status(), page, size, filter.pendingSince()));
+        return PageResponse.of(answer, page, size, answer.size());
     }
 
     @Override
-    public List<CageSummary> searchAll(SectorId sectorId, String code, String battery, StatusFilter status) {
-        everyCage.add(new All(sectorId, code, battery, status));
+    public List<CageSummary> searchAll(SectorId sectorId, CageFilter filter) {
+        everyCage.add(new All(sectorId, filter.code(), filter.battery(), filter.status(), filter.pendingSince()));
         return answer;
     }
 

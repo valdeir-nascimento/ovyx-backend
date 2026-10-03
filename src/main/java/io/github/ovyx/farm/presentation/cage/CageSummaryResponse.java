@@ -5,6 +5,7 @@ import io.github.ovyx.farm.application.cage.CageLastWeighing;
 import io.github.ovyx.farm.application.cage.CageSummary;
 import io.github.ovyx.farm.domain.model.Status;
 import io.github.ovyx.farm.presentation.weighing.WeighingOverviewResponse.Point;
+import io.github.ovyx.farm.presentation.weighing.WeighingStandingResponse;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.UUID;
 
@@ -20,7 +21,10 @@ public record CageSummaryResponse(
         @Schema(example = "ACTIVE") Status status,
         @Schema(description = "A última pesagem válida da gaiola; ausente sem pesagem")
         @JsonInclude(JsonInclude.Include.NON_NULL)
-        Point lastWeighing) {
+        Point lastWeighing,
+        @Schema(description = "A situação na agenda de pesagem do setor; ausente na gaiola inativa e em setor inativo")
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        WeighingStandingResponse weighing) {
 
     public static CageSummaryResponse from(CageSummary summary) {
         return new CageSummaryResponse(
@@ -31,7 +35,8 @@ public record CageSummaryResponse(
                 summary.number(),
                 summary.birdCount(),
                 summary.status(),
-                lastWeighingOf(summary.lastWeighing()));
+                lastWeighingOf(summary.lastWeighing()),
+                WeighingStandingResponse.from(summary.weighing()));
     }
 
     /** A ultima pesagem valida, publicada como o ponto do grafico (`WeighingPoint`, feature 005). */

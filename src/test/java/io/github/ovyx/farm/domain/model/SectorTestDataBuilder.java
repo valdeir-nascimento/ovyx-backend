@@ -8,6 +8,7 @@ import io.github.ovyx.farm.domain.valueobject.LayingRateTarget;
 import io.github.ovyx.farm.domain.valueobject.ReferenceWeight;
 import io.github.ovyx.farm.domain.valueobject.SectorDescription;
 import io.github.ovyx.farm.domain.valueobject.SectorName;
+import io.github.ovyx.farm.domain.valueobject.WeighingDay;
 import io.github.ovyx.shared.domain.FixedClock;
 import java.time.Clock;
 import java.util.ArrayList;
@@ -35,6 +36,7 @@ public final class SectorTestDataBuilder {
     private Integer minimumWeight;
     private Integer maximumWeight;
     private String layingRateTarget = "85";
+    private String weighingDay;
     private final List<CageSpec> cages = new ArrayList<>();
     private SectorRoster roster = EMPTY_ROSTER;
     private Clock clock = FixedClock.at("2026-09-20T10:15:00Z");
@@ -73,6 +75,12 @@ public final class SectorTestDataBuilder {
         return this;
     }
 
+    /** O dia da pesagem, como chega na API (feature 010); sem dia por padrão. */
+    public SectorTestDataBuilder withWeighingDay(String weighingDay) {
+        this.weighingDay = weighingDay;
+        return this;
+    }
+
     public SectorTestDataBuilder inactive() {
         this.inactive = true;
         return this;
@@ -103,7 +111,7 @@ public final class SectorTestDataBuilder {
     public Sector build() {
         if (!inactive && cages.isEmpty()) {
             return Sector.register(
-                    name, description, textOf(minimumWeight), textOf(maximumWeight), layingRateTarget, roster, clock);
+                    name, description, textOf(minimumWeight), textOf(maximumWeight), layingRateTarget, weighingDay, roster, clock);
         }
         return Sector.restore(
                 SectorId.generate(),
@@ -111,6 +119,7 @@ public final class SectorTestDataBuilder {
                 SectorDescription.optionalOf(description).orElse(null),
                 minimumWeight == null ? null : new ReferenceWeight(minimumWeight, maximumWeight),
                 LayingRateTarget.of(layingRateTarget),
+                WeighingDay.optionalOf(weighingDay).orElse(null),
                 inactive ? Status.INACTIVE : Status.ACTIVE,
                 cages.stream().map(this::restored).toList(),
                 clock.instant(),

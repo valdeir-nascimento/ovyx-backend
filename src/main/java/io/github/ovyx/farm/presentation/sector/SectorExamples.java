@@ -23,7 +23,8 @@ public final class SectorExamples {
               "description": "Codornas japonesas em postura, baterias A e B",
               "minimumWeight": 155,
               "maximumWeight": 175,
-              "layingRateTarget": 85
+              "layingRateTarget": 85,
+              "weighingDay": "FRIDAY"
             }""";
 
     public static final String EDIT =
@@ -33,7 +34,8 @@ public final class SectorExamples {
               "description": "Codornas japonesas em postura, baterias A a D",
               "minimumWeight": 155,
               "maximumWeight": 175,
-              "layingRateTarget": "82,5"
+              "layingRateTarget": "82,5",
+              "weighingDay": "FRIDAY"
             }""";
 
     /** A edicao sem os dois limites: o setor fica sem faixa (feature 005). */
@@ -42,7 +44,8 @@ public final class SectorExamples {
             {
               "name": "Codornas — Galpão 1 (norte)",
               "description": "Codornas japonesas em postura, baterias A a D",
-              "layingRateTarget": 88
+              "layingRateTarget": 88,
+              "weighingDay": "FRIDAY"
             }""";
 
     // ------------------------------------------------------------------------ sucesso
@@ -57,7 +60,8 @@ public final class SectorExamples {
                 "status": "ACTIVE",
                 "activeCageCount": 48,
                 "birdCount": 2400,
-                "layingRateTarget": 85.0
+                "layingRateTarget": 85.0,
+                "weighingDay": "FRIDAY"
               },
               {
                 "id": "7a1b9c3d-2e4f-4a6b-8c0d-5e7f9a1b3c22",
@@ -80,6 +84,7 @@ public final class SectorExamples {
               "activeCageCount": 0,
               "birdCount": 0,
               "layingRateTarget": 85.0,
+              "weighingDay": "FRIDAY",
               "referenceWeight": {
                 "minimum": 155,
                 "maximum": 175
@@ -99,6 +104,7 @@ public final class SectorExamples {
               "activeCageCount": 48,
               "birdCount": 2400,
               "layingRateTarget": 85.0,
+              "weighingDay": "FRIDAY",
               "batteries": ["A", "B", "C", "D"],
               "createdAt": "2026-09-20T10:15:00Z",
               "updatedAt": "2026-09-24T17:40:12Z"
@@ -118,6 +124,7 @@ public final class SectorExamples {
                 "maximum": 175
               },
               "layingRateTarget": 82.5,
+              "weighingDay": "FRIDAY",
               "batteries": ["A", "B", "C", "D"],
               "createdAt": "2026-09-20T10:15:00Z",
               "updatedAt": "2026-09-25T09:12:40Z"
@@ -217,6 +224,19 @@ public final class SectorExamples {
               "detail": "Dados inválidos.",
               "details": {
                 "layingRateTarget": "Informe a meta em porcentagem, com até uma casa decimal."
+              },
+              "instance": \"""";
+
+    /** O dia da pesagem que nao e um dia da semana (feature 010). */
+    private static final String WEIGHING_DAY_INVALID =
+            """
+            {
+              "code": "VALIDATION_FAILED",
+              "title": "Dados inválidos",
+              "status": 400,
+              "detail": "Dados inválidos.",
+              "details": {
+                "weighingDay": "Escolha um dia da semana, de segunda a domingo."
               },
               "instance": \"""";
 
@@ -373,6 +393,8 @@ public final class SectorExamples {
     public static final String UPDATE_NAME_MISSING = NAME_MISSING + ITEM + END;
     public static final String UPDATE_TARGET_MISSING = TARGET_MISSING + ITEM + END;
     public static final String UPDATE_TARGET_INVALID = TARGET_INVALID + ITEM + END;
+    public static final String UPDATE_WEIGHING_DAY_INVALID = WEIGHING_DAY_INVALID + ITEM + END;
+    public static final String REGISTER_WEIGHING_DAY_INVALID = WEIGHING_DAY_INVALID + COLLECTION + END;
     public static final String UPDATE_UNREADABLE_BODY = UNREADABLE_BODY + ITEM + END;
     public static final String UPDATE_UNAUTHENTICATED = UNAUTHENTICATED + ITEM + END;
     public static final String UPDATE_FORBIDDEN = FORBIDDEN + ITEM + END;

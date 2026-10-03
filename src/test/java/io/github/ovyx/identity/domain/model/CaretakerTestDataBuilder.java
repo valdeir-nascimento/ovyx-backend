@@ -140,6 +140,7 @@ public final class CaretakerTestDataBuilder {
                 active.role(),
                 CaretakerStatus.INACTIVE,
                 active.mustChangePassword(),
+                active.themePreference(),
                 active.createdAt(),
                 active.updatedAt());
     }

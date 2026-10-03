@@ -1,5 +1,6 @@
 package io.github.ovyx.identity.application.authentication;
 
+import io.github.ovyx.identity.domain.model.ThemePreference;
 import io.github.ovyx.identity.domain.model.CaretakerId;
 import io.github.ovyx.identity.domain.model.Role;
 
@@ -10,4 +11,5 @@ import io.github.ovyx.identity.domain.model.Role;
  * partir do agregado (principio V). Nao tem campo de senha nem de hash, e por isso nao ha como o
  * hash escapar ate a borda HTTP por descuido.
  */
-public record AuthenticatedCaretaker(CaretakerId id, String fullName, Role role, boolean mustChangePassword) {}
+public record AuthenticatedCaretaker(
+        CaretakerId id, String fullName, Role role, boolean mustChangePassword, ThemePreference theme) {}

@@ -62,7 +62,7 @@ class GetSectorDashboardQueryHandlerTest {
         directory.add(day(TODAY, 1740));
         CageWatch a02 = new CageWatch(UUID.randomUUID(), "A-02", 0, 135, 150, 3, TODAY, new BigDecimal("150.8"));
         directory.answerCageWatch(
-                new CageWatchReading(List.of(a02), new ReferenceWeight(155, 175), new MortalityBaseline(0, 0)));
+                new CageWatchReading(List.of(a02), new ReferenceWeight(155, 175), new MortalityBaseline(0, 0), null));
 
         // when
         SectorDashboard dashboard = handler.handle(
@@ -141,7 +141,7 @@ class GetSectorDashboardQueryHandlerTest {
         directory.answerLayingRateTarget(SectorId.of(codornas.id()), "72");
         directory.add(day(TODAY, 1580));
         CageWatch c03 = new CageWatch(UUID.randomUUID(), "C-03", 0, 225, 300, 3, null, null);
-        directory.answerCageWatch(new CageWatchReading(List.of(c03), null, new MortalityBaseline(0, 0)));
+        directory.answerCageWatch(new CageWatchReading(List.of(c03), null, new MortalityBaseline(0, 0), null));
 
         // when
         SectorDashboard dashboard = handler.handle(

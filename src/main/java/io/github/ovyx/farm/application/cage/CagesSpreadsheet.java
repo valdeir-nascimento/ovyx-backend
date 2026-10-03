@@ -1,5 +1,6 @@
 package io.github.ovyx.farm.application.cage;
 
+import io.github.ovyx.shared.domain.WeighingSituation;
 import io.github.ovyx.farm.application.common.StatusFilter;
 import io.github.ovyx.farm.application.sector.SectorDetail;
 import io.github.ovyx.farm.domain.model.Status;
@@ -21,7 +22,8 @@ import java.util.Locale;
 /**
  * A planilha das gaiolas de um setor (US3 da 007; data-model §4), montada sem banco: o cabecalho com os filtros,
  * a faixa de peso e os totais do setor, e uma linha por gaiola com a ultima pesagem valida e a situacao dela
- * diante da faixa ({@link WeightRangeStatus#of}).
+ * diante da faixa ({@link WeightRangeStatus#of}), e a situacao dela na agenda de pesagem, com o dia do atraso
+ * (feature 010).
  */
 public final class CagesSpreadsheet {
 
@@ -36,23 +38,21 @@ public final class CagesSpreadsheet {
             new Column("Situação", 10),
             new Column("Peso médio (g)", 14),
             new Column("Data da pesagem", 14),
-            new Column("Faixa", 20));
+            new Column("Faixa", 20),
+            new Column("Pesagem", 13),
+            new Column("Atrasada desde", 14));
 
     private CagesSpreadsheet() {}
 
     /**
      * A planilha das gaiolas.
      *
-     * @param code o trecho do codigo da busca; {@code null} sem busca
-     * @param battery a bateria do filtro; {@code null} sem filtro
-     * @param status a situacao do filtro
+     * @param filter os filtros da lista
      * @param cages as gaiolas dos filtros, na ordem da lista
      */
     public static Spreadsheet of(
             SectorDetail sector,
-            String code,
-            String battery,
-            StatusFilter status,
+            CageFilter filter,
             List<CageSummary> cages,
             LocalDate today,
             LocalTime now) {
@@ -60,7 +60,7 @@ public final class CagesSpreadsheet {
                 "Ovyx — Gaiolas",
                 List.of(
                         "Setor: " + sector.name(),
-                        "Filtros: " + filtersOf(code, battery, status),
+                        "Filtros: " + filtersOf(filter),
                         "Faixa de peso: " + rangeOf(sector.referenceWeight()),
                         "Gaiolas ativas: " + count(sector.activeCageCount()) + ". Aves: " + count(sector.birdCount())),
                 today,
@@ -87,7 +87,20 @@ public final class CagesSpreadsheet {
                 Cell.text(cage.status() == Status.ACTIVE ? "Ativa" : "Inativa"),
                 last == null ? Cell.blank() : Cell.number(last.averageWeight(), CellFormat.GRAMS),
                 last == null ? Cell.blank() : Cell.date(last.weighedOn()),
-                Cell.text(last == null ? null : rangeStatusOf(WeightRangeStatus.of(range, last.averageWeight()))));
+                Cell.text(last == null ? null : rangeStatusOf(WeightRangeStatus.of(range, last.averageWeight()))),
+                Cell.text(cage.weighing() == null ? null : situationOf(cage.weighing().situation())),
+                cage.weighing() == null || cage.weighing().lateSince() == null
+                        ? Cell.blank()
+                        : Cell.date(cage.weighing().lateSince()));
+    }
+
+    private static String situationOf(WeighingSituation situation) {
+        return switch (situation) {
+            case UP_TO_DATE -> "Em dia";
+            case DUE_TODAY -> "Pesar hoje";
+            case LATE -> "Atrasada";
+            case NEVER_WEIGHED -> "Nunca pesada";
+        };
     }
 
     private static String rangeStatusOf(WeightRangeStatus status) {
@@ -98,15 +111,22 @@ public final class CagesSpreadsheet {
         };
     }
 
-    /** "busca "B-0", bateria B, so as ativas", ou "nenhum, so as ativas" sem busca nem bateria. */
-    private static String filtersOf(String code, String battery, StatusFilter status) {
+    /**
+     * "busca "B-0", bateria B, pesagem pendente, so as ativas", ou "nenhum, so as ativas" sem busca, bateria nem
+     * pesagem.
+     */
+    private static String filtersOf(CageFilter filter) {
         List<String> parts = new ArrayList<>();
-        if (code != null) {
-            parts.add("busca \"" + code + "\"");
+        if (filter.code() != null) {
+            parts.add("busca \"" + filter.code() + "\"");
         }
-        if (battery != null) {
-            parts.add("bateria " + battery);
+        if (filter.battery() != null) {
+            parts.add("bateria " + filter.battery());
         }
+        if (filter.pendingSince() != null) {
+            parts.add("pesagem pendente");
+        }
+        StatusFilter status = filter.status();
         if (parts.isEmpty()) {
             parts.add("nenhum");
         }

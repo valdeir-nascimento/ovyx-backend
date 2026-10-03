@@ -118,6 +118,7 @@ class VoidWeighingCommandHandlerTest {
                 null,
                 null,
                 sector.layingRateTarget(),
+                null,
                 Status.INACTIVE,
                 sector.cages(),
                 sector.createdAt(),

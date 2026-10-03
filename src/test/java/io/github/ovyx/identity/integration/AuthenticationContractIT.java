@@ -302,6 +302,7 @@ class AuthenticationContractIT extends IntegrationTestSupport {
             .andExpect(jsonPath("$.fullName").value("Maria Silva"))
             .andExpect(jsonPath("$.role").value("USER"))
             .andExpect(jsonPath("$.mustChangePassword").value(false))
+            .andExpect(jsonPath("$.theme").value("SYSTEM"))
             .andExpect(jsonPath("$.passwordHash").doesNotExist())
             .andExpect(jsonPath("$.password").doesNotExist());
     }
@@ -668,7 +669,9 @@ class AuthenticationContractIT extends IntegrationTestSupport {
         ResultActions response = mockMvc.perform(get("/api/v1/auth/me").cookie(cookies));
 
         // then
-        response.andExpect(status().isOk()).andExpect(jsonPath("$.fullName").value("Maria Silva"));
+        response.andExpect(status().isOk())
+            .andExpect(jsonPath("$.fullName").value("Maria Silva"))
+            .andExpect(jsonPath("$.theme").value("SYSTEM"));
     }
 
     @Test
@@ -929,7 +932,9 @@ class AuthenticationContractIT extends IntegrationTestSupport {
         ResultActions response = mockMvc.perform(signInRequest(EMAIL, PASSWORD).cookie(cookies));
 
         // then
-        response.andExpect(status().isOk()).andExpect(jsonPath("$.fullName").value("Maria Silva"));
+        response.andExpect(status().isOk())
+            .andExpect(jsonPath("$.fullName").value("Maria Silva"))
+            .andExpect(jsonPath("$.theme").value("SYSTEM"));
     }
 
     @Test

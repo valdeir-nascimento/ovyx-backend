@@ -81,6 +81,7 @@ class CaretakerAdministrationTest {
                 caretaker.role(),
                 caretaker.status(),
                 caretaker.mustChangePassword(),
+                caretaker.themePreference(),
                 caretaker.createdAt(),
                 caretaker.updatedAt());
     }

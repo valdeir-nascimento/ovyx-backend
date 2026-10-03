@@ -33,6 +33,10 @@ public record WeighingOverviewResponse(
                 example = "WITHIN")
         @JsonInclude(JsonInclude.Include.NON_NULL)
         WeightRangeStatus rangeStatus,
+        @Schema(description = "A situação da gaiola na agenda de pesagem, com a próxima pesagem; ausente na gaiola inativa"
+                + " e em setor inativo")
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        WeighingStandingResponse schedule,
         @Schema(description = "As últimas 12 pesagens válidas, da mais antiga para a mais recente")
         List<Point> chart,
         @Schema(description = "Todas as pesagens válidas, da mais recente para a mais antiga")
@@ -139,6 +143,7 @@ public record WeighingOverviewResponse(
                 Latest.from(overview.latest()),
                 FourWeeks.from(overview.fourWeekChange()),
                 overview.rangeStatus(),
+                WeighingStandingResponse.from(overview.schedule()),
                 overview.chart().stream().map(Point::from).toList(),
                 overview.history().stream().map(HistoryEntry::from).toList());
     }

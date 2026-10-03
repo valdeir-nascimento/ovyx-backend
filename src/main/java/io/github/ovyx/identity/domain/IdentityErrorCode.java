@@ -46,6 +46,9 @@ public enum IdentityErrorCode implements ErrorCode {
     ROLE_REQUIRED,
     ROLE_INVALID,
 
+    /** Nao e {@code LIGHT}, {@code DARK} nem {@code SYSTEM}, no campo {@code theme} (feature 011). */
+    THEME_INVALID,
+
     // ---------------------------------------------------------------- recusas de operacao
 
     /** Uma ou mais regras de validacao foram violadas; cada uma vem, com o seu codigo, na recusa. */

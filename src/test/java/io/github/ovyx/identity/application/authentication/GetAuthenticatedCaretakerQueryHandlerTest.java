@@ -1,5 +1,6 @@
 package io.github.ovyx.identity.application.authentication;
 
+import io.github.ovyx.identity.domain.model.ThemePreference;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.ovyx.identity.domain.model.CaretakerId;
@@ -44,7 +45,7 @@ class GetAuthenticatedCaretakerQueryHandlerTest {
     void givenExistingCaretaker_whenAskingWhoIsAuthenticated_thenReturnTheReadModel() {
         // given
         CaretakerId id = CaretakerId.generate();
-        readModels.put(new AuthenticatedCaretaker(id, "Maria Silva", Role.USER, false));
+        readModels.put(new AuthenticatedCaretaker(id, "Maria Silva", Role.USER, false, ThemePreference.SYSTEM));
 
         // when
         Result<AuthenticatedCaretaker> result = handler.handle(new GetAuthenticatedCaretakerQuery(id));
@@ -76,7 +77,7 @@ class GetAuthenticatedCaretakerQueryHandlerTest {
         // Invariante estrutural: AuthenticatedCaretaker nao tem campo de senha nem de hash.
         // Reusar a entidade de dominio como resposta arrastaria o hash ate a borda HTTP.
         CaretakerId id = CaretakerId.generate();
-        readModels.put(new AuthenticatedCaretaker(id, "Maria Silva", Role.USER, false));
+        readModels.put(new AuthenticatedCaretaker(id, "Maria Silva", Role.USER, false, ThemePreference.SYSTEM));
 
         // when
         AuthenticatedCaretaker model = handler.handle(new GetAuthenticatedCaretakerQuery(id)).value();
@@ -85,6 +86,20 @@ class GetAuthenticatedCaretakerQueryHandlerTest {
         assertThat(model.toString()).doesNotContain("argon2");
         assertThat(AuthenticatedCaretaker.class.getRecordComponents())
                 .extracting(java.lang.reflect.RecordComponent::getName)
-                .containsExactly("id", "fullName", "role", "mustChangePassword");
+                .containsExactly("id", "fullName", "role", "mustChangePassword", "theme");
+    }
+
+    @Test
+    @DisplayName("carries the theme of the caretaker, for the first screen to open in it (011)")
+    void givenCaretakerWithTheDarkTheme_whenAskingWhoIsAuthenticated_thenCarryTheTheme() {
+        // given
+        CaretakerId id = CaretakerId.generate();
+        readModels.put(new AuthenticatedCaretaker(id, "Maria Silva", Role.USER, false, ThemePreference.DARK));
+
+        // when
+        AuthenticatedCaretaker model = handler.handle(new GetAuthenticatedCaretakerQuery(id)).value();
+
+        // then
+        assertThat(model.theme()).isEqualTo(ThemePreference.DARK);
     }
 }

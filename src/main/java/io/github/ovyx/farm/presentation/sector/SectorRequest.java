@@ -35,7 +35,14 @@ public record SectorRequest(
                         + " esperada por dia, de 1 a 100, com até uma casa decimal. Número ou texto, com vírgula ou"
                         + " ponto.",
                 example = "85")
-        JsonNode layingRateTarget) {
+        JsonNode layingRateTarget,
+        @Schema(
+                type = "string",
+                description = "Dia da semana da pesagem das aves do setor, de `MONDAY` a `SUNDAY`. Ausente, nulo ou"
+                        + " vazio, o setor fica sem dia fixo e segue o prazo de 7 dias desde a última pesagem de"
+                        + " cada gaiola. Outro valor é recusado no campo `weighingDay`, junto das demais falhas.",
+                example = "FRIDAY")
+        JsonNode weighingDay) {
 
     /** O peso minimo como texto, do jeito que veio; ausente, nulo (feature 005). */
     public String rawMinimumWeight() {
@@ -50,5 +57,10 @@ public record SectorRequest(
     /** A meta de produtividade como texto, do jeito que veio; ausente, nula (feature 008). */
     public String rawLayingRateTarget() {
         return RawJsonValue.of(layingRateTarget);
+    }
+
+    /** O dia da pesagem como texto, do jeito que veio; ausente, nulo (feature 010). */
+    public String rawWeighingDay() {
+        return RawJsonValue.of(weighingDay);
     }
 }

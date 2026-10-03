@@ -23,4 +23,10 @@ public record CageWatch(
         int recentBirds,
         int recentReports,
         LocalDate lastWeighedOn,
-        BigDecimal lastWeight) {}
+        BigDecimal lastWeight) {
+
+    /** A bateria da gaiola: o comeco do codigo, antes do hifen (feature 010). */
+    public String battery() {
+        return code.substring(0, code.indexOf('-'));
+    }
+}

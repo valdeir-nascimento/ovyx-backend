@@ -1,5 +1,6 @@
 package io.github.ovyx.production.application.dashboard;
 
+import io.github.ovyx.shared.domain.WeighingSchedule;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.ovyx.production.fixtures.InMemoryDashboardDirectory;
@@ -95,7 +96,7 @@ class GetFarmDashboardQueryHandlerTest {
         directory.addToFarm(poedeiras.id(), new ReportDay(
                 UUID.randomUUID(), TODAY, 1200, 4, 4, 3, 1160, 0, 0, 0, 0, 0, 0, new BigDecimal("120400.00"), 0, true));
         CageWatch c03 = new CageWatch(UUID.randomUUID(), "C-03", 0, 225, 300, 3, null, null);
-        directory.answerCageWatch(new CageWatchReading(List.of(c03), null, new MortalityBaseline(0, 0)));
+        directory.answerCageWatch(new CageWatchReading(List.of(c03), null, new MortalityBaseline(0, 0), null));
 
         // when
         List<FarmSectorRow> rows = handler.handle(new GetFarmDashboardQuery(DashboardPeriod.TODAY))
@@ -105,5 +106,27 @@ class GetFarmDashboardQueryHandlerTest {
         // then
         assertThat(rows).extracting(FarmSectorRow::openAlerts).containsExactly(1, 1);
         assertThat(rows.get(0).sector().name()).isEqualTo("Codornas — Galpão 1");
+    }
+
+    // ---------------------------------------------------------------- avisos de pesagem (010)
+
+    @Test
+    @DisplayName("counts the weighing alert among the open alerts of each sector, as the tab of the sector does")
+    void givenACageNeverWeighed_whenReadingTheFarm_thenCountTheWeighingAlertOfEachSector() {
+        // given
+        directory.addToFarm(codornas.id(), day(TODAY, 2000, 1740));
+        directory.addToFarm(poedeiras.id(), new ReportDay(
+                UUID.randomUUID(), TODAY, 1200, 4, 4, 3, 1160, 0, 0, 0, 0, 0, 0, new BigDecimal("120400.00"), 0, true));
+        CageWatch c03 = new CageWatch(UUID.randomUUID(), "C-03", 0, 225, 300, 3, null, null);
+        directory.answerCageWatch(
+                new CageWatchReading(List.of(c03), null, new MortalityBaseline(0, 0), new WeighingSchedule(null)));
+
+        // when
+        List<FarmSectorRow> rows = handler.handle(new GetFarmDashboardQuery(DashboardPeriod.TODAY))
+                .value()
+                .sectors();
+
+        // then
+        assertThat(rows).extracting(FarmSectorRow::openAlerts).containsExactly(2, 2);
     }
 }

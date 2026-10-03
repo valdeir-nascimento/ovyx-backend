@@ -146,6 +146,10 @@ public interface SectorApi {
                     name = "metaForaDaFaixa",
                     summary = "Meta de produtividade acima de 100%",
                     value = SectorExamples.REGISTER_TARGET_OUT_OF_RANGE),
+                @ExampleObject(
+                    name = "diaInvalido",
+                    summary = "Dia da pesagem que não é um dia da semana",
+                    value = SectorExamples.REGISTER_WEIGHING_DAY_INVALID),
                 @ExampleObject(name = "corpoIlegivel", value = SectorExamples.REGISTER_UNREADABLE_BODY)
             }))
     @ApiResponse(
@@ -297,6 +301,10 @@ public interface SectorApi {
                     name = "metaComDuasCasas",
                     summary = "Meta com duas casas decimais",
                     value = SectorExamples.UPDATE_TARGET_INVALID),
+                @ExampleObject(
+                    name = "diaInvalido",
+                    summary = "Dia da pesagem que não é um dia da semana",
+                    value = SectorExamples.UPDATE_WEIGHING_DAY_INVALID),
                 @ExampleObject(name = "corpoIlegivel", value = SectorExamples.UPDATE_UNREADABLE_BODY)
             }))
     @ApiResponse(

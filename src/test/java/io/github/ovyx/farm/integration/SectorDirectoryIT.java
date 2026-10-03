@@ -1,5 +1,6 @@
 package io.github.ovyx.farm.integration;
 
+import java.time.DayOfWeek;
 import static io.github.ovyx.farm.domain.model.SectorTestDataBuilder.aSector;
 import static io.github.ovyx.farm.domain.model.SectorTestDataBuilder.aUniqueSector;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -263,5 +264,28 @@ class SectorDirectoryIT extends IntegrationTestSupport {
                 .filteredOn(summary -> List.of(at72.id(), at82.id(), inactive.id()).contains(summary.id()))
                 .extracting(SectorSummary::layingRateTarget)
                 .containsExactlyInAnyOrder(new BigDecimal("72.0"), new BigDecimal("82.5"), new BigDecimal("91.5"));
+    }
+
+    // ---------------------------------------------------------------- dia da pesagem (010)
+
+    @Test
+    @DisplayName("reads the weighing day of each sector in the list and in the detail, and none where it is missing")
+    void givenSectorsWithAndWithoutWeighingDay_whenReadingThem_thenFindTheDayOnlyWhereItExists() {
+        // given
+        Sector fridays = saved(aUniqueSector().withWeighingDay("FRIDAY").withClock(clock).build());
+        Sector everySevenDays = saved(aUniqueSector().withClock(clock).build());
+        Sector inactive = saved(aUniqueSector().withWeighingDay("MONDAY").inactive().withClock(clock).build());
+
+        // when
+        SectorDetail detail = directory.findDetail(fridays.id()).orElseThrow();
+        List<SectorSummary> listed = directory.list(StatusFilter.ALL);
+
+        // then
+        assertThat(detail.weighingDay()).isEqualTo(DayOfWeek.FRIDAY);
+        assertThat(directory.findDetail(everySevenDays.id()).orElseThrow().weighingDay()).isNull();
+        assertThat(listed)
+                .filteredOn(summary -> List.of(fridays.id(), everySevenDays.id(), inactive.id()).contains(summary.id()))
+                .extracting(SectorSummary::weighingDay)
+                .containsExactlyInAnyOrder(DayOfWeek.FRIDAY, null, DayOfWeek.MONDAY);
     }
 }

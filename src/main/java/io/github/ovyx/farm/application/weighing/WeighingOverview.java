@@ -1,5 +1,9 @@
 package io.github.ovyx.farm.application.weighing;
 
+import io.github.ovyx.farm.domain.model.Status;
+import io.github.ovyx.shared.domain.WeighingSchedule;
+import java.time.LocalDate;
+import io.github.ovyx.shared.domain.WeighingStanding;
 import io.github.ovyx.farm.domain.model.WeightRangeStatus;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -16,6 +20,8 @@ import java.util.List;
  * @param chart as ultimas 12 pesagens validas, da mais antiga para a mais recente
  * @param history todas as pesagens validas, da mais recente para a mais antiga, com a variacao sobre a
  *     anterior
+ * @param schedule a situacao da gaiola na agenda de pesagem do setor, com a proxima pesagem (feature 010);
+ *     {@code null} na gaiola inativa e em setor inativo
  */
 public record WeighingOverview(
         WeighedCage cage,
@@ -24,7 +30,8 @@ public record WeighingOverview(
         FourWeekChange fourWeekChange,
         WeightRangeStatus rangeStatus,
         List<WeighingPoint> chart,
-        List<WeighingHistoryEntry> history) {
+        List<WeighingHistoryEntry> history,
+        WeighingStanding schedule) {
 
     /** A distancia, em dias, ate a pesagem de referencia da variacao em 4 semanas. */
     private static final int FOUR_WEEKS = 28;
@@ -38,12 +45,14 @@ public record WeighingOverview(
     }
 
     /** O acompanhamento a partir das pesagens validas da gaiola, em qualquer ordem. */
-    public static WeighingOverview of(WeighedCage cage, WeighedSector sector, List<WeighingEntry> weighings) {
+    public static WeighingOverview of(
+            WeighedCage cage, WeighedSector sector, List<WeighingEntry> weighings, LocalDate today) {
         List<WeighingEntry> byDay = weighings.stream()
                 .sorted(Comparator.comparing(WeighingEntry::weighedOn))
                 .toList();
         if (byDay.isEmpty()) {
-            return new WeighingOverview(cage, sector, null, null, null, List.of(), List.of());
+            return new WeighingOverview(
+                    cage, sector, null, null, null, List.of(), List.of(), scheduleOf(cage, sector, null, today));
         }
         WeighingEntry last = byDay.getLast();
         return new WeighingOverview(
@@ -53,7 +62,20 @@ public record WeighingOverview(
                 fourWeekChangeOf(byDay, last),
                 rangeStatusOf(sector, last),
                 chartOf(byDay),
-                historyOf(byDay));
+                historyOf(byDay),
+                scheduleOf(cage, sector, last.weighedOn(), today));
+    }
+
+    /**
+     * A situacao da gaiola na agenda do setor, com a proxima pesagem: so na gaiola ativa de setor ativo (FR-015 da
+     * 010).
+     */
+    private static WeighingStanding scheduleOf(
+            WeighedCage cage, WeighedSector sector, LocalDate lastWeighedOn, LocalDate today) {
+        if (cage.status() != Status.ACTIVE || sector.status() != Status.ACTIVE) {
+            return null;
+        }
+        return new WeighingSchedule(sector.weighingDay()).standingOf(today, lastWeighedOn);
     }
 
     /** A ultima menos a pesagem mais recente com data ate 28 dias antes da dela; sem essa, nenhuma. */

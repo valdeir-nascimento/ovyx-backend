@@ -26,6 +26,12 @@ info:
     setor inativa junto as gaiolas ativas dele; reativá-lo traz de volta exatamente essas gaiolas.
     A pesagem excluída fica guardada como anulada, com quem a anulou e quando, e sai das leituras.
 
+    **Agenda de pesagem** (feature 010): o setor pode ter um dia da semana para a pesagem (`weighingDay`). A
+    pesagem da semana é a feita nos 7 dias que terminam no último dia de pesagem que já chegou, ou depois dele; sem
+    dia definido, vale o prazo de 7 dias desde a última pesagem. Cada gaiola ativa de setor ativo tem a situação
+    (`WeighingStanding`): em dia, a pesar hoje, atrasada ou nunca pesada. A situação depende de hoje, no fuso da
+    granja, e não é gravada.
+
     **Planilhas**: a lista de gaiolas de um setor também sai como planilha do Excel (.xlsx), com a
     busca e os filtros da tela e todas as páginas. Quantidades, pesos e datas são números e datas na
     planilha, e não texto; a gaiola nunca pesada fica com o peso em branco. A recusa de uma exportação
@@ -74,6 +80,7 @@ paths:
                     activeCageCount: 48
                     birdCount: 2400
                     layingRateTarget: 85.0
+                    weighingDay: FRIDAY
                   - id: 7a1b9c3d-2e4f-4a6b-8c0d-5e7f9a1b3c22
                     name: Poedeiras brancas — Galpão 2
                     description: Linhagem Hy-Line W-36 em gaiolas convencionais
@@ -125,6 +132,7 @@ paths:
                   minimumWeight: 155
                   maximumWeight: 175
                   layingRateTarget: 85
+                  weighingDay: FRIDAY
       responses:
         '201':
           description: Setor cadastrado. O cabeçalho `Location` aponta para ele.
@@ -148,6 +156,7 @@ paths:
                     activeCageCount: 0
                     birdCount: 0
                     layingRateTarget: 85.0
+                    weighingDay: FRIDAY
                     referenceWeight:
                       minimum: 155
                       maximum: 175
@@ -192,6 +201,16 @@ paths:
                     instance: /api/v1/sectors
                     details:
                       layingRateTarget: A meta deve ficar entre 1% e 100%.
+                diaInvalido:
+                  summary: Dia da pesagem que não é um dia da semana
+                  value:
+                    code: VALIDATION_FAILED
+                    title: Dados inválidos
+                    status: 400
+                    detail: Dados inválidos.
+                    instance: /api/v1/sectors
+                    details:
+                      weighingDay: Escolha um dia da semana, de segunda a domingo.
         '401':
           $ref: '#/components/responses/SessaoInvalida'
         '403':
@@ -244,6 +263,7 @@ paths:
                     activeCageCount: 48
                     birdCount: 2400
                     layingRateTarget: 85.0
+                    weighingDay: FRIDAY
                     batteries: [A, B, C, D]
                     createdAt: '2026-09-20T10:15:00Z'
                     updatedAt: '2026-09-24T17:40:12Z'
@@ -276,12 +296,14 @@ paths:
                   minimumWeight: 155
                   maximumWeight: 175
                   layingRateTarget: '82,5'
+                  weighingDay: FRIDAY
               semFaixa:
                 summary: Faixa de peso retirada, sem os dois limites
                 value:
                   name: Codornas — Galpão 1 (norte)
                   description: Codornas japonesas em postura, baterias A a D
                   layingRateTarget: 88
+                  weighingDay: FRIDAY
       responses:
         '200':
           description: Setor atualizado
@@ -326,6 +348,16 @@ paths:
                     instance: /api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11
                     details:
                       layingRateTarget: Informe a meta em porcentagem, com até uma casa decimal.
+                diaInvalido:
+                  summary: Dia da pesagem que não é um dia da semana
+                  value:
+                    code: VALIDATION_FAILED
+                    title: Dados inválidos
+                    status: 400
+                    detail: Dados inválidos.
+                    instance: /api/v1/sectors/3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11
+                    details:
+                      weighingDay: Escolha um dia da semana, de segunda a domingo.
         '401':
           $ref: '#/components/responses/SessaoInvalida'
         '403':
@@ -443,6 +475,14 @@ paths:
         schema:
           $ref: '#/components/schemas/StatusFilter'
         example: ACTIVE
+      - name: weighing
+        in: query
+        description: >-
+          `PENDING` traz só as gaiolas ativas que faltam pesar: sem pesagem válida na semana do setor, ou há mais de 7
+          dias no setor sem dia definido. Combina com a busca e os outros filtros; ausente, sem filtro de pesagem.
+        schema:
+          $ref: '#/components/schemas/WeighingFilter'
+        example: PENDING
       - name: page
         in: query
         description: Página, a partir de 0.
@@ -479,6 +519,12 @@ paths:
                       number: 7
                       birdCount: 50
                       status: ACTIVE
+                      lastWeighing:
+                        weighedOn: '2026-09-18'
+                        averageWeight: 161.0
+                      weighing:
+                        situation: LATE
+                        lateSince: '2026-09-25'
                     page: 0
                     size: 20
                     totalElements: 1
@@ -600,7 +646,7 @@ paths:
     get:
       tags: [Gaiolas]
       summary: Exportar as gaiolas do setor para planilha
-      description: 'As gaiolas do setor com a busca e os filtros da lista, de todas as páginas, como planilha do Excel: o código, a bateria, o número, as aves, a situação, a última pesagem válida e a situação dela diante da faixa de peso do setor. O cabeçalho traz a faixa, os filtros e os totais de gaiolas ativas e de aves. O arquivo se chama `gaiolas-<setor>.xlsx`.'
+      description: 'As gaiolas do setor com a busca e os filtros da lista, de todas as páginas, como planilha do Excel: o código, a bateria, o número, as aves, a situação, a última pesagem válida, a situação dela diante da faixa de peso do setor e a situação da pesagem da semana (com a data do atraso). O cabeçalho traz a faixa, os filtros e os totais de gaiolas ativas e de aves. O arquivo se chama `gaiolas-<setor>.xlsx`.'
       operationId: exportCages
       parameters:
       - name: code
@@ -623,6 +669,14 @@ paths:
         schema:
           $ref: '#/components/schemas/StatusFilter'
         example: ACTIVE
+      - name: weighing
+        in: query
+        description: >-
+          `PENDING` traz só as gaiolas ativas que faltam pesar: sem pesagem válida na semana do setor, ou há mais de 7
+          dias no setor sem dia definido. Combina com a busca e os outros filtros; ausente, sem filtro de pesagem.
+        schema:
+          $ref: '#/components/schemas/WeighingFilter'
+        example: PENDING
       responses:
         '200':
           description: Planilha das gaiolas
@@ -835,6 +889,9 @@ paths:
                       change: 11.0
                       since: '2026-08-27'
                     rangeStatus: WITHIN
+                    schedule:
+                      situation: UP_TO_DATE
+                      nextOn: '2026-10-01'
                     chart:
                     - weighedOn: '2026-08-27'
                       averageWeight: 150.0
@@ -898,6 +955,8 @@ paths:
                       id: 3f6c2b1a-8d4e-4c7f-9a2b-1e5d7c9f0a11
                       name: Codornas — Galpão 1
                       status: ACTIVE
+                    schedule:
+                      situation: NEVER_WEIGHED
                     chart: []
                     history: []
         '401':
@@ -1437,6 +1496,13 @@ components:
             Meta de produtividade do setor: a porcentagem de ovos coletados sobre as aves alojadas
             esperada por dia, de 1 a 100, com até uma casa decimal. Número ou texto, com vírgula ou ponto.
           example: 85
+        weighingDay:
+          type: string
+          description: >-
+            Dia da semana da pesagem das aves do setor, de `MONDAY` a `SUNDAY`. Ausente, nulo ou vazio, o setor fica sem
+            dia fixo e segue o prazo de 7 dias desde a última pesagem de cada gaiola. Outro valor é recusado no campo
+            `weighingDay`, junto das demais falhas.
+          example: FRIDAY
     SectorSummary:
       type: object
       description: Setor na lista, com os totais das gaiolas ativas e a meta de produtividade
@@ -1471,6 +1537,8 @@ components:
           multipleOf: 0.1
           description: Meta de produtividade do setor, em porcentagem, com uma casa decimal
           example: 85.0
+        weighingDay:
+          $ref: '#/components/schemas/WeighingDay'
     SectorDetail:
       allOf:
       - $ref: '#/components/schemas/SectorSummary'
@@ -1544,6 +1612,8 @@ components:
           $ref: '#/components/schemas/Status'
         lastWeighing:
           $ref: '#/components/schemas/WeighingPoint'
+        weighing:
+          $ref: '#/components/schemas/WeighingStanding'
     CageDetail:
       allOf:
       - $ref: '#/components/schemas/CageSummary'
@@ -1594,6 +1664,42 @@ components:
       type: string
       enum: [WITHIN, OUTSIDE, NO_RANGE]
       description: A última pesagem diante da faixa do setor; `NO_RANGE` quando o setor não tem faixa.
+    WeighingDay:
+      type: string
+      enum: [MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY, SUNDAY]
+      description: Dia da semana da pesagem do setor; ausente quando o setor segue o prazo de 7 dias.
+      example: FRIDAY
+    WeighingSituation:
+      type: string
+      enum: [UP_TO_DATE, DUE_TODAY, LATE, NEVER_WEIGHED]
+      description: >-
+        A pesagem da semana de uma gaiola ativa: em dia; a pesar hoje (é o dia da pesagem e falta a da semana);
+        atrasada (o dia passou sem ela, ou a última tem mais de 7 dias sem dia definido); nunca pesada.
+    WeighingStanding:
+      type: object
+      description: >-
+        A situação da pesagem de uma gaiola ativa de setor ativo, calculada com o dia de hoje da granja. Ausente na
+        gaiola inativa e nas gaiolas de setor inativo.
+      required: [situation]
+      properties:
+        situation:
+          $ref: '#/components/schemas/WeighingSituation'
+        lateSince:
+          type: string
+          format: date
+          description: >-
+            Só na atrasada: o último dia de pesagem que passou sem ela; sem dia definido, o dia seguinte ao fim do
+            prazo de 7 dias.
+          example: '2026-09-25'
+        nextOn:
+          type: string
+          format: date
+          description: 'Só na em dia: o próximo dia de pesagem; sem dia definido, 7 dias depois da última.'
+          example: '2026-10-02'
+    WeighingFilter:
+      type: string
+      enum: [PENDING]
+      description: Filtro de pesagem da lista de gaiolas; `PENDING` traz as gaiolas ativas que faltam pesar.
     Actor:
       type: object
       description: Quem fez a operação, como estava na sessão
@@ -1764,6 +1870,8 @@ components:
           $ref: '#/components/schemas/FourWeekChange'
         rangeStatus:
           $ref: '#/components/schemas/WeightRangeStatus'
+        schedule:
+          $ref: '#/components/schemas/WeighingStanding'
         chart:
           type: array
           description: As últimas 12 pesagens válidas, da mais antiga para a mais recente

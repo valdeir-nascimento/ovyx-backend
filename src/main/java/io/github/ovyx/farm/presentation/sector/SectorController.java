@@ -53,7 +53,8 @@ public class SectorController implements SectorApi {
                 body.description(),
                 body.rawMinimumWeight(),
                 body.rawMaximumWeight(),
-                body.rawLayingRateTarget()));
+                body.rawLayingRateTarget(),
+                body.rawWeighingDay()));
         return resultHttpMapper.created(
             detailOf(registered).map(SectorDetailResponse::from),
             detail -> URI.create("/api/v1/sectors/" + detail.id()));
@@ -77,7 +78,8 @@ public class SectorController implements SectorApi {
                 body.description(),
                 body.rawMinimumWeight(),
                 body.rawMaximumWeight(),
-                body.rawLayingRateTarget()));
+                body.rawLayingRateTarget(),
+                body.rawWeighingDay()));
         return resultHttpMapper.ok(detailOf(updated).map(SectorDetailResponse::from));
     }
 

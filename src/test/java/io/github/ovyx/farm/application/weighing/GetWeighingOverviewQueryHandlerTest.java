@@ -1,5 +1,11 @@
 package io.github.ovyx.farm.application.weighing;
 
+import java.time.DayOfWeek;
+import io.github.ovyx.shared.domain.WeighingStanding;
+import io.github.ovyx.shared.domain.WeighingSituation;
+import java.time.ZoneId;
+import io.github.ovyx.shared.domain.FixedClock;
+import io.github.ovyx.shared.application.FarmCalendar;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.ovyx.farm.domain.model.Actor;
@@ -26,10 +32,13 @@ class GetWeighingOverviewQueryHandlerTest {
     private static final UUID CAGE = UUID.fromString("2a4c6e8a-0b1d-4f3a-9c5e-7a9b1d3f5a66");
 
     private final RecordingWeighingDirectory directory = new RecordingWeighingDirectory();
-    private final GetWeighingOverviewQueryHandler handler = new GetWeighingOverviewQueryHandler(directory);
+    /** Domingo, 27/09/2026, ao meio-dia na granja. */
+    private final FarmCalendar calendar =
+            new FarmCalendar(FixedClock.at("2026-09-27T15:00:00Z"), ZoneId.of("America/Sao_Paulo"));
+    private final GetWeighingOverviewQueryHandler handler = new GetWeighingOverviewQueryHandler(directory, calendar);
 
     GetWeighingOverviewQueryHandlerTest() {
-        directory.knowSector(new WeighedSector(SectorId.of(SECTOR), "Codornas — Galpão 1", Status.ACTIVE, null));
+        directory.knowSector(new WeighedSector(SectorId.of(SECTOR), "Codornas — Galpão 1", Status.ACTIVE, null, null));
         directory.knowCage(SECTOR, new WeighedCage(CageId.of(CAGE), "A-01", "A", 1, 48, Status.ACTIVE));
     }
 
@@ -81,5 +90,30 @@ class GetWeighingOverviewQueryHandlerTest {
         // then
         assertThat(result.error().type()).isEqualTo(ErrorType.NOT_FOUND);
         assertThat(result.error().code()).isEqualTo("CAGE_NOT_FOUND");
+    }
+
+    // ---------------------------------------------------------------- agenda de pesagem (010)
+
+    @Test
+    @DisplayName("gives the next weighing with the weighing day of the sector and the day of the farm")
+    void givenSectorWeighedOnFridays_whenAskingTheOverviewOnSunday_thenGiveTheNextWeighing() {
+        // given
+        directory.knowSector(
+                new WeighedSector(SectorId.of(SECTOR), "Codornas — Galpão 1", Status.ACTIVE, null, DayOfWeek.FRIDAY));
+        directory.knowWeighings(
+                CAGE,
+                List.of(new WeighingEntry(
+                        WeighingId.generate(),
+                        LocalDate.parse("2026-09-24"),
+                        new BigDecimal("161.0"),
+                        new Actor(UUID.randomUUID(), "Marina Alves"),
+                        null)));
+
+        // when
+        Result<WeighingOverview> result = handler.handle(new GetWeighingOverviewQuery(SECTOR.toString(), CAGE.toString()));
+
+        // then
+        assertThat(result.value().schedule())
+                .isEqualTo(new WeighingStanding(WeighingSituation.UP_TO_DATE, null, LocalDate.of(2026, 10, 2)));
     }
 }

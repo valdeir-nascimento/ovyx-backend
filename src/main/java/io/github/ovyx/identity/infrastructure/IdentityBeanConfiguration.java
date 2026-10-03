@@ -1,5 +1,6 @@
 package io.github.ovyx.identity.infrastructure;
 
+import io.github.ovyx.identity.application.account.ChangeOwnThemeCommandHandler;
 import io.github.ovyx.identity.application.account.ChangeOwnPasswordCommandHandler;
 import io.github.ovyx.identity.application.caretaker.CaretakerDirectory;
 import io.github.ovyx.identity.application.caretaker.DeactivateCaretakerCommandHandler;
@@ -53,6 +54,11 @@ public class IdentityBeanConfiguration {
     ChangeOwnPasswordCommandHandler changeOwnPasswordCommandHandler(
             CaretakerRepository caretakerRepository, PasswordHasher passwordHasher, Clock clock) {
         return new ChangeOwnPasswordCommandHandler(caretakerRepository, passwordHasher, clock);
+    }
+
+    @Bean
+    ChangeOwnThemeCommandHandler changeOwnThemeCommandHandler(CaretakerRepository caretakerRepository) {
+        return new ChangeOwnThemeCommandHandler(caretakerRepository);
     }
 
     @Bean

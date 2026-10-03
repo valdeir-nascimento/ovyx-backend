@@ -1,5 +1,7 @@
 package io.github.ovyx.farm.infrastructure.persistence;
 
+import java.time.DayOfWeek;
+import io.github.ovyx.farm.domain.valueobject.WeighingDay;
 import io.github.ovyx.farm.domain.model.Cage;
 import io.github.ovyx.farm.domain.model.CageId;
 import io.github.ovyx.farm.domain.model.Sector;
@@ -35,6 +37,7 @@ final class SectorRecordMapper {
                 minimumOf(sector),
                 maximumOf(sector),
                 sector.layingRateTarget().value(),
+                weighingDayOf(sector),
                 sector.status(),
                 sector.createdAt(),
                 sector.updatedAt());
@@ -54,6 +57,7 @@ final class SectorRecordMapper {
                 || !Objects.equals(record.getReferenceWeightMin(), minimumOf(sector))
                 || !Objects.equals(record.getReferenceWeightMax(), maximumOf(sector))
                 || record.getLayingRateTarget().compareTo(sector.layingRateTarget().value()) != 0
+                || !Objects.equals(record.getWeighingDay(), weighingDayOf(sector))
                 || record.getStatus() != sector.status()
                 || !Objects.equals(record.getUpdatedAt(), sector.updatedAt());
         record.apply(
@@ -62,6 +66,7 @@ final class SectorRecordMapper {
                 minimumOf(sector),
                 maximumOf(sector),
                 sector.layingRateTarget().value(),
+                weighingDayOf(sector),
                 sector.status(),
                 sector.updatedAt());
 
@@ -95,10 +100,16 @@ final class SectorRecordMapper {
                         ? null
                         : new ReferenceWeight(record.getReferenceWeightMin(), record.getReferenceWeightMax()),
                 new LayingRateTarget(record.getLayingRateTarget()),
+                record.getWeighingDay() == null ? null : new WeighingDay(DayOfWeek.valueOf(record.getWeighingDay())),
                 record.getStatus(),
                 record.getCages().stream().map(SectorRecordMapper::toDomain).toList(),
                 record.getCreatedAt(),
                 record.getUpdatedAt());
+    }
+
+    /** O dia da pesagem como a coluna o guarda, ou {@code null} sem dia (feature 010). */
+    private static String weighingDayOf(Sector sector) {
+        return sector.weighingDay().map(day -> day.value().name()).orElse(null);
     }
 
     private static Integer minimumOf(Sector sector) {

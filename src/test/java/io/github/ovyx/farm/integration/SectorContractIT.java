@@ -627,4 +627,69 @@ class SectorContractIT extends IntegrationTestSupport {
         refused.andExpect(status().isBadRequest());
         read(path).andExpect(jsonPath("$.layingRateTarget").value(72.0));
     }
+
+    // ---------------------------------------------------------------- dia da pesagem (010)
+
+    @Test
+    @DisplayName("answers the weighing day in the detail and in the list, and drops it when taken away")
+    void givenSectorWeighedOnFridays_whenReadingAndTakingTheDayAway_thenAnswerTheDayAndThenNone() throws Exception {
+        // given
+        String name = uniqueName();
+        String response = register("""
+                        {"name": "%s", "layingRateTarget": 85, "weighingDay": "FRIDAY"}
+                        """.formatted(name))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.weighingDay").value("FRIDAY"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String id = JsonPath.read(response, "$.id");
+        String path = SECTORS + "/" + id;
+
+        // when
+        ResultActions detail = read(path);
+        ResultActions list = read(SECTORS);
+        ResultActions cleared = update(path, """
+                {"name": "%s", "layingRateTarget": 85, "weighingDay": null}
+                """.formatted(name));
+
+        // then
+        detail.andExpect(status().isOk()).andExpect(jsonPath("$.weighingDay").value("FRIDAY"));
+        list.andExpect(jsonPath("$[?(@.id == '%s')].weighingDay".formatted(id)).value("FRIDAY"));
+        cleared.andExpect(status().isOk()).andExpect(jsonPath("$.weighingDay").doesNotExist());
+        read(path).andExpect(jsonPath("$.weighingDay").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("registers a sector without the weighing day field, without a day")
+    void givenNoWeighingDayField_whenRegistering_thenAnswerNoDay() throws Exception {
+        // given
+        String body = """
+                {"name": "%s", "layingRateTarget": 85}
+                """.formatted(uniqueName());
+
+        // when
+        ResultActions response = register(body);
+
+        // then
+        response.andExpect(status().isCreated()).andExpect(jsonPath("$.weighingDay").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("refuses a day that is not a day of the week together with a blank name, in one answer")
+    void givenBlankNameAndInvalidDay_whenUpdating_thenAnswerBothViolations() throws Exception {
+        // given
+        String path = registeredWithTarget(uniqueName(), "85");
+
+        // when
+        ResultActions response = update(path, """
+                {"name": "", "layingRateTarget": 85, "weighingDay": "FUNDAY"}
+                """);
+
+        // then
+        response.andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.details.name").value("Informe o nome do setor."))
+                .andExpect(jsonPath("$.details.weighingDay").value("Escolha um dia da semana, de segunda a domingo."));
+    }
 }

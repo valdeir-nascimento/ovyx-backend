@@ -1,5 +1,6 @@
 package io.github.ovyx.farm.infrastructure.persistence;
 
+import java.time.DayOfWeek;
 import io.github.ovyx.farm.application.common.StatusFilter;
 import io.github.ovyx.farm.application.sector.SectorDetail;
 import io.github.ovyx.farm.application.sector.SectorDirectory;
@@ -28,7 +29,7 @@ public class JdbcSectorDirectory implements SectorDirectory {
 
     private static final String SELECT = """
             select s.id, s.name, s.description, s.status, s.created_at, s.updated_at,
-                   s.reference_weight_min, s.reference_weight_max, s.laying_rate_target,
+                   s.reference_weight_min, s.reference_weight_max, s.laying_rate_target, s.weighing_day,
                    count(c.id) filter (where c.status = 'ACTIVE') as active_cage_count,
                    coalesce(sum(c.bird_count) filter (where c.status = 'ACTIVE'), 0) as bird_count
               from sector s
@@ -79,7 +80,8 @@ public class JdbcSectorDirectory implements SectorDirectory {
                         rs.getObject("created_at", OffsetDateTime.class).toInstant(),
                         rs.getObject("updated_at", OffsetDateTime.class).toInstant(),
                         referenceWeightOf(rs),
-                        rs.getBigDecimal("laying_rate_target")))
+                        rs.getBigDecimal("laying_rate_target"),
+                        weighingDayOf(rs)))
                 .optional();
     }
 
@@ -92,7 +94,14 @@ public class JdbcSectorDirectory implements SectorDirectory {
                 rs.getInt("active_cage_count"),
                 rs.getInt("bird_count"),
                 referenceWeightOf(rs),
-                rs.getBigDecimal("laying_rate_target"));
+                rs.getBigDecimal("laying_rate_target"),
+                weighingDayOf(rs));
+    }
+
+    /** O dia da pesagem do setor, ou {@code null} sem dia fixo (feature 010). */
+    static DayOfWeek weighingDayOf(ResultSet rs) throws SQLException {
+        String day = rs.getString("weighing_day");
+        return day == null ? null : DayOfWeek.valueOf(day);
     }
 
     /** A faixa de peso de referencia do setor, ou {@code null} sem faixa (feature 005). */

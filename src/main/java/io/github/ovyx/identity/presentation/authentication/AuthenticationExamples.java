@@ -37,7 +37,8 @@ public final class AuthenticationExamples {
               "id": "7c1f0b2e-3d4a-4f5b-8c9d-0e1f2a3b4c5d",
               "fullName": "Maria Silva",
               "role": "USER",
-              "mustChangePassword": false
+              "mustChangePassword": false,
+              "theme": "DARK"
             }""";
 
     public static final String SIGN_IN_SEEDED_ADMINISTRATOR =
@@ -46,7 +47,8 @@ public final class AuthenticationExamples {
               "id": "1a2b3c4d-5e6f-4071-8293-a4b5c6d7e8f9",
               "fullName": "Administrador do Sistema",
               "role": "ADMINISTRATOR",
-              "mustChangePassword": true
+              "mustChangePassword": true,
+              "theme": "SYSTEM"
             }""";
 
     public static final String SIGN_IN_IDENTIFIER_TOO_LONG =

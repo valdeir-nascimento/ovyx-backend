@@ -1,5 +1,7 @@
 package io.github.ovyx.farm.application.cage;
 
+import io.github.ovyx.shared.domain.WeighingStanding;
+import io.github.ovyx.shared.domain.WeighingSituation;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.ovyx.farm.application.common.StatusFilter;
@@ -43,7 +45,7 @@ class CagesSpreadsheetTest {
                 List.of("A", "B"),
                 Instant.parse("2026-09-01T10:00:00Z"),
                 Instant.parse("2026-09-01T10:00:00Z"),
-                range, new BigDecimal("85.0"));
+                range, new BigDecimal("85.0"), null);
     }
 
     private static CageSummary cage(String battery, int number, Status status, String weight, LocalDate weighedOn) {
@@ -55,7 +57,7 @@ class CagesSpreadsheetTest {
                 number,
                 50,
                 status,
-                weight == null ? null : new CageLastWeighing(weighedOn, new BigDecimal(weight)));
+                weight == null ? null : new CageLastWeighing(weighedOn, new BigDecimal(weight)), null);
     }
 
     private static List<CageSummary> cages() {
@@ -67,7 +69,7 @@ class CagesSpreadsheetTest {
     }
 
     private static Spreadsheet spreadsheet(ReferenceWeight range, String code, String battery, StatusFilter status, List<CageSummary> cages) {
-        return CagesSpreadsheet.of(sector(range), code, battery, status, cages, TODAY, NOW);
+        return CagesSpreadsheet.of(sector(range), new CageFilter(code, battery, status, null), cages, TODAY, NOW);
     }
 
     private static Cell cell(Sheet sheet, List<Cell> row, String title) {
@@ -145,7 +147,17 @@ class CagesSpreadsheetTest {
         // then
         assertThat(sheet.columns())
                 .extracting(Column::title)
-                .containsExactly("Gaiola", "Bateria", "Número", "Aves", "Situação", "Peso médio (g)", "Data da pesagem", "Faixa");
+                .containsExactly(
+                        "Gaiola",
+                        "Bateria",
+                        "Número",
+                        "Aves",
+                        "Situação",
+                        "Peso médio (g)",
+                        "Data da pesagem",
+                        "Faixa",
+                        "Pesagem",
+                        "Atrasada desde");
         assertThat(sheet.rows()).hasSize(4);
         List<Cell> a01 = sheet.rows().getFirst();
         assertThat(cell(sheet, a01, "Gaiola")).isEqualTo(Cell.text("A-01"));
@@ -200,5 +212,50 @@ class CagesSpreadsheetTest {
 
         // then
         assertThat(sheet.emptyNotice()).isEqualTo("Nenhuma gaiola com esses filtros");
+    }
+
+    // ---------------------------------------------------------------- agenda de pesagem (010)
+
+    private static CageSummary standing(String code, Status status, WeighingStanding weighing) {
+        return new CageSummary(CageId.generate(), SECTOR_ID, code, code.substring(0, 1), 1, 50, status, null, weighing);
+    }
+
+    @Test
+    @DisplayName("writes the standing of each cage in the schedule, and the day it is late since as a date")
+    void givenCagesInEveryStanding_whenBuildingTheSpreadsheet_thenWriteTheStandingAndTheLateDay() {
+        // given
+        List<CageSummary> cages = List.of(
+                standing("A-01", Status.ACTIVE, new WeighingStanding(WeighingSituation.UP_TO_DATE, null, TODAY.plusDays(4))),
+                standing("A-02", Status.ACTIVE, new WeighingStanding(WeighingSituation.DUE_TODAY, null, null)),
+                standing("B-07", Status.ACTIVE, new WeighingStanding(WeighingSituation.LATE, TODAY.minusDays(3), null)),
+                standing("C-03", Status.ACTIVE, new WeighingStanding(WeighingSituation.NEVER_WEIGHED, null, null)),
+                standing("D-01", Status.INACTIVE, null));
+
+        // when
+        Sheet sheet = spreadsheet(null, null, null, StatusFilter.ALL, cages).sheets().getFirst();
+
+        // then
+        assertThat(sheet.rows())
+                .extracting(row -> cell(sheet, row, "Pesagem"))
+                .containsExactly(
+                        Cell.text("Em dia"), Cell.text("Pesar hoje"), Cell.text("Atrasada"), Cell.text("Nunca pesada"),
+                        Cell.blank());
+        assertThat(sheet.rows())
+                .extracting(row -> cell(sheet, row, "Atrasada desde"))
+                .containsExactly(Cell.blank(), Cell.blank(), Cell.date(TODAY.minusDays(3)), Cell.blank(), Cell.blank());
+    }
+
+    @Test
+    @DisplayName("says the pending weighing filter in the heading")
+    void givenPendingWeighingFilter_whenBuildingTheSpreadsheet_thenSayItInTheHeading() {
+        // given
+        CageFilter filter = new CageFilter(null, "B", StatusFilter.ACTIVE, TODAY.minusDays(6));
+
+        // when
+        List<String> heading =
+                CagesSpreadsheet.of(sector(null), filter, cages(), TODAY, NOW).sheets().getFirst().heading();
+
+        // then
+        assertThat(heading).contains("Filtros: bateria B, pesagem pendente, só as ativas");
     }
 }

@@ -1,5 +1,7 @@
 package io.github.ovyx.production.application.dashboard;
 
+import java.time.DayOfWeek;
+import io.github.ovyx.shared.domain.WeighingSchedule;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
@@ -63,7 +65,7 @@ class DashboardAlertsTest {
 
     private static List<DashboardAlert> alerts(ReportDay today, List<CageWatch> cages, ReferenceWeight range,
             MortalityBaseline baseline, LayingRateTarget target) {
-        return DashboardAlerts.of(TODAY, today, new CageWatchReading(cages, range, baseline), target);
+        return DashboardAlerts.of(TODAY, today, new CageWatchReading(cages, range, baseline, null), target);
     }
 
     // ---------------------------------------------------------------- pendências do relatório de hoje
@@ -328,5 +330,185 @@ class DashboardAlertsTest {
 
         // then
         assertThat(alert.detail()).isEqualTo("75,0% nos últimos 3 relatórios, abaixo da meta de 82,5% do setor.");
+    }
+
+    // ---------------------------------------------------------------- avisos de pesagem (010)
+
+    private static final WeighingSchedule FRIDAYS = new WeighingSchedule(DayOfWeek.FRIDAY);
+    private static final WeighingSchedule EVERY_SEVEN_DAYS = new WeighingSchedule(null);
+    private static final LocalDate FRIDAY = LocalDate.of(2026, 9, 25);
+    private static final LocalDate SUNDAY = LocalDate.of(2026, 9, 27);
+
+    /** Uma gaiola sem outro alerta, com a ultima pesagem valida no dia dado, ou nunca pesada. */
+    private static CageWatch weighedOn(String code, String lastWeighedOn) {
+        LocalDate day = lastWeighedOn == null ? null : LocalDate.parse(lastWeighedOn);
+        return new CageWatch(UUID.randomUUID(), code, 0, 135, 150, 3, day, day == null ? null : new BigDecimal("160"));
+    }
+
+    /** A-01 e A-02 pesadas na quinta, 24/09; B-07 pela ultima vez em 18/09; C-03 nunca pesada. */
+    private static List<CageWatch> galpaoUm() {
+        return List.of(
+                weighedOn("A-01", "2026-09-24"),
+                weighedOn("A-02", "2026-09-24"),
+                weighedOn("B-07", "2026-09-18"),
+                weighedOn("C-03", null));
+    }
+
+    private static List<DashboardAlert> weighingAlerts(
+            LocalDate today, WeighingSchedule schedule, List<CageWatch> cages) {
+        return DashboardAlerts.of(
+                        today,
+                        completeToday(),
+                        new CageWatchReading(cages, null, new MortalityBaseline(0, 0), schedule),
+                        EIGHTY_FIVE)
+                .stream()
+                .filter(alert -> alert.kind() == AlertKind.WEIGHING_DUE || alert.kind() == AlertKind.WEIGHING_LATE)
+                .toList();
+    }
+
+    @Test
+    @DisplayName("tells, on the weighing day, how many cages are still to weigh and in which batteries")
+    void givenWeighingOnFridaysAndTwoCagesWithoutTheWeighing_whenReadingOnFriday_thenInformTheWeighingOfToday() {
+        // given
+        List<CageWatch> cages = galpaoUm();
+
+        // when
+        List<DashboardAlert> alerts = weighingAlerts(FRIDAY, FRIDAYS, cages);
+
+        // then
+        assertThat(alerts).containsExactly(new DashboardAlert(
+                AlertKind.WEIGHING_DUE,
+                AlertTone.INFO,
+                "Pesagem semanal hoje",
+                "2 gaiolas a pesar, baterias B e C.",
+                new AlertTarget(null, null, null)));
+    }
+
+    @Test
+    @DisplayName("warns, after the weighing day, of the cages without the weighing of the week, since that day")
+    void givenWeighingOnFridaysAndTwoCagesWithoutTheWeighing_whenReadingOnSunday_thenWarnOfTheLateWeighing() {
+        // given
+        List<CageWatch> cages = galpaoUm();
+
+        // when
+        List<DashboardAlert> alerts = weighingAlerts(SUNDAY, FRIDAYS, cages);
+
+        // then
+        assertThat(alerts).containsExactly(new DashboardAlert(
+                AlertKind.WEIGHING_LATE,
+                AlertTone.WARNING,
+                "Pesagem atrasada",
+                "2 gaiolas sem a pesagem de sexta-feira, 25/09, baterias B e C.",
+                new AlertTarget(null, null, null)));
+    }
+
+    @Test
+    @DisplayName("writes a single cage and a single battery in the singular")
+    void givenOneCageWithoutTheWeighing_whenReadingOnFriday_thenWriteItInTheSingular() {
+        // given
+        List<CageWatch> cages = List.of(weighedOn("A-01", "2026-09-24"), weighedOn("B-07", "2026-09-18"));
+
+        // when
+        List<DashboardAlert> alerts = weighingAlerts(FRIDAY, FRIDAYS, cages);
+
+        // then
+        assertThat(alerts).extracting(DashboardAlert::detail).containsExactly("1 gaiola a pesar, bateria B.");
+    }
+
+    @Test
+    @DisplayName("names each battery once, in the order of the cages, joined by commas and \"e\"")
+    void givenCagesOfThreeBatteriesWithoutTheWeighing_whenReadingOnFriday_thenNameEachBatteryOnce() {
+        // given
+        List<CageWatch> cages = List.of(
+                weighedOn("A-03", null),
+                weighedOn("B-07", null),
+                weighedOn("B-08", "2026-09-18"),
+                weighedOn("C-03", null));
+
+        // when
+        List<DashboardAlert> alerts = weighingAlerts(FRIDAY, FRIDAYS, cages);
+
+        // then
+        assertThat(alerts).extracting(DashboardAlert::detail).containsExactly("4 gaiolas a pesar, baterias A, B e C.");
+    }
+
+    @Test
+    @DisplayName("counts a weighing made after the weighing day for the week")
+    void givenCageWeighedTheDayAfterTheWeighingDay_whenReadingOnSunday_thenNotCountItAsLate() {
+        // given
+        List<CageWatch> cages = List.of(weighedOn("B-07", "2026-09-26"), weighedOn("C-03", null));
+
+        // when
+        List<DashboardAlert> alerts = weighingAlerts(SUNDAY, FRIDAYS, cages);
+
+        // then
+        assertThat(alerts)
+                .extracting(DashboardAlert::detail)
+                .containsExactly("1 gaiola sem a pesagem de sexta-feira, 25/09, bateria C.");
+    }
+
+    @Test
+    @DisplayName("without a weighing day, warns of the cages weighed more than 7 days ago, and never informs")
+    void givenNoWeighingDay_whenReadingOnAnyDay_thenWarnOfTheCagesWeighedMoreThanSevenDaysAgo() {
+        // given
+        List<CageWatch> cages = List.of(weighedOn("A-01", "2026-09-18"), weighedOn("B-07", "2026-09-17"));
+
+        // when
+        List<DashboardAlert> onFriday = weighingAlerts(FRIDAY, EVERY_SEVEN_DAYS, cages);
+
+        // then
+        assertThat(onFriday).containsExactly(new DashboardAlert(
+                AlertKind.WEIGHING_LATE,
+                AlertTone.WARNING,
+                "Pesagem atrasada",
+                "1 gaiola sem pesagem há mais de 7 dias, bateria B.",
+                new AlertTarget(null, null, null)));
+    }
+
+    @Test
+    @DisplayName("gives no weighing alert with every active cage weighed in the week")
+    void givenEveryCageWeighedInTheWeek_whenReadingOnFridayAndSunday_thenGiveNoWeighingAlert() {
+        // given
+        List<CageWatch> cages = List.of(weighedOn("A-01", "2026-09-19"), weighedOn("B-07", "2026-09-25"));
+
+        // when
+        List<DashboardAlert> onFriday = weighingAlerts(FRIDAY, FRIDAYS, cages);
+        List<DashboardAlert> onSunday = weighingAlerts(SUNDAY, FRIDAYS, cages);
+
+        // then
+        assertThat(onFriday).isEmpty();
+        assertThat(onSunday).isEmpty();
+    }
+
+    @Test
+    @DisplayName("gives no weighing alert without the schedule of the sector, as in an inactive sector")
+    void givenNoSchedule_whenReadingWithCagesWithoutWeighing_thenGiveNoWeighingAlert() {
+        // given
+        List<CageWatch> cages = galpaoUm();
+
+        // when
+        List<DashboardAlert> alerts = weighingAlerts(SUNDAY, null, cages);
+
+        // then
+        assertThat(alerts).isEmpty();
+    }
+
+    @Test
+    @DisplayName("puts the weighing alert after the weight out of range, as the last one")
+    void givenWeightOutOfRangeAndLateWeighing_whenReadingOnSunday_thenPutTheWeighingAlertLast() {
+        // given
+        CageWatch a02 = new CageWatch(
+                UUID.randomUUID(), "A-02", 0, 135, 150, 3, LocalDate.of(2026, 9, 24), new BigDecimal("140"));
+        CageWatch b07 = weighedOn("B-07", null);
+        CageWatchReading reading =
+                new CageWatchReading(List.of(a02, b07), new ReferenceWeight(155, 175), new MortalityBaseline(0, 0), FRIDAYS);
+
+        // when
+        List<DashboardAlert> alerts = DashboardAlerts.of(SUNDAY, completeToday(), reading, EIGHTY_FIVE);
+
+        // then
+        assertThat(alerts)
+                .extracting(DashboardAlert::kind)
+                .containsExactly(AlertKind.WEIGHT_OUT_OF_RANGE, AlertKind.WEIGHING_LATE);
     }
 }

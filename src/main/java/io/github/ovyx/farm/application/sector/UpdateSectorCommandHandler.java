@@ -38,6 +38,7 @@ public class UpdateSectorCommandHandler implements CommandHandler<UpdateSectorCo
                     command.minimumWeight(),
                     command.maximumWeight(),
                     command.layingRateTarget(),
+                    command.weighingDay(),
                     sectorRepository,
                     clock);
         } catch (DomainException refusal) {

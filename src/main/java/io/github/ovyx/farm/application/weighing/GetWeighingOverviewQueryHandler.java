@@ -1,5 +1,6 @@
 package io.github.ovyx.farm.application.weighing;
 
+import io.github.ovyx.shared.application.FarmCalendar;
 import io.github.ovyx.farm.application.common.FarmRefusals;
 import io.github.ovyx.farm.domain.model.CageId;
 import io.github.ovyx.farm.domain.model.SectorId;
@@ -14,9 +15,11 @@ import java.util.Optional;
 public class GetWeighingOverviewQueryHandler implements QueryHandler<GetWeighingOverviewQuery, WeighingOverview> {
 
     private final WeighingDirectory directory;
+    private final FarmCalendar calendar;
 
-    public GetWeighingOverviewQueryHandler(WeighingDirectory directory) {
+    public GetWeighingOverviewQueryHandler(WeighingDirectory directory, FarmCalendar calendar) {
         this.directory = directory;
+        this.calendar = calendar;
     }
 
     @Override
@@ -30,6 +33,7 @@ public class GetWeighingOverviewQueryHandler implements QueryHandler<GetWeighing
         if (cage.isEmpty()) {
             return Result.failure(FarmRefusals.cageNotFound());
         }
-        return Result.success(WeighingOverview.of(cage.get(), sector.get(), directory.weighingsOf(cage.get().id())));
+        return Result.success(WeighingOverview.of(
+                cage.get(), sector.get(), directory.weighingsOf(cage.get().id()), calendar.today()));
     }
 }

@@ -1,5 +1,7 @@
 package io.github.ovyx.farm.integration;
 
+import java.time.DayOfWeek;
+import io.github.ovyx.farm.domain.valueobject.WeighingDay;
 import static io.github.ovyx.farm.domain.model.SectorTestDataBuilder.aUniqueSector;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -98,7 +100,7 @@ class SectorRepositoryIT extends IntegrationTestSupport {
         Sector sector = saved(aUniqueSector().withRoster(repository).withClock(clock).build());
         long before = (long) rowOf(sector.id()).get("version");
         Sector loaded = repository.findById(sector.id()).orElseThrow();
-        loaded.update(loaded.name().value() + " (norte)", null, null, null, "85", repository, clock);
+        loaded.update(loaded.name().value() + " (norte)", null, null, null, "85", null, repository, clock);
 
         // when
         repository.save(loaded);
@@ -242,7 +244,7 @@ class SectorRepositoryIT extends IntegrationTestSupport {
 
         // when
         Sector read = repository.findById(sector.id()).orElseThrow();
-        read.update(read.name().value(), null, null, null, "85", repository, clock);
+        read.update(read.name().value(), null, null, null, "85", null, repository, clock);
         repository.save(read);
 
         // then
@@ -280,7 +282,7 @@ class SectorRepositoryIT extends IntegrationTestSupport {
         // given
         Sector sector = saved(aUniqueSector().withRoster(repository).withClock(clock).build());
         Sector loaded = repository.findById(sector.id()).orElseThrow();
-        loaded.update(loaded.name().value(), null, null, null, "72", repository, clock);
+        loaded.update(loaded.name().value(), null, null, null, "72", null, repository, clock);
 
         // when
         repository.save(loaded);
@@ -298,12 +300,68 @@ class SectorRepositoryIT extends IntegrationTestSupport {
         long before = (long) rowOf(sector.id()).get("version");
         Sector loaded = repository.findById(sector.id()).orElseThrow();
         loaded.update(loaded.name().value(), loaded.description().map(SectorDescription::value).orElse(null), null, null,
-                "72", repository, clock);
+                "72", null, repository, clock);
 
         // when
         repository.save(loaded);
 
         // then
         assertThat((long) rowOf(sector.id()).get("version")).isEqualTo(before + 1);
+    }
+
+    // ---------------------------------------------------------------- dia da pesagem (010)
+
+    @Test
+    @DisplayName("saves the weighing day, reads it back and takes it away")
+    void givenSectorWeighedOnFridays_whenSavingReadingAndClearing_thenKeepAndClearTheDay() {
+        // given
+        Sector sector = saved(aUniqueSector().withWeighingDay("FRIDAY").withRoster(repository).withClock(clock).build());
+
+        // when
+        Sector read = repository.findById(sector.id()).orElseThrow();
+        String stored = jdbc.queryForObject(
+                "select weighing_day from sector where id = ?", String.class, sector.id().value());
+        read.update(read.name().value(), null, null, null, "85", null, repository, clock);
+        repository.save(read);
+
+        // then
+        assertThat(read.weighingDay()).isEmpty();
+        assertThat(stored).isEqualTo("FRIDAY");
+        assertThat(repository.findById(sector.id()).orElseThrow().weighingDay()).isEmpty();
+        assertThat(jdbc.queryForObject("select weighing_day from sector where id = ?", String.class, sector.id().value()))
+                .isNull();
+    }
+
+    @Test
+    @DisplayName("reads back the weighing day it saved")
+    void givenSectorWeighedOnSaturdays_whenSavingAndReadingBack_thenFindSaturday() {
+        // given
+        Sector sector = saved(aUniqueSector().withWeighingDay("saturday").withRoster(repository).withClock(clock).build());
+
+        // when
+        Sector read = repository.findById(sector.id()).orElseThrow();
+
+        // then
+        assertThat(read.weighingDay()).map(WeighingDay::value).contains(DayOfWeek.SATURDAY);
+    }
+
+    @Test
+    @DisplayName("raises the version once when only the weighing day changes, even at the same instant")
+    void givenSavedSector_whenOnlyTheWeighingDayChangesAtTheSameInstant_thenRaiseTheVersionOnce() {
+        // given
+        Sector sector = saved(aUniqueSector().withRoster(repository).withClock(clock).build());
+        long before = (long) rowOf(sector.id()).get("version");
+        Sector loaded = repository.findById(sector.id()).orElseThrow();
+        loaded.update(loaded.name().value(), loaded.description().map(SectorDescription::value).orElse(null), null, null,
+                "85", "FRIDAY", repository, clock);
+
+        // when
+        repository.save(loaded);
+
+        // then
+        assertThat((long) rowOf(sector.id()).get("version")).isEqualTo(before + 1);
+        assertThat(jdbc.queryForObject(
+                        "select weighing_day from sector where id = ?", String.class, sector.id().value()))
+                .isEqualTo("FRIDAY");
     }
 }

@@ -7,6 +7,7 @@ import io.github.ovyx.farm.domain.model.SectorId;
 import io.github.ovyx.farm.domain.model.Status;
 import io.github.ovyx.shared.application.Result;
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -25,7 +26,7 @@ class ListSectorsQueryHandlerTest {
     void givenNoStatus_whenListing_thenAskForTheActiveSectors() {
         // given
         SectorSummary galpao = new SectorSummary(
-                SectorId.generate(), "Codornas — Galpão 1", null, Status.ACTIVE, 48, 2400, null, new BigDecimal("72.0"));
+                SectorId.generate(), "Codornas — Galpão 1", null, Status.ACTIVE, 48, 2400, null, new BigDecimal("72.0"), DayOfWeek.FRIDAY);
         directory.listing(galpao);
 
         // when
